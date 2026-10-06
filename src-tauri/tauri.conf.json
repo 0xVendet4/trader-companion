@@ -53,7 +53,7 @@
     "licenseFile": "../LICENSE",
     "category": "Finance",
     "shortDescription": "A mascot at the top of your screen that watches your memecoins",
-    "longDescription": "Trader Companion puts a mascot at the top of your screen: a Solana memecoin watchlist, price, market cap and liquidity alerts, and discipline reminders. It only reads public data (DexScreener) and never touches your wallet or private key. Not financial advice.",
+    "longDescription": "Trader Companion puts a mascot at the top of your screen: a memecoin watchlist for Solana, BSC, Ethereum and Robinhood Chain, price, market cap and liquidity alerts, and discipline reminders. It only reads public data (DexScreener) and never touches your wallet or private key. Not financial advice.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

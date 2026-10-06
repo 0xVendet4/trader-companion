@@ -1,7 +1,7 @@
 # Trader Companion — guide for AI coding agents
 
 Windows-only Tauri 2 app: a mascot in a black "island" at the top of the screen
-that watches Solana memecoins (DexScreener), fires alerts and enforces the
+that watches memecoins on Solana, BSC, Ethereum and Robinhood Chain (DexScreener; wallets on Solana only), fires alerts and enforces the
 trader's own discipline rules. Rust in `src-tauri/`, TypeScript in `src/` (no
 framework). UI text is English.
 

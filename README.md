@@ -1,7 +1,7 @@
 # Trader Companion
 
 A tiny mascot that lives at the top of your Windows screen and keeps an eye on
-your Solana memecoins.
+your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
 
 - **Watchlist ticker** — market cap, volume and buys / sells (5m, 1h, 6h or
   24h, as GMGN shows them) and 5m / 1h / 24h change, always in view; click to
@@ -9,7 +9,7 @@ your Solana memecoins.
   Folders (Runners, Holds, Watching, your own) sort the list. GMGN links carry
   the developer's referral code; with Axiom picked, the settings offer the
   developer's Axiom invite for a new account.
-- **My wallet** — add your own wallet (public address only): its SOL and
+- **My wallet** — add your own Solana wallet (public address only): its SOL and
   value show at once, its recent trades are read from its last 50
   transactions (round trips that closed go into your journal), and from then
   on its buys and sells are recorded, with value, average entry (from its own

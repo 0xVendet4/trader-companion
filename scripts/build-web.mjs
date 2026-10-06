@@ -71,7 +71,7 @@ mkdirSync(join(OUT, "api"), { recursive: true });
 copyFileSync(join(ROOT, "web", "api", "rpc.js"), join(OUT, "api", "rpc.js"));
 
 const site = process.env.SITE_URL?.replace(/\/$/, "");
-const description = "A tiny mascot at the top of your screen that watches your Solana memecoins: live ticker, alerts, discipline reminders.";
+const description = "A tiny mascot at the top of your screen that watches your memecoins (Solana, BSC, Ethereum, Robinhood Chain): live ticker, alerts, discipline reminders.";
 
 function addHead(file, title, path) {
   const tags = [
