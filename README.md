@@ -6,9 +6,7 @@ your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
 - **Watchlist ticker** — market cap, volume and buys / sells (5m, 1h, 6h or
   24h, as GMGN shows them) and 5m / 1h / 24h change, always in view; click to
   open the full list, click a token to open it on GMGN, Axiom or DexScreener.
-  Folders (Runners, Holds, Watching, your own) sort the list. GMGN links carry
-  the developer's referral code; with Axiom picked, the settings offer the
-  developer's Axiom invite for a new account.
+  Folders (Runners, Holds, Watching, your own) sort the list.
 - **My wallet** — add your own Solana wallet (public address only): its SOL and
   value show at once, its recent trades are read from its last 50
   transactions (round trips that closed go into your journal), and from then
@@ -16,7 +14,9 @@ your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
   transactions), profit and multiple per token. Each check reads its new
   transactions too, so a token bought and sold within the same minute still
   shows, at the price it really traded at. Alerts at the levels you pick
-  (2x, −30%…).
+  (2x, −30%…). Junk is left out: airdropped scams (a name that advertises a
+  site) and coins worth more, at their quoted price, than all the real money
+  in their pool — a wallet full of them looks rich and can sell none of it.
 - **Solana, BSC, Ethereum and Robinhood Chain** — pick one, several or all for
   search, trending and the header prices (SOL, BNB, ETH), plus BTC and the
   crypto Fear & Greed index.
@@ -176,8 +176,7 @@ It talks only to public services, for public data:
 
 Each of these services sees your IP address, as with any website. Links you
 click open in your browser (GMGN, Axiom, DexScreener, RugCheck, Solscan,
-GitHub, and Helius or Alchemy for a free RPC key); GMGN links carry the
-developer's referral code.
+GitHub, and Helius or Alchemy for a free RPC key).
 
 ## Code signing policy
 

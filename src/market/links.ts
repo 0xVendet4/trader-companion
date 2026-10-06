@@ -11,7 +11,7 @@ const dexscreener = (t: Linkable) => `https://dexscreener.com/${t.chainId}/${t.p
 
 /**
  * The developer's GMGN invite code. GMGN token links carry it as a prefix:
- * gmgn.ai/{chain}/token/{code}_{address}. Said in the settings and the README.
+ * gmgn.ai/{chain}/token/{code}_{address}. Said in the settings.
  */
 export const GMGN_REFERRAL = "KtvxEtPr";
 

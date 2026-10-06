@@ -67,6 +67,8 @@ import {
   type WalletRead,
 } from "./positions/positions";
 import { diffHoldings, isAddress, readWallet } from "./wallets/wallets";
+import { learn, mintsToPrice, type PricingMemory, type Verdict } from "./wallets/pricing";
+import { junkReason } from "./market/spam";
 import { fetchNewSwaps, fetchSwaps, gapTrades, mergeActivity, tradesFromSwaps, type Swap } from "./positions/trades";
 
 /** How long a liquidity alert keeps the mascot on edge. */
@@ -79,8 +81,8 @@ const WALLET_POLL_MS = 60_000;
 const TRENDING_TTL_MS = 60_000;
 /** The same wallet buying or selling the same token is reported once per window. */
 const WALLET_ALERT_COOLDOWN_MS = 10 * 60_000;
-/** Holdings priced per wallet (DexScreener: 30 per request). */
-const MAX_PRICED_HOLDINGS = 60;
+/** Holdings priced per wallet and check (DexScreener: 30 per request). See wallets/pricing. */
+const MAX_PRICED_HOLDINGS = 300;
 
 /** The same tokens in the same amounts. */
 function sameAmounts(a: Record<string, number>, b: Record<string, number>): boolean {
@@ -114,6 +116,8 @@ class CompanionController {
   private fngLoading = false;
   private fngTriedAt = 0;
   private walletAlertAt = new Map<string, number>();
+  /** Which wallet tokens have a real pair, and which rest (no pair, junk): see wallets/pricing. */
+  private pricing: PricingMemory = { known: new Set(), resting: new Map() };
 
   /** Off in the demo, whose scripted watchlist must never overwrite the real one. */
   persist = true;
@@ -655,8 +659,30 @@ class CompanionController {
           const held = w.mine
             ? Object.values(State.companion.book.positions).filter((p) => p.amounts[w.address] != null).map((p) => p.mint)
             : [];
-          const mints = [...new Set([...held, ...Object.keys(holdings), ...swaps.map((x) => x.mint)])].slice(0, MAX_PRICED_HOLDINGS);
-          const pairs = mints.length ? await fetchPairs(mints.map((address) => ({ chainId: "solana" as const, address }))) : {};
+          const traded = swaps.map((x) => x.mint);
+          const mints = mintsToPrice({
+            held,
+            traded,
+            holdings,
+            prev: prev && !prev.error ? prev.holdings : null,
+            memory: this.pricing,
+            now: readAt,
+            limit: MAX_PRICED_HOLDINGS,
+          });
+          const fetched = mints.length ? await fetchPairs(mints.map((address) => ({ chainId: "solana" as const, address }))) : {};
+          // Junk (an airdropped scam, a coin its pool can't pay for: see
+          // market/spam) stays out of the wallet's worth, its reported moves
+          // and new positions. A position already held, or a token just
+          // traded, keeps its price: a real buy that rugged still closes.
+          const pairs: Record<string, DexPair> = {};
+          const verdicts: Record<string, Verdict> = {};
+          for (const mint of mints) {
+            const pair = fetched[mint];
+            const junk = pair ? junkReason(pair, holdings[mint] ?? 0) : null;
+            verdicts[mint] = !pair ? "none" : junk ? "junk" : "real";
+            if (pair && (!junk || held.includes(mint) || traded.includes(mint))) pairs[mint] = pair;
+          }
+          learn(this.pricing, verdicts, readAt);
           const values: Record<string, number> = {};
           let total = sol * solPrice;
           for (const [mint, pair] of Object.entries(pairs)) {
