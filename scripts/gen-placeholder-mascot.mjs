@@ -191,26 +191,28 @@ ${extra.includes("STOP") ? extra : ""}
 `;
 }
 
-// name → art; states below reference these by file name. Every mood keeps
-// the same body colour (the trader's pick tints it, see src/mascot/skins.ts):
-// the face, brows, sweat and effects tell how it feels.
+// name → art; states below reference these by file name. Candy is a candle:
+// green, and red on a loss (worried, shocked, sad, stop). The trader's colour
+// pick tints the green moods (see src/mascot/skins.ts); the red ones are
+// `tint: false` and stay red under any colour. The face, brows, sweat and
+// effects tell the rest.
 const FRAMES = {
   "idle.svg": { palette: "green", eyes: "open", mouth: "smile" },
   "happy.svg": { palette: "green", eyes: "happy", mouth: "grin", cheeks: 0.85 },
   "celebrate-1.svg": { palette: "green", eyes: "stars", mouth: "grin", cheeks: 0.85, extras: ["armsUpA"] },
   "celebrate-2.svg": { palette: "green", eyes: "stars", mouth: "grin", cheeks: 0.85, extras: ["armsUpB"] },
-  "worried.svg": { palette: "green", eyes: "open", brows: "worried", mouth: "wavy", extras: ["sweat"] },
-  "shocked.svg": { palette: "green", eyes: "wide", brows: "worried", mouth: "o" },
+  "worried.svg": { palette: "red", eyes: "open", brows: "worried", mouth: "wavy", extras: ["sweat"] },
+  "shocked.svg": { palette: "red", eyes: "wide", brows: "worried", mouth: "o" },
   "sleepy.svg": { palette: "sleepy", eyes: "closed", mouth: "smallO", cheeks: 0.35 },
   "alert.svg": { palette: "green", eyes: "wide", mouth: "smallO" },
   "tired.svg": { palette: "sleepy", eyes: "half", mouth: "flat", cheeks: 0.3, extras: ["sweat"] },
-  "stop.svg": { palette: "green", eyes: "open", brows: "stern", mouth: "flat", extras: ["stopSign"] },
+  "stop.svg": { palette: "red", eyes: "open", brows: "stern", mouth: "flat", extras: ["stopSign"] },
   "confused.svg": { palette: "green", eyes: "dots", mouth: "wavy", cheeks: 0.3 },
   "love.svg": { palette: "green", eyes: "hearts", mouth: "smile", cheeks: 0.9 },
   "wave-1.svg": { palette: "green", eyes: "happy", mouth: "grin", cheeks: 0.85, extras: ["waveA"] },
   "wave-2.svg": { palette: "green", eyes: "happy", mouth: "grin", cheeks: 0.85, extras: ["waveB"] },
   "proud.svg": { palette: "green", eyes: "smug", mouth: "smirk", cheeks: 0.8 },
-  "sad.svg": { palette: "green", eyes: "open", brows: "worried", mouth: "frown", cheeks: 0.3, extras: ["tear"] },
+  "sad.svg": { palette: "red", eyes: "open", brows: "worried", mouth: "frown", cheeks: 0.3, extras: ["tear"] },
   "bored.svg": { palette: "green", eyes: "half", brows: "flat", mouth: "short", cheeks: 0.25 },
   "focused.svg": { palette: "green", eyes: "narrow", brows: "stern", mouth: "short", cheeks: 0.4 },
   "nervous.svg": { palette: "green", eyes: "wide", brows: "worried", mouth: "grit", cheeks: 0.3, extras: ["sweat2"] },
@@ -594,17 +596,17 @@ const MANIFEST = {
     idle: { frames: ["idle.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "breathe" },
     happy: { frames: ["happy.svg"], eyes: "eyes/happy.svg", motion: "breathe" },
     celebrate: { frames: ["celebrate-1.svg", "celebrate-2.svg"], eyes: "eyes/stars.svg", fps: 4, motion: "bounce", fx: "sparkles" },
-    worried: { frames: ["worried.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "sway" },
-    shocked: { frames: ["shocked.svg"], eyes: "eyes/wide.svg", motion: "shake" },
+    worried: { frames: ["worried.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "sway", tint: false },
+    shocked: { frames: ["shocked.svg"], eyes: "eyes/wide.svg", motion: "shake", tint: false },
     sleepy: { frames: ["sleepy.svg"], motion: "droop", fx: "zzz" },
     alert: { frames: ["alert.svg"], eyes: "eyes/wide.svg", motion: "jump", fx: "bang" },
     tired: { frames: ["tired.svg"], motion: "droop" },
-    stop: { frames: ["stop.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "breathe" },
+    stop: { frames: ["stop.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "breathe", tint: false },
     confused: { frames: ["confused.svg"], eyes: "eyes/dots.svg", motion: "sway", fx: "question" },
     love: { frames: ["love.svg"], eyes: "eyes/hearts.svg", motion: "breathe", fx: "hearts" },
     wave: { frames: ["wave-1.svg", "wave-2.svg"], eyes: "eyes/happy.svg", fps: 3, motion: "breathe" },
     proud: { frames: ["proud.svg"], motion: "bounce", fx: "sparkles" },
-    sad: { frames: ["sad.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "droop" },
+    sad: { frames: ["sad.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "droop", tint: false },
     bored: { frames: ["bored.svg"], motion: "sway", fx: "dots" },
     focused: { frames: ["focused.svg"], eyes: "eyes/narrow.svg", motion: "none" },
     nervous: { frames: ["nervous.svg"], eyes: "eyes/wide.svg", motion: "jitter" },

@@ -58,6 +58,7 @@ export const ICONS = {
   folder: "M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z",
   // Where the island sits (stroke): the screen, with the island's edge marked,
   // or a window popped out for a floating one.
+  minimize: "M6 12h12",
   dockTop: "M4 5h16v14H4z M4 10h16",
   dockLeft: "M4 5h16v14H4z M10 5v14",
   dockRight: "M4 5h16v14H4z M14 5v14",

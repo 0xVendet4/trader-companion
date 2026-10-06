@@ -1,4 +1,4 @@
-// Trader Companion for Windows — app wiring and the commands the pages call.
+// Candy (Trader Companion) for Windows — app wiring and the commands the pages call.
 //
 // The window shell (island placement, click-through, wake strip, settings
 // window) comes from Coucou for Windows (MIT, © Louis Raillé). Everything the
@@ -585,7 +585,7 @@ fn create_settings_window(app: &AppHandle) {
     let url = settings_page_url(app);
     match WebviewWindowBuilder::new(app, "settings", url)
         .additional_browser_args(BROWSER_ARGS)
-        .title("Settings — Trader Companion")
+        .title("Settings — Candy")
         .inner_size(600.0, 720.0)
         .min_inner_size(480.0, 500.0)
         .resizable(true)
@@ -668,11 +668,20 @@ pub fn run() {
             gate.set_active(true);
             island::spawn_cursor_poll(handle.clone(), gate.clone());
 
-            log::line(format!("--- Trader Companion {} started ---", env!("CARGO_PKG_VERSION")));
+            // "Start with Windows" is registered under the app's name and path:
+            // registered again on every start, so it survives a rename or a move
+            // (Trader Companion became Candy in 0.1.1).
+            if loaded.autostart {
+                if let Err(err) = handle.autolaunch().enable() {
+                    log::line(format!("autostart: {err}"));
+                }
+            }
+
+            log::line(format!("--- Candy {} started ---", env!("CARGO_PKG_VERSION")));
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running Trader Companion");
+        .expect("error while running Candy");
 }
 
 #[cfg(test)]

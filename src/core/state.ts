@@ -618,6 +618,8 @@ type Listener = () => void;
 
 class AppState {
   mode: IslandMode = "hidden";
+  /** Minimized from the header: stays hidden, the mouse doesn't bring it back (see Island.minimize). */
+  minimized = false;
   view: IslandViewName = "watchlist";
 
   settings: Settings = normalizeSettings(null);

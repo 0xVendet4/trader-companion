@@ -1,7 +1,12 @@
-# Trader Companion
+# Candy — Trader Companion
 
 A tiny mascot that lives at the top of your Windows screen and keeps an eye on
 your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
+
+### [⬇ Download Candy for Windows](https://github.com/0xVendett4/trader-companion/releases/latest/download/Candy-Windows-setup.exe)
+
+Free and open source. Windows will warn you the first time: see
+[Download](#download) for why, and how to check the file.
 
 - **Watchlist ticker** — market cap, volume and buys / sells (5m, 1h, 6h or
   24h, as GMGN shows them) and 5m / 1h / 24h change, always in view; click to
@@ -28,8 +33,10 @@ your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
   mascot reacts, a sound plays, the island opens.
 - **Discipline** — your own rules: a daily loss limit, a max number of trades,
   a cooldown after a loss, and break reminders.
-- **A mascot with moods** — Candy is happy when the watchlist is green,
-  worried when it's red, bored when nothing moves, asleep late at night,
+- **A mascot with moods** — Candy is a candle: it wears your colour (green
+  by default) and turns red on a loss, whatever colour you picked. It is
+  happy when the watchlist is green, worried when it's red, bored when
+  nothing moves, asleep late at night,
   sick in a rough hour, focused on a volume spike, dizzy in a whipsaw,
   nervous in extreme fear and excited in extreme greed, proud of a win or a
   break, sad after a loss, angry past your trade cap, relieved when a cooldown
@@ -52,18 +59,20 @@ your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
 - **Share my day** — a recap image (trades, PnL, positions, discipline) with
   Candy, ready for X or Telegram; amounts can be hidden.
 - **Quick actions** — mini 24 h chart per token, copy the CA, one-click 2x
-  alert, share your watchlist as a link, a show/hide shortcut, system
+  alert, share your watchlist as a list of addresses, a show/hide shortcut and a
+  minimize button (the shortcut or the tray icon brings Candy back), system
   notifications.
 
-*Trader Companion is a provisional name; the mascot art is a placeholder.*
+*The mascot art is a placeholder.*
 
 Hold **Ctrl** over the island to click whatever is behind it (a browser tab, a
 title bar); it fades while the clicks go through.
 
 ## Download
 
-Get the Windows installer from
-[Releases](https://github.com/0xVendett4/trader-companion/releases).
+[Download the installer](https://github.com/0xVendett4/trader-companion/releases/latest/download/Candy-Windows-setup.exe) (always the newest version), or pick a
+version on the [Releases](https://github.com/0xVendett4/trader-companion/releases)
+page.
 
 **The installer is not code-signed yet** (see
 [Code signing policy](#code-signing-policy)), so the first time you run it
@@ -75,7 +84,7 @@ Run anyway**. Before you do:
   on GitHub's own machines; no installer is uploaded by hand.
 - Check the file: in PowerShell, `Get-FileHash <the installer>` must print the
   SHA-256 written in the release notes.
-- Trader Companion never asks for a wallet, a seed phrase or a private key.
+- Candy never asks for a wallet, a seed phrase or a private key.
   An installer or a site that does is not this app.
 
 ## Safety
@@ -152,7 +161,7 @@ It drives a headless Microsoft Edge; no ffmpeg needed.
 
 ## Privacy
 
-Trader Companion has no account, no analytics and no telemetry. It keeps
+Candy has no account, no analytics and no telemetry. It keeps
 everything on your PC: settings, watchlist, journal and wallet book in
 `%APPDATA%\TraderCompanion`, a log in `%LOCALAPPDATA%\TraderCompanion`.
 

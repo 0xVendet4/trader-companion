@@ -6,7 +6,7 @@
 //
 //   npm run pack:edition -- <id>
 //
-// → release/TraderCompanion-Windows-<version>-<id>-setup.exe. Needs what
+// → release/Candy-Windows-<version>-<id>-setup.exe. Needs what
 // `npm run pack` needs (Rust with the MSVC toolchain, the VS Build Tools).
 
 import { spawnSync } from "node:child_process";
@@ -55,6 +55,6 @@ if (!built) {
 }
 const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
 mkdirSync(join(root, "release"), { recursive: true });
-const dest = join(root, "release", `TraderCompanion-Windows-${version}-${id}-setup.exe`);
+const dest = join(root, "release", `Candy-Windows-${version}-${id}-setup.exe`);
 copyFileSync(built, dest);
 console.log(`\n  ${costume.name} edition ready: ${dest}\n`);

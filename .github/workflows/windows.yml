@@ -87,8 +87,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TraderCompanion-Windows-setup
-          path: release/TraderCompanion-Windows-${{ steps.pack.outputs.version }}-setup.exe
+          name: Candy-Windows-setup
+          path: release/Candy-Windows-${{ steps.pack.outputs.version }}-setup.exe
           retention-days: 7
 
       - name: Publish the release
@@ -98,16 +98,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $v = "${{ steps.pack.outputs.version }}"
-          $file = "release/TraderCompanion-Windows-$v-setup.exe"
+          $file = "release/Candy-Windows-$v-setup.exe"
+          # The same installer under a name that never changes, so
+          # releases/latest/download/Candy-Windows-setup.exe is always the newest.
+          $latest = "release/Candy-Windows-setup.exe"
           $sha = (Get-FileHash $file -Algorithm SHA256).Hash
           $repo = "https://github.com/${{ github.repository }}"
           $notes = @(
-            "Trader Companion $v for Windows. Reads public market data only; never asks for a wallet, a seed phrase or a private key, and cannot trade.",
+            "Candy — Trader Companion $v for Windows. Reads public market data only; never asks for a wallet, a seed phrase or a private key, and cannot trade.",
             "",
             "**This installer is not code-signed yet**: Windows SmartScreen will say ""Windows protected your PC"". Click **More info → Run anyway**. Signing is free through SignPath Foundation once they approve the project: $repo#code-signing-policy",
             "",
             "Built from this repository by the Windows workflow on GitHub's machines; nothing here was uploaded by hand. Check the file before running it: ``Get-FileHash <the installer>`` in PowerShell must print",
             "",
-            "SHA-256: ``$sha``"
+            "SHA-256: ``$sha``",
+            "",
+            "(Candy-Windows-setup.exe is the same file, under the name the README's download link uses.)"
           ) -join "`n"
-          gh release create "${{ github.ref_name }}" $file --title "Trader Companion $v" --notes $notes
+          gh release create "${{ github.ref_name }}" $file $latest --title "Candy — Trader Companion $v" --notes $notes

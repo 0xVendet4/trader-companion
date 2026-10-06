@@ -19,7 +19,7 @@ const packages = [
   {
     dir: "nsis",
     suffix: "-setup.exe",
-    names: [`TraderCompanion-Windows-${version}-setup.exe`, "TraderCompanion-Windows-setup.exe"],
+    names: [`Candy-Windows-${version}-setup.exe`, "Candy-Windows-setup.exe"],
   },
 ];
 

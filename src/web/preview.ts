@@ -19,7 +19,7 @@ export function setupPreview(root: HTMLElement) {
     "div",
     { id: "web-intro" },
     h("p", { class: "rotate", text: "Turn your phone sideways to see it full size." }),
-    h("h1", { text: "Trader Companion — live preview" }),
+    h("h1", { text: "Candy — live preview" }),
     h(
       "p",
       {},

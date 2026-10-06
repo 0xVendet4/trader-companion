@@ -4,8 +4,7 @@
 
 import { Tracked, Spring } from "../core/anim";
 import { Bridge, IS_TAURI, copyImage } from "../core/bridge";
-import { APP_NAME, MASCOT_NAME } from "../core/brand";
-import { SHARE_BASE } from "../core/share";
+import { FULL_NAME } from "../core/brand";
 import { applyTheme } from "../core/themes";
 import { currentLog, summarize, todayKey } from "../discipline/discipline";
 import { AWAY_MS, SNAPSHOT_EVERY_MS, awaySummary, type Snapshot } from "../away/away";
@@ -233,6 +232,7 @@ export class Island {
       relayout: () => this.animateGeometry(),
       shareDay: () => this.shareDay(),
       applyLook: () => this.applySettings(),
+      minimize: () => this.minimize(),
     };
 
     this.wakeStrip = h("div", { id: "wake-strip" });
@@ -294,7 +294,7 @@ export class Island {
         topMover,
         fearGreed: c.headerMarket && State.fearGreed ? { value: State.fearGreed.value, label: State.fearGreed.label } : null,
       },
-      `${MASCOT_NAME} · ${APP_NAME}`,
+      FULL_NAME,
     );
     const png = await drawRecapCard(
       recap,
@@ -304,7 +304,7 @@ export class Island {
         hat: accessory(this.manifest, "outfits", this.look().hat),
         face: accessory(this.manifest, "faces", this.look().face),
       },
-      SHARE_BASE,
+      FULL_NAME,
     );
     const copied = await copyImage(png);
     this.feel("cool", "looking good 😎");
@@ -384,6 +384,7 @@ export class Island {
   }
 
   setView(view: IslandViewName) {
+    State.minimized = false;
     if (TAB_VIEWS.has(view) && view !== "wardrobe") State.lastTab = view;
     if (State.mode !== "expanded") {
       State.view = view;
@@ -411,6 +412,9 @@ export class Island {
   /** A fired alert or a reminder: open on the event card. */
   showEvent(e: CompanionEvent) {
     const r = reactionFor(e);
+    // Minimized: it waits in the queue, and shows when Candy comes back (and
+    // as a Windows notification, when those are on).
+    if (State.minimized) return;
     // A card already up just counts one more in its queue.
     if (State.mode === "expanded" && State.view === "event") {
       Sound.play("blip");
@@ -442,7 +446,19 @@ export class Island {
   }
 
   reveal() {
+    if (State.minimized) return;
     this.fsm.reveal();
+  }
+
+  /**
+   * The header's minimize button: out of the way, even with the ticker kept on
+   * screen, and the mouse at the screen's edge doesn't bring it back. The
+   * show/hide shortcut, or Open in the tray, does (see toggle, setView).
+   */
+  minimize() {
+    State.minimized = true;
+    this.fsm.pinned = false;
+    this.fsm.forceHidden();
   }
 
   /** A press outside the island: fold it back into the ticker. */
@@ -457,6 +473,7 @@ export class Island {
   /** The show/hide shortcut: opens the island, or folds it back. */
   toggle() {
     Sound.resume();
+    State.minimized = false;
     if (State.mode === "expanded") this.collapse();
     else {
       this.fsm.forceHome();
@@ -479,7 +496,7 @@ export class Island {
     // A floating island has no edge to hide behind: its ticker always stays.
     const stays = State.companion.keepTickerVisible || this.placement() === "float";
     this.fsm.petitToHiddenDelay = stays ? Infinity : 60;
-    if (stays && this.fsm.state === "hidden") this.fsm.reveal();
+    if (stays && this.fsm.state === "hidden") this.reveal();
     this.applyPlacement();
     State.notify();
   }
@@ -674,7 +691,7 @@ export class Island {
   private wireInput() {
     this.wakeStrip.addEventListener("mouseenter", () => {
       Sound.resume();
-      if (State.mode === "hidden") this.fsm.mouseEntered();
+      if (State.mode === "hidden" && !State.minimized) this.fsm.mouseEntered();
     });
 
     this.islandEl.addEventListener("mousedown", (e) => {
@@ -746,7 +763,7 @@ export class Island {
       // The trader came to look: the ticker can let go of the last alert. A
       // card that folded away while nobody was there does not count as seen.
       State.unseen = null;
-      this.fsm.mouseEntered();
+      if (!State.minimized) this.fsm.mouseEntered();
     }
     if (!inIsland && this.wasInIsland) this.fsm.mouseLeft();
     this.wasInIsland = inIsland;

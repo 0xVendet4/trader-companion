@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { JournalEntry, Quote } from "./core/state";
 import { matches } from "./core/hotkey";
-import { parseShared, shareUrl } from "./core/share";
+import { parseShared, shareText } from "./core/share";
 import { journalCsv, weekStats } from "./discipline/discipline";
 import { toSafety } from "./market/safety";
 import { sparkPath, sparkSeries } from "./market/sparkline";
@@ -70,10 +70,14 @@ describe("diffHoldings", () => {
 });
 
 describe("share links", () => {
-  it("round-trips a watchlist through a link", () => {
-    const url = shareUrl([BONK, WIF], "https://example.vercel.app/");
-    expect(url).toBe(`https://example.vercel.app/?list=${BONK},${WIF}`);
-    expect(parseShared(url)).toEqual([BONK, WIF]);
+  it("round-trips a watchlist through a pasted list", () => {
+    const text = shareText([BONK, WIF]);
+    expect(text).toBe(`${BONK}, ${WIF}`);
+    expect(parseShared(text)).toEqual([BONK, WIF]);
+  });
+
+  it("still imports links shared by older versions", () => {
+    expect(parseShared(`https://example.vercel.app/?list=${BONK},${WIF}`)).toEqual([BONK, WIF]);
     expect(parseShared(`?list=${BONK}`)).toEqual([BONK]);
   });
 
@@ -168,8 +172,8 @@ describe("multichain upgrade", () => {
   it("shares tokens from other chains as chain:address", async () => {
     const { shareEntry } = await import("./core/share");
     const evm = "0xB7C0007ab75350c582d5eAb1862b872B5cF53F0C";
-    const url = shareUrl([shareEntry({ chainId: "solana", address: BONK }), shareEntry({ chainId: "bsc", address: evm })], "https://x.app");
-    expect(parseShared(url)).toEqual([BONK, `bsc:${evm}`]);
+    const text = shareText([shareEntry({ chainId: "solana", address: BONK }), shareEntry({ chainId: "bsc", address: evm })]);
+    expect(parseShared(text)).toEqual([BONK, `bsc:${evm}`]);
     expect(parseShared(`solana:${evm}, mars:${evm}`)).toEqual([]); // EVM address on Solana, unknown chain
   });
 });

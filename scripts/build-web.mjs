@@ -97,7 +97,7 @@ function addHead(file, title, path) {
   writeFileSync(file, html);
 }
 
-addHead(join(OUT, "index.html"), "Trader Companion — live preview", "/");
-addHead(join(OUT, "tour.html"), "Trader Companion — 1-minute tour", "/tour");
+addHead(join(OUT, "index.html"), "Candy — live preview", "/");
+addHead(join(OUT, "tour.html"), "Candy — 1-minute tour", "/tour");
 
 console.log(`Web preview ready: ${OUT}${site ? ` (for ${site})` : ""}`);

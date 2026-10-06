@@ -9,7 +9,7 @@
 import "../style.css";
 import "./demo.css";
 import { Companion } from "../companion";
-import { MASCOT_NAME, APP_NAME } from "../core/brand";
+import { FULL_NAME, MASCOT_NAME } from "../core/brand";
 import { Sound } from "../core/sound";
 import { State, normalizeSettings, type Quote, type WatchToken } from "../core/state";
 import { Island } from "../island/island";
@@ -196,7 +196,7 @@ function button(scope: string, label: string): HTMLElement | null {
 
 // ── Script ────────────────────────────────────────────────────────────────────
 
-const TITLE = `<img src="/mascot/still/idle.svg" alt=""><h1>${APP_NAME}</h1><p>A tiny friend that watches your memecoins</p>`;
+const TITLE = `<img src="/mascot/still/idle.svg" alt=""><h1>${FULL_NAME}</h1><p>A tiny friend that watches your memecoins</p>`;
 
 async function run() {
   // Scene 1 — title card (a visitor already saw it with the play button).
@@ -299,7 +299,7 @@ async function run() {
 
   // Scene 11 — end card.
   card(
-    `<img src="/mascot/still/happy.svg" alt=""><h1>${APP_NAME}</h1><p>Only public market data. Never your wallet, never your keys.</p><p class="small">for Windows · not financial advice</p>` +
+    `<img src="/mascot/still/happy.svg" alt=""><h1>${FULL_NAME}</h1><p>Only public market data. Never your wallet, never your keys.</p><p class="small">for Windows · not financial advice</p>` +
       (AUTOPLAY ? "" : `<button class="play ghost" type="button">↻ Watch again</button>`),
   );
   document.querySelector("#demo-card .play")?.addEventListener("click", () => location.reload());

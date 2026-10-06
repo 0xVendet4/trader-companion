@@ -65,7 +65,8 @@ function wrap2(ctx: CanvasRenderingContext2D, text: string, maxW: number): strin
   return [text];
 }
 
-export async function drawRecapCard(recap: Recap, look: CardLook, site: string): Promise<Blob> {
+/** The day's card. `name` signs its footer: the app's name, never a link. */
+export async function drawRecapCard(recap: Recap, look: CardLook, name: string): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = CARD_W;
   canvas.height = CARD_H;
@@ -106,7 +107,8 @@ export async function drawRecapCard(recap: Recap, look: CardLook, site: string):
   const my = 150;
   if (frame) {
     ctx.save();
-    ctx.filter = look.filter;
+    // A loss mood stays red under any colour (StateDef.tint).
+    ctx.filter = def?.tint === false ? "none" : look.filter;
     ctx.drawImage(frame, mx, my, M, M);
     ctx.restore();
   }
@@ -161,7 +163,7 @@ export async function drawRecapCard(recap: Recap, look: CardLook, site: string):
   ctx.fillStyle = "#6b7079";
   ctx.font = `600 18px ${FONT}`;
   ctx.textAlign = "right";
-  ctx.fillText(`${site.replace(/^https?:\/\//, "")} · not financial advice`, CARD_W - 60, CARD_H - 34);
+  ctx.fillText(`${name} · not financial advice`, CARD_W - 60, CARD_H - 34);
   ctx.textAlign = "left";
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't draw the card"))), "image/png"));

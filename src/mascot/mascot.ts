@@ -82,6 +82,11 @@ export interface StateDef {
   fps?: number;
   motion?: Motion;
   fx?: Fx | null;
+  /**
+   * false: the frames keep their own colours under the trader's colour pick.
+   * Candy's loss moods are red, like a candle, whatever colour it wears.
+   */
+  tint?: boolean;
 }
 
 export interface Manifest {
@@ -227,6 +232,7 @@ export class Mascot {
   private reactionMotion: Motion | null = null;
   private shown: MascotState | null = null;
   private def: StateDef | null = null;
+  private filter = "none";
   private frame = 0;
 
   private frameTimer: number | null = null;
@@ -293,7 +299,13 @@ export class Mascot {
 
   /** A CSS filter over the frames: a colour, or "none" (see skins.ts → lookFilter). */
   setFilter(filter: string) {
-    this.img.style.filter = filter;
+    this.filter = filter;
+    this.paint();
+  }
+
+  /** The colour on the frames: none on a state that keeps its own (tint: false). */
+  private paint() {
+    this.img.style.filter = this.def?.tint === false ? "none" : this.filter;
   }
 
   /** A hat over every frame (a path from the manifest), or none. */
@@ -421,6 +433,7 @@ export class Mascot {
 
     const def = resolveState(this.manifest, state);
     this.def = def;
+    this.paint();
     this.frame = 0;
     this.el.dataset.state = state;
     if (!def) {

@@ -6,6 +6,7 @@ import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { iconBtn, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
+import { IS_TAURI } from "../core/bridge";
 import { compact, formatCoin, formatDuration, formatPct, formatUsd, pctClass } from "../core/format";
 import { State, type IslandViewName, type Placement, type Quote } from "../core/state";
 import { nativeCoins } from "../market/chains";
@@ -50,6 +51,9 @@ export function buildHeader(actions: ViewActions): ViewHost {
   }, 2.2);
   const gear = iconBtn(ICONS.gear, "Settings", () => actions.openSettings());
   const sound = iconBtn(ICONS.speakerOn, "Sound", () => actions.toggleSound());
+  const minimize = iconBtn(ICONS.minimize, "Minimize: your show/hide shortcut, or Open in the tray icon, brings Candy back", () => actions.minimize(), 2.4);
+  // The website has no tray to come back from.
+  if (!IS_TAURI) minimize.style.display = "none";
 
   // Where the island sits, picked right here (like a browser's dock side).
   const PLACES: [Placement, string, string][] = [
@@ -109,7 +113,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     "div",
     { id: "header" },
     h("div", { class: "tabs" }, ...TAB_VIEWS.map((v) => tabs[v])),
-    h("div", { class: "header-actions" }, natives, status, refresh, dockWrap, gear, sound),
+    h("div", { class: "header-actions" }, natives, status, refresh, dockWrap, gear, sound, minimize),
   );
 
   return {

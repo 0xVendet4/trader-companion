@@ -1,6 +1,6 @@
 [package]
 name = "trader-companion"
-description = "Trader Companion — a mascot at the top of your screen that watches your memecoins"
+description = "Candy — Trader Companion: a mascot at the top of your screen that watches your memecoins"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

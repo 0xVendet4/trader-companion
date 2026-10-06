@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Trader Companion",
-  "version": "0.1.0",
+  "productName": "Candy",
+  "version": "0.1.1",
   "identifier": "com.tradercompanion.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -18,7 +18,7 @@
     "windows": [
       {
         "label": "island",
-        "title": "Trader Companion",
+        "title": "Candy",
         "url": "index.html",
         "width": 240,
         "height": 6,
@@ -53,7 +53,7 @@
     "licenseFile": "../LICENSE",
     "category": "Finance",
     "shortDescription": "A mascot at the top of your screen that watches your memecoins",
-    "longDescription": "Trader Companion puts a mascot at the top of your screen: a memecoin watchlist for Solana, BSC, Ethereum and Robinhood Chain, price, market cap and liquidity alerts, and discipline reminders. It only reads public data (DexScreener) and never touches your wallet or private key. Not financial advice.",
+    "longDescription": "Candy puts a mascot at the top of your screen: a memecoin watchlist for Solana, BSC, Ethereum and Robinhood Chain, price, market cap and liquidity alerts, and discipline reminders. It only reads public data (DexScreener) and never touches your wallet or private key. Not financial advice.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

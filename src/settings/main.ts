@@ -8,8 +8,9 @@ import { Bridge, IS_TAURI, onSettingsChanged } from "../core/bridge";
 import { shortAddress } from "../core/format";
 import { HOTKEY_CHOICES } from "../core/hotkey";
 import { ISLAND_THEMES } from "../core/themes";
+import { APP_NAME } from "../core/brand";
 import { enableNotifications, notify } from "../core/notify";
-import { SHARE_BASE, parseShared, shareEntry, shareUrl } from "../core/share";
+import { parseShared, shareEntry, shareText } from "../core/share";
 import {
   EDITION_NAME,
   MAX_WALLETS,
@@ -859,7 +860,7 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     null,
     h("p", { class: "sub", text: "Island theme" }),
     themes,
-    h("p", { class: "sub", text: "Colour (tints every mood, its face still tells you how it feels)" }),
+    h("p", { class: "sub", text: "Colour (tints every mood but a loss: like a candle, Candy goes red then)" }),
     skins,
     custom,
     h("p", { class: "sub", text: "Hat" }),
@@ -902,7 +903,7 @@ function notificationsSection(): HTMLElement {
 
   const test = h("button", { class: "chip-btn", type: "button", text: "Send a test" });
   test.addEventListener("click", async () => {
-    if (await enableNotifications()) void notify("Trader Companion", "Notifications work. Alerts will show up like this.");
+    if (await enableNotifications()) void notify(APP_NAME, "Notifications work. Alerts will show up like this.");
   });
 
   return section(
@@ -926,17 +927,17 @@ function notificationsSection(): HTMLElement {
 
 function shareSection(): HTMLElement {
   const note = h("span", { class: "note" });
-  const copy = h("button", { class: "btn", type: "button", text: "Copy share link" });
+  const copy = h("button", { class: "btn", type: "button", text: "Copy token list" });
   copy.addEventListener("click", async () => {
     const entries = settings.companion.watchlist.map(shareEntry);
     note.className = "note err";
     if (!entries.length) return void (note.textContent = "Your watchlist is empty.");
-    const ok = await Bridge.copy(shareUrl(entries, IS_TAURI ? SHARE_BASE : location.origin));
+    const ok = await Bridge.copy(shareText(entries));
     note.className = ok ? "note ok" : "note err";
-    note.textContent = ok ? "Link copied. Anyone who opens it gets your list." : "Couldn't copy.";
+    note.textContent = ok ? "Copied. Anyone with Candy can paste it into Import." : "Couldn't copy.";
   });
 
-  const input = h("input", { class: "field grow", placeholder: "Paste a shared link (or addresses)" }) as HTMLInputElement;
+  const input = h("input", { class: "field grow", placeholder: "Paste a token list (or addresses)" }) as HTMLInputElement;
   const load = h("button", { class: "btn", type: "button", text: "Import" }) as HTMLButtonElement;
   load.addEventListener("click", async () => {
     const entries = parseShared(input.value);

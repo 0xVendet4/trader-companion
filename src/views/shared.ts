@@ -26,6 +26,8 @@ export interface ViewActions {
   relayout(): void;
   /** Puts on the look just picked (hat, face, colour). */
   applyLook(): void;
+  /** Hides the island until the show/hide shortcut, or Open in the tray, brings it back. */
+  minimize(): void;
   /** Draws today's recap card and copies (or downloads) it; resolves to a note. */
   shareDay(): Promise<string>;
 }

@@ -47,9 +47,12 @@ can arrive in batches.
   bold shapes, clear eyes, no thin lines.
 - The character should sit centred with a little room at the top for the
   effects (z's, "!", hearts) and fill most of the canvas width.
-- Keep the **same body colour in every expression**: the trader's colour
-  choice tints it (a CSS filter), so a mood drawn in another colour would
-  come out wrong. Moods show in the face, brows, sweat and effects.
+- Keep the **same body colour in every expression**, except the loss moods:
+  the trader's colour choice tints it (a CSS filter), so a mood drawn in
+  another colour would come out wrong. Candy is a candle: worried, shocked,
+  sad and stop are drawn red and marked `"tint": false` in `mascot.json`,
+  so they stay red under any colour. Otherwise moods show in the face, brows,
+  sweat and effects.
 - The island background is **black**: no dark outlines that vanish on it, or
   add a light rim.
 - Keep every frame of an animation in the same position, so frames swap

@@ -1,21 +1,21 @@
-// Sharing a watchlist as a link: the tokens ride in the URL, so a friend opens
-// the web preview with the same list. Only public addresses — nothing else
-// from the settings ever goes into a link. Solana tokens are their bare mint;
-// other chains are "chain:address" (bsc:0x…).
+// Sharing a watchlist: its token addresses as a plain list, which a friend
+// pastes into Import (Settings → Watchlist). No site in between, and only
+// public addresses — nothing else from the settings is ever shared. Solana
+// tokens are their bare mint; other chains are "chain:address" (bsc:0x…).
+// Links from older versions (…?list=) still import.
 
 import type { WatchToken } from "./state";
 import { MAX_WATCHLIST } from "./state";
 import { EVM_ADDRESS, SOLANA_ADDRESS, isChain, isEvm } from "../market/chains";
 
-/** Where shared links point: the public web preview. */
-export const SHARE_BASE = "https://trader-companion-demo.vercel.app";
 
 export function shareEntry(t: Pick<WatchToken, "chainId" | "address">): string {
   return t.chainId === "solana" ? t.address : `${t.chainId}:${t.address}`;
 }
 
-export function shareUrl(entries: string[], base = SHARE_BASE): string {
-  return `${base.replace(/\/$/, "")}/?list=${entries.slice(0, MAX_WATCHLIST).join(",")}`;
+/** The list to copy: up to a full watchlist, comma-separated. */
+export function shareText(entries: string[]): string {
+  return entries.slice(0, MAX_WATCHLIST).join(", ");
 }
 
 function validEntry(part: string): boolean {

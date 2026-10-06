@@ -24,10 +24,10 @@ import {
   type ViewHost,
 } from "./shared";
 import { Companion } from "../companion";
-import { Bridge, IS_TAURI } from "../core/bridge";
+import { Bridge } from "../core/bridge";
 import { compact, formatAge, formatPrice, formatUsd } from "../core/format";
 import { MAX_ROWS, ROW_H } from "../core/layout";
-import { SHARE_BASE, shareEntry, shareUrl } from "../core/share";
+import { shareEntry, shareText } from "../core/share";
 import { State, type Timeframe, type TrendingItem, type WatchToken } from "../core/state";
 import { CHAINS } from "../market/chains";
 import { folderTokens } from "../market/folders";
@@ -191,10 +191,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     // Shares what is on screen: the folder shown, or everything under All.
     const entries = folderTokens(State.companion.watchlist, State.companion.activeFolder).map(shareEntry);
     if (entries.length === 0) return flash("Add a token first.", false);
-    // On the website, share the site itself; from the app, the public preview.
-    const base = IS_TAURI ? SHARE_BASE : location.origin;
-    const ok = await Bridge.copy(shareUrl(entries, base));
-    flash(ok ? "Share link copied." : "Couldn't copy the link.", ok);
+    const ok = await Bridge.copy(shareText(entries));
+    flash(ok ? "Token list copied: paste it into Import." : "Couldn't copy the list.", ok);
     if (ok) actions.blip();
   }
 

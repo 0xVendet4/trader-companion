@@ -82,14 +82,16 @@
       ],
       "eyes": "eyes/open.svg",
       "eyesBlink": "eyes/blink.svg",
-      "motion": "sway"
+      "motion": "sway",
+      "tint": false
     },
     "shocked": {
       "frames": [
         "shocked.svg"
       ],
       "eyes": "eyes/wide.svg",
-      "motion": "shake"
+      "motion": "shake",
+      "tint": false
     },
     "sleepy": {
       "frames": [
@@ -118,7 +120,8 @@
       ],
       "eyes": "eyes/open.svg",
       "eyesBlink": "eyes/blink.svg",
-      "motion": "breathe"
+      "motion": "breathe",
+      "tint": false
     },
     "confused": {
       "frames": [
@@ -158,7 +161,8 @@
       ],
       "eyes": "eyes/open.svg",
       "eyesBlink": "eyes/blink.svg",
-      "motion": "droop"
+      "motion": "droop",
+      "tint": false
     },
     "bored": {
       "frames": [
@@ -262,6 +266,7 @@
         },
         "worried": {
           "motion": "sway",
+          "tint": false,
           "frames": [
             "costumes/gengar/worried.svg"
           ],
@@ -269,6 +274,7 @@
         },
         "shocked": {
           "motion": "shake",
+          "tint": false,
           "frames": [
             "costumes/gengar/shocked.svg"
           ],
@@ -297,6 +303,7 @@
         },
         "stop": {
           "motion": "breathe",
+          "tint": false,
           "frames": [
             "costumes/gengar/stop.svg"
           ],
@@ -337,6 +344,7 @@
         },
         "sad": {
           "motion": "droop",
+          "tint": false,
           "frames": [
             "costumes/gengar/sad.svg"
           ],
@@ -444,6 +452,7 @@
         },
         "worried": {
           "motion": "sway",
+          "tint": false,
           "frames": [
             "costumes/spiderman/worried.svg"
           ],
@@ -451,6 +460,7 @@
         },
         "shocked": {
           "motion": "shake",
+          "tint": false,
           "frames": [
             "costumes/spiderman/shocked.svg"
           ],
@@ -479,6 +489,7 @@
         },
         "stop": {
           "motion": "breathe",
+          "tint": false,
           "frames": [
             "costumes/spiderman/stop.svg"
           ],
@@ -516,6 +527,7 @@
         },
         "sad": {
           "motion": "droop",
+          "tint": false,
           "frames": [
             "costumes/spiderman/sad.svg"
           ],
@@ -621,6 +633,7 @@
         },
         "worried": {
           "motion": "sway",
+          "tint": false,
           "frames": [
             "costumes/shadow/worried.svg"
           ],
@@ -628,6 +641,7 @@
         },
         "shocked": {
           "motion": "shake",
+          "tint": false,
           "frames": [
             "costumes/shadow/shocked.svg"
           ],
@@ -656,6 +670,7 @@
         },
         "stop": {
           "motion": "breathe",
+          "tint": false,
           "frames": [
             "costumes/shadow/stop.svg"
           ],
@@ -695,6 +710,7 @@
         },
         "sad": {
           "motion": "droop",
+          "tint": false,
           "frames": [
             "costumes/shadow/sad.svg"
           ],
@@ -799,12 +815,14 @@
         },
         "worried": {
           "motion": "sway",
+          "tint": false,
           "frames": [
             "costumes/v/idle.svg"
           ]
         },
         "shocked": {
           "motion": "shake",
+          "tint": false,
           "frames": [
             "costumes/v/idle.svg"
           ]
@@ -831,6 +849,7 @@
         },
         "stop": {
           "motion": "breathe",
+          "tint": false,
           "frames": [
             "costumes/v/stop.svg"
           ]
@@ -866,6 +885,7 @@
         },
         "sad": {
           "motion": "droop",
+          "tint": false,
           "frames": [
             "costumes/v/idle.svg"
           ]

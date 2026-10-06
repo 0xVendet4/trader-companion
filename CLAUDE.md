@@ -1,4 +1,4 @@
-# Trader Companion — guide for AI coding agents
+# Candy (Trader Companion) — guide for AI coding agents
 
 Windows-only Tauri 2 app: a mascot in a black "island" at the top of the screen
 that watches memecoins on Solana, BSC, Ethereum and Robinhood Chain (DexScreener; wallets on Solana only), fires alerts and enforces the
