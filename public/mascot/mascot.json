@@ -1,0 +1,940 @@
+{
+  "name": "Candy (placeholder)",
+  "outfits": {
+    "cap": "outfits/cap.svg",
+    "crown": "outfits/crown.svg",
+    "party": "outfits/party.svg",
+    "headphones": "outfits/headphones.svg",
+    "tophat": "outfits/tophat.svg",
+    "cowboy": "outfits/cowboy.svg",
+    "beanie": "outfits/beanie.svg",
+    "halo": "outfits/halo.svg",
+    "horns": "outfits/horns.svg",
+    "wizard": "outfits/wizard.svg",
+    "viking": "outfits/viking.svg",
+    "bow": "outfits/bow.svg",
+    "chef": "outfits/chef.svg",
+    "pirate": "outfits/pirate.svg",
+    "santa": "outfits/santa.svg",
+    "grad": "outfits/grad.svg",
+    "beret": "outfits/beret.svg",
+    "propeller": "outfits/propeller.svg",
+    "flowers": "outfits/flowers.svg",
+    "bunny": "outfits/bunny.svg",
+    "pumpkin": "outfits/pumpkin.svg",
+    "catears": "outfits/catears.svg",
+    "rocket": "outfits/rocket.svg"
+  },
+  "faces": {
+    "shades": "faces/shades.svg",
+    "laser": "faces/laser.svg",
+    "glasses": "faces/glasses.svg",
+    "monocle": "faces/monocle.svg",
+    "mustache": "faces/mustache.svg",
+    "starglasses": "faces/starglasses.svg",
+    "threed": "faces/threed.svg",
+    "eyepatch": "faces/eyepatch.svg",
+    "heartglasses": "faces/heartglasses.svg",
+    "clownnose": "faces/clownnose.svg",
+    "beard": "faces/beard.svg",
+    "domino": "faces/domino.svg",
+    "vr": "faces/vr.svg",
+    "pixel": "faces/pixel.svg",
+    "goggles": "faces/goggles.svg",
+    "whiskers": "faces/whiskers.svg",
+    "freckles": "faces/freckles.svg",
+    "bandaid": "faces/bandaid.svg",
+    "lollipop": "faces/lollipop.svg",
+    "bubblegum": "faces/bubblegum.svg",
+    "warpaint": "faces/warpaint.svg",
+    "dollareyes": "faces/dollareyes.svg",
+    "facemask": "faces/facemask.svg"
+  },
+  "states": {
+    "idle": {
+      "frames": [
+        "idle.svg"
+      ],
+      "eyes": "eyes/open.svg",
+      "eyesBlink": "eyes/blink.svg",
+      "motion": "breathe"
+    },
+    "happy": {
+      "frames": [
+        "happy.svg"
+      ],
+      "eyes": "eyes/happy.svg",
+      "motion": "breathe"
+    },
+    "celebrate": {
+      "frames": [
+        "celebrate-1.svg",
+        "celebrate-2.svg"
+      ],
+      "eyes": "eyes/stars.svg",
+      "fps": 4,
+      "motion": "bounce",
+      "fx": "sparkles"
+    },
+    "worried": {
+      "frames": [
+        "worried.svg"
+      ],
+      "eyes": "eyes/open.svg",
+      "eyesBlink": "eyes/blink.svg",
+      "motion": "sway"
+    },
+    "shocked": {
+      "frames": [
+        "shocked.svg"
+      ],
+      "eyes": "eyes/wide.svg",
+      "motion": "shake"
+    },
+    "sleepy": {
+      "frames": [
+        "sleepy.svg"
+      ],
+      "motion": "droop",
+      "fx": "zzz"
+    },
+    "alert": {
+      "frames": [
+        "alert.svg"
+      ],
+      "eyes": "eyes/wide.svg",
+      "motion": "jump",
+      "fx": "bang"
+    },
+    "tired": {
+      "frames": [
+        "tired.svg"
+      ],
+      "motion": "droop"
+    },
+    "stop": {
+      "frames": [
+        "stop.svg"
+      ],
+      "eyes": "eyes/open.svg",
+      "eyesBlink": "eyes/blink.svg",
+      "motion": "breathe"
+    },
+    "confused": {
+      "frames": [
+        "confused.svg"
+      ],
+      "eyes": "eyes/dots.svg",
+      "motion": "sway",
+      "fx": "question"
+    },
+    "love": {
+      "frames": [
+        "love.svg"
+      ],
+      "eyes": "eyes/hearts.svg",
+      "motion": "breathe",
+      "fx": "hearts"
+    },
+    "wave": {
+      "frames": [
+        "wave-1.svg",
+        "wave-2.svg"
+      ],
+      "eyes": "eyes/happy.svg",
+      "fps": 3,
+      "motion": "breathe"
+    },
+    "proud": {
+      "frames": [
+        "proud.svg"
+      ],
+      "motion": "bounce",
+      "fx": "sparkles"
+    },
+    "sad": {
+      "frames": [
+        "sad.svg"
+      ],
+      "eyes": "eyes/open.svg",
+      "eyesBlink": "eyes/blink.svg",
+      "motion": "droop"
+    },
+    "bored": {
+      "frames": [
+        "bored.svg"
+      ],
+      "motion": "sway",
+      "fx": "dots"
+    },
+    "focused": {
+      "frames": [
+        "focused.svg"
+      ],
+      "eyes": "eyes/narrow.svg",
+      "motion": "none"
+    },
+    "nervous": {
+      "frames": [
+        "nervous.svg"
+      ],
+      "eyes": "eyes/wide.svg",
+      "motion": "jitter"
+    },
+    "curious": {
+      "frames": [
+        "curious.svg"
+      ],
+      "eyes": "eyes/open.svg",
+      "eyesBlink": "eyes/blink.svg",
+      "motion": "tilt",
+      "fx": "question"
+    },
+    "angry": {
+      "frames": [
+        "angry.svg"
+      ],
+      "eyes": "eyes/narrow.svg",
+      "motion": "jitter"
+    },
+    "excited": {
+      "frames": [
+        "excited.svg"
+      ],
+      "eyes": "eyes/sparkle.svg",
+      "motion": "bounce",
+      "fx": "sparkles"
+    },
+    "relieved": {
+      "frames": [
+        "relieved.svg"
+      ],
+      "motion": "breathe"
+    },
+    "dizzy": {
+      "frames": [
+        "dizzy.svg"
+      ],
+      "motion": "woozy"
+    },
+    "cool": {
+      "frames": [
+        "cool.svg"
+      ],
+      "eyes": "eyes/narrow.svg",
+      "motion": "sway"
+    },
+    "sick": {
+      "frames": [
+        "sick.svg"
+      ],
+      "motion": "droop"
+    }
+  },
+  "costumes": {
+    "gengar": {
+      "name": "Gengar",
+      "states": {
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/gengar/idle.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-evil.svg",
+          "eyesBlink": "costumes/gengar/eyes-evil-blink.svg"
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/gengar/happy.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-glee.svg"
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/gengar/celebrate-1.svg",
+            "costumes/gengar/celebrate-2.svg"
+          ],
+          "eyes": "eyes/stars.svg"
+        },
+        "worried": {
+          "motion": "sway",
+          "frames": [
+            "costumes/gengar/worried.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-worried.svg"
+        },
+        "shocked": {
+          "motion": "shake",
+          "frames": [
+            "costumes/gengar/shocked.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-wide.svg"
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/gengar/sleepy.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/gengar/shocked.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-wide.svg"
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/gengar/tired.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/gengar/stop.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-evil.svg",
+          "eyesBlink": "costumes/gengar/eyes-evil-blink.svg"
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/gengar/confused.svg"
+          ],
+          "eyes": "eyes/dots.svg"
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/gengar/idle.svg"
+          ],
+          "eyes": "eyes/hearts.svg"
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/gengar/wave-1.svg",
+            "costumes/gengar/wave-2.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-glee.svg"
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/gengar/proud.svg"
+          ]
+        },
+        "sad": {
+          "motion": "droop",
+          "frames": [
+            "costumes/gengar/sad.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-worried.svg"
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/gengar/bored.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/gengar/focused.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-evil.svg",
+          "eyesBlink": "costumes/gengar/eyes-evil-blink.svg"
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/gengar/worried.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-wide.svg"
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/gengar/curious.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-wide.svg"
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/gengar/angry.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-evil.svg"
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/gengar/happy.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-evil.svg"
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/gengar/relieved.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/gengar/dizzy.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/gengar/cool.svg"
+          ],
+          "eyes": "costumes/gengar/eyes-evil.svg",
+          "eyesBlink": "costumes/gengar/eyes-evil-blink.svg"
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/gengar/sick.svg"
+          ]
+        }
+      }
+    },
+    "spiderman": {
+      "name": "Spiderman",
+      "states": {
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/spiderman/idle.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-open.svg",
+          "eyesBlink": "costumes/spiderman/eyes-blink.svg"
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/spiderman/happy.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-glee.svg"
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/spiderman/celebrate-1.svg",
+            "costumes/spiderman/celebrate-2.svg"
+          ]
+        },
+        "worried": {
+          "motion": "sway",
+          "frames": [
+            "costumes/spiderman/worried.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-worried.svg"
+        },
+        "shocked": {
+          "motion": "shake",
+          "frames": [
+            "costumes/spiderman/shocked.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-wide.svg"
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/spiderman/sleepy.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/spiderman/shocked.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-wide.svg"
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/spiderman/tired.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/spiderman/stop.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-angry.svg"
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/spiderman/confused.svg"
+          ]
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/spiderman/love.svg"
+          ]
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/spiderman/wave-1.svg",
+            "costumes/spiderman/wave-2.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-glee.svg"
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/spiderman/proud.svg"
+          ]
+        },
+        "sad": {
+          "motion": "droop",
+          "frames": [
+            "costumes/spiderman/sad.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-worried.svg"
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/spiderman/bored.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/spiderman/idle.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-narrow.svg",
+          "eyesBlink": "costumes/spiderman/eyes-blink.svg"
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/spiderman/worried.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-wide.svg"
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/spiderman/curious.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-wide.svg"
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/spiderman/angry.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-angry.svg"
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/spiderman/happy.svg"
+          ],
+          "eyes": "costumes/spiderman/eyes-wide.svg"
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/spiderman/relieved.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/spiderman/dizzy.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/spiderman/cool.svg"
+          ]
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/spiderman/sick.svg"
+          ]
+        }
+      }
+    },
+    "shadow": {
+      "name": "Shadow",
+      "states": {
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/shadow/idle.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-stern.svg",
+          "eyesBlink": "costumes/shadow/eyes-blink.svg"
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/shadow/happy.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-smug.svg"
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/shadow/celebrate-1.svg",
+            "costumes/shadow/celebrate-2.svg"
+          ]
+        },
+        "worried": {
+          "motion": "sway",
+          "frames": [
+            "costumes/shadow/worried.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-worried.svg"
+        },
+        "shocked": {
+          "motion": "shake",
+          "frames": [
+            "costumes/shadow/shocked.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-wide.svg"
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/shadow/sleepy.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/shadow/shocked.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-wide.svg"
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/shadow/tired.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/shadow/stop.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-stern.svg",
+          "eyesBlink": "costumes/shadow/eyes-blink.svg"
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/shadow/confused.svg"
+          ]
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/shadow/love.svg"
+          ]
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/shadow/wave-1.svg",
+            "costumes/shadow/wave-2.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-smug.svg"
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/shadow/happy.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-smug.svg"
+        },
+        "sad": {
+          "motion": "droop",
+          "frames": [
+            "costumes/shadow/sad.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-worried.svg"
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/shadow/bored.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/shadow/focused.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-stern.svg",
+          "eyesBlink": "costumes/shadow/eyes-blink.svg"
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/shadow/worried.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-wide.svg"
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/shadow/curious.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-wide.svg"
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/shadow/angry.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-stern.svg"
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/shadow/excited.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-wide.svg"
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/shadow/relieved.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/shadow/dizzy.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/shadow/happy.svg"
+          ],
+          "eyes": "costumes/shadow/eyes-smug.svg",
+          "eyesBlink": "costumes/shadow/eyes-blink.svg"
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/shadow/sick.svg"
+          ]
+        }
+      }
+    },
+    "v": {
+      "name": "V",
+      "states": {
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/v/celebrate-1.svg",
+            "costumes/v/celebrate-2.svg"
+          ]
+        },
+        "worried": {
+          "motion": "sway",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "shocked": {
+          "motion": "shake",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/v/stop.svg"
+          ]
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/v/love.svg"
+          ]
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/v/wave-1.svg",
+            "costumes/v/wave-2.svg"
+          ]
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "sad": {
+          "motion": "droop",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/v/celebrate-1.svg",
+            "costumes/v/celebrate-2.svg"
+          ]
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/v/idle.svg"
+          ]
+        }
+      }
+    }
+  }
+}

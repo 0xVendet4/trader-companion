@@ -1,0 +1,2723 @@
+/* Trader Companion — the island. A black shape glued to the top of the screen,
+   dark UI, green/red for up/down. Palette and type scale start from Coucou for
+   Windows (MIT, © Louis Raillé). */
+
+:root {
+  color-scheme: dark;
+
+  --font: system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+
+  --ink: #f5f6f8;
+  --dim: #9398a1;
+  --dim-2: #6b7079;
+  --dim-3: #4b5058;
+  --card: #141518;
+  --card-2: #1b1d21;
+  --tab-on: #1f2227;
+  --hairline: rgba(255, 255, 255, 0.06);
+  --up: #34d399;
+  --down: #f4505e;
+  --amber: #f5a524;
+  --calm: #7dd3fc;
+  --accent: #4ade80;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+}
+
+/* `npm run dev` in a browser: draw the 720×340 window as a stage at the top of
+   a desktop-coloured page, so what you see is what the app window shows. */
+body.browser {
+  background: #3a3f47;
+}
+
+body.browser #root {
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: 720px;
+  height: 340px;
+  transform: translateX(-50%);
+  outline: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+/* On a side edge the stage is vertically centred; floating, the island places it. */
+body.browser[data-placement="left"] #root {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+body.browser[data-placement="right"] #root {
+  left: auto;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+body.browser[data-placement="float"] #root {
+  transform: none;
+}
+
+#wake-strip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  height: 6px;
+}
+
+/* On a side edge the strip stands upright against it (the app's window is 6 × 240 then). */
+body[data-placement="left"] #wake-strip,
+body[data-placement="right"] #wake-strip {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 240px;
+}
+
+body[data-placement="left"] #wake-strip {
+  left: 0;
+}
+
+body[data-placement="right"] #wake-strip {
+  left: auto;
+  right: 0;
+}
+
+body[data-placement="float"] #wake-strip {
+  display: none;
+}
+
+/* ── Island ─────────────────────────────────────────────────────────────── */
+
+/* Placed by the island (see islandOrigin in src/core/layout.ts). */
+#island {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* The theme's (src/core/themes.ts). */
+  background: var(--island-bg, #000);
+  box-shadow: var(--island-ring, none);
+  border-radius: 0 0 14px 14px;
+  will-change: width, height;
+}
+
+#island-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+#content {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 660px;
+  height: 100%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.11s ease;
+}
+
+#caption {
+  position: absolute;
+  left: 6px;
+  padding: 0 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--dim);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.11s ease;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+#header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  padding: 8px 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: opacity 0.1s ease;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--dim-2);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.on {
+  background: var(--tab-on);
+  color: var(--ink);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+  color: var(--dim-2);
+  font-size: 11px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dim-3);
+}
+
+.status-dot.ok {
+  background: var(--up);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+}
+
+.status-dot.loading {
+  background: var(--amber);
+}
+
+.status-dot.error {
+  background: var(--down);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+/* Ctrl held over the island: clicks go to what is behind it (see island.rs). */
+body.passing #island {
+  opacity: 0.25;
+  transition: opacity 0.12s ease;
+}
+
+/* Where the island sits: the current place, and the four to pick from. */
+.dock {
+  position: relative;
+}
+
+.icon-btn.on {
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+.dock-menu {
+  position: absolute;
+  top: 30px;
+  right: -6px;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: #16171b;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.dock-menu.on {
+  display: flex;
+}
+
+.dock-menu .icon-btn.on {
+  color: var(--accent, #4ade80);
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* ── Views ──────────────────────────────────────────────────────────────── */
+
+/* Spans the whole island (the event card needs it) but takes no clicks
+   itself, or it would sit on top of the header buttons. */
+#views {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+/* Tab views start below the header, never over it: a view covering the
+   header would swallow every click on the tabs and buttons. */
+.view {
+  position: absolute;
+  inset: 40px 0 0 0;
+  display: none;
+  padding: 6px 14px 10px 138px;
+  pointer-events: auto;
+}
+
+.view.on {
+  display: block;
+}
+
+.empty {
+  margin: 10px 0 12px;
+  color: var(--dim);
+  line-height: 1.45;
+}
+
+.note {
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note.ok {
+  color: var(--up);
+}
+
+.note.err {
+  color: var(--down);
+}
+
+/* Buttons and fields */
+
+.btn {
+  height: 28px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn.primary {
+  background: var(--ink);
+  color: #000;
+}
+
+.btn.primary:hover {
+  background: #fff;
+}
+
+.btn.secondary {
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+.btn.secondary:hover {
+  background: #262930;
+}
+
+.btn.ghost {
+  height: 22px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--dim);
+  text-decoration: underline;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.field {
+  height: 28px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  user-select: text;
+}
+
+.field:focus {
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.field::placeholder {
+  color: var(--dim-3);
+}
+
+.field.small {
+  width: 84px;
+  flex: none;
+}
+
+.field.sel {
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.field.shake {
+  animation: shake 0.35s;
+}
+
+.pct.up,
+.up {
+  color: var(--up);
+}
+
+.pct.down,
+.down {
+  color: var(--down);
+}
+
+.pct.flat {
+  color: var(--dim);
+}
+
+/* Watchlist */
+
+.row {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.row:not(.head):hover {
+  background: var(--card);
+}
+
+.row.head {
+  height: 20px;
+  color: var(--dim-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+
+.c-tok {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.c-mc {
+  width: 64px;
+  text-align: right;
+}
+
+.c-price {
+  width: 80px;
+  text-align: right;
+  color: var(--dim);
+}
+
+.c-pct {
+  width: 54px;
+  text-align: right;
+}
+
+.c-act {
+  width: 58px;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+}
+
+.row:hover .c-act {
+  opacity: 1;
+}
+
+.c-act .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.sym {
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tok-img {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--card-2);
+}
+
+.tok-img.fallback {
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--dim);
+}
+
+.rows {
+  overflow-y: auto;
+}
+
+.add-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.add-bar .field {
+  flex: 1 1 auto;
+}
+
+.add-bar .note {
+  max-width: 150px;
+}
+
+/* Alerts */
+
+.alert-list {
+  flex-direction: column;
+  gap: 2px;
+  max-height: 112px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+}
+
+.alert-row:hover {
+  background: var(--card);
+}
+
+.alert-row .sym {
+  width: 64px;
+}
+
+.alert-row .desc {
+  flex: 1;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alert-row.off .sym,
+.alert-row.off .desc {
+  opacity: 0.45;
+}
+
+.toggle {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--dim-3);
+  cursor: pointer;
+}
+
+.toggle i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.toggle.on {
+  background: var(--up);
+}
+
+.toggle.on i {
+  transform: translateX(13px);
+}
+
+.alert-form {
+  display: flex;
+  gap: 6px;
+}
+
+.alert-form .sel:first-child {
+  width: 96px;
+}
+
+.alert-form .sel:nth-child(2) {
+  flex: 1;
+}
+
+.form-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+  min-height: 14px;
+}
+
+.now {
+  font-size: 11px;
+  color: var(--dim-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Discipline */
+
+.discipline .line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 22px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.limit-bar {
+  position: relative;
+  width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--card-2);
+  overflow: hidden;
+}
+
+.limit-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--amber);
+  border-radius: 3px;
+}
+
+.limit-bar i.high {
+  background: #fb923c;
+}
+
+.limit-bar i.full {
+  background: var(--down);
+}
+
+.limit-label {
+  font-size: 11px;
+  color: var(--dim-2);
+}
+
+.log-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.log-bar .lbl {
+  color: var(--dim);
+  margin-right: 2px;
+}
+
+.log-bar .unit {
+  color: var(--dim-2);
+  margin-right: 4px;
+}
+
+.btn.win {
+  color: var(--up);
+}
+
+.btn.loss {
+  color: var(--down);
+}
+
+.line.status.stop {
+  color: var(--down);
+  font-weight: 600;
+}
+
+.line.status.cool {
+  color: var(--calm);
+}
+
+.discipline .foot {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  font-size: 11px;
+  color: var(--dim-2);
+}
+
+.foot a {
+  color: var(--dim);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Event card */
+
+/* The event card and the greeting have no header: they use the whole island. */
+.view.event,
+.view.greeting {
+  inset: 0;
+  padding: 26px 26px 14px 168px;
+}
+
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+
+.event[data-tone="up"] .eyebrow {
+  color: var(--up);
+}
+
+.event[data-tone="down"] .eyebrow {
+  color: var(--down);
+}
+
+.event[data-tone="warn"] .eyebrow {
+  color: var(--amber);
+}
+
+.event[data-tone="calm"] .eyebrow {
+  color: var(--calm);
+}
+
+.view .title {
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+
+.view .detail {
+  color: var(--dim);
+  line-height: 1.4;
+}
+
+.event-foot {
+  position: absolute;
+  left: 168px;
+  right: 26px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.more {
+  font-size: 11px;
+  color: var(--dim-2);
+}
+
+.greeting .fine {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--dim-2);
+}
+
+/* ── Compact ticker ─────────────────────────────────────────────────────── */
+
+#compact {
+  position: absolute;
+  inset: 0;
+  padding-left: 44px;
+  padding-right: 14px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.11s ease;
+  pointer-events: none;
+}
+
+/* On a side edge: the top's ticker stood upright, the same line running down
+   from under the mascot (the count at the far end, as on top). */
+#compact.vertical {
+  padding: 44px 0 14px;
+  justify-content: center;
+}
+
+#compact.vertical .ticker {
+  writing-mode: vertical-rl;
+  height: 100%;
+  width: auto;
+}
+
+#compact.vertical .ticker .t-count {
+  margin: auto 0 0;
+}
+
+#compact.vertical .ticker .t-text {
+  text-overflow: ellipsis;
+}
+
+.ticker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  animation: tick-in 0.18s ease;
+}
+
+.ticker .t-sym {
+  font-weight: 700;
+}
+
+.ticker .t-mc {
+  color: var(--dim);
+}
+
+.ticker .t-count {
+  margin-left: auto;
+  color: var(--dim-3);
+  font-size: 10.5px;
+}
+
+.ticker .t-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ticker .dim {
+  color: var(--dim);
+}
+
+.ticker.tone-up {
+  color: var(--up);
+}
+
+.ticker.tone-down {
+  color: var(--down);
+}
+
+.ticker.tone-warn {
+  color: var(--amber);
+}
+
+.ticker.tone-calm {
+  color: var(--calm);
+}
+
+/* ── Mascot ─────────────────────────────────────────────────────────────── */
+
+.mascot {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.mascot-body {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+
+/* The eyes layer: follows the cursor a few pixels (see Mascot.lookAt). */
+.mascot-eyes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: transform 0.14s ease-out;
+}
+
+.mascot-eyes[hidden] {
+  display: none;
+}
+
+.mascot-frame {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.mascot.paused *,
+.mascot.paused {
+  animation-play-state: paused !important;
+}
+
+.motion-breathe {
+  animation: breathe 2.8s ease-in-out infinite;
+}
+
+.motion-bounce {
+  animation: bounce 0.55s ease-in-out infinite;
+}
+
+.motion-jump {
+  animation: jump 0.5s ease-out 3;
+}
+
+.motion-shake {
+  animation: shake 0.35s ease-in-out 4;
+}
+
+.motion-sway {
+  animation: sway 2.2s ease-in-out infinite;
+}
+
+.motion-droop {
+  animation: droop 4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.015, 0.97); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  15% { transform: translateY(0) scale(1.06, 0.92); }
+  50% { transform: translateY(-12%) scale(0.97, 1.04); }
+}
+
+@keyframes jump {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-14%); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4%); }
+  75% { transform: translateX(4%); }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+@keyframes droop {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.03, 0.95); }
+}
+
+/* One-shot motions for pokes (src/mascot/reactions.ts). */
+.motion-hop {
+  animation: hop 0.45s cubic-bezier(0.3, 0.7, 0.4, 1) 2;
+}
+
+.motion-squish {
+  animation: squish 0.5s ease-in-out 2;
+}
+
+.motion-wiggle {
+  animation: wiggle 0.3s ease-in-out 4;
+  transform-origin: 50% 90%;
+}
+
+.motion-flip {
+  animation: flip 0.7s ease-in-out 1;
+}
+
+.motion-spin {
+  animation: spin 0.6s ease-in-out 1;
+  transform-origin: 50% 55%;
+}
+
+.motion-dizzy {
+  animation: dizzy 0.55s ease-in-out 4;
+  transform-origin: 50% 90%;
+}
+
+.motion-squeeze {
+  animation: squeeze 0.18s ease-out forwards;
+}
+
+.motion-spring {
+  animation: spring 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) 1;
+}
+
+/* Nervous: a small, quick tremble. */
+.motion-jitter {
+  animation: jitter 0.16s linear infinite;
+}
+
+/* Curious: the head tilts, and stays tilted. */
+.motion-tilt {
+  animation: tilt 0.5s ease-out forwards;
+}
+
+/* Dizzy: a slow, wobbly sway. */
+.motion-woozy {
+  animation: woozy 1.3s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+@keyframes woozy {
+  0%, 100% { transform: rotate(-6deg) translateX(-3%); }
+  50% { transform: rotate(6deg) translateX(3%); }
+}
+
+@keyframes jitter {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5%); }
+  75% { transform: translateX(1.5%); }
+}
+
+@keyframes tilt {
+  to { transform: rotate(-8deg); }
+}
+
+.motion-dance {
+  animation: dance 0.6s ease-in-out 3;
+}
+
+.motion-sneeze {
+  animation: sneeze 0.8s ease-out 1;
+}
+
+.motion-shrink {
+  animation: shrink 1.4s ease-in-out 1;
+}
+
+.motion-backflip {
+  animation: backflip 0.9s cubic-bezier(0.3, 0.6, 0.4, 1) 1;
+  transform-origin: 50% 55%;
+}
+
+.motion-peek {
+  animation: peek 1.3s ease-in-out 1;
+}
+
+@keyframes dance {
+  0%, 50%, 100% { transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(-8%, -4%) rotate(-8deg); }
+  75% { transform: translate(8%, -4%) rotate(8deg); }
+}
+
+/* A breath in, then the sneeze. */
+@keyframes sneeze {
+  0%, 100% { transform: none; }
+  40% { transform: translateY(2%) scale(1.05, 0.92) rotate(-4deg); }
+  55% { transform: translateY(-6%) scale(0.95, 1.08) rotate(8deg); }
+  70% { transform: translateY(0) rotate(-2deg); }
+}
+
+/* Shy: it makes itself small for a moment. */
+@keyframes shrink {
+  0%, 100% { transform: scale(1); }
+  30%, 75% { transform: scale(0.72) translateY(12%); }
+}
+
+@keyframes backflip {
+  0% { transform: translateY(0) rotate(0); }
+  30% { transform: translateY(-26%) rotate(-120deg); }
+  60% { transform: translateY(-26%) rotate(-280deg); }
+  100% { transform: translateY(0) rotate(-360deg); }
+}
+
+/* Ducks down out of sight, then pops back up. */
+@keyframes peek {
+  0%, 100% { transform: translateY(0); }
+  30%, 60% { transform: translateY(55%) scale(0.9); }
+  80% { transform: translateY(-8%); }
+}
+
+@keyframes hop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  20% { transform: translateY(0) scale(1.08, 0.9); }
+  55% { transform: translateY(-16%) scale(0.95, 1.06); }
+}
+
+@keyframes squish {
+  0%, 100% { transform: scale(1, 1); }
+  40% { transform: scale(1.14, 0.84); }
+  70% { transform: scale(0.95, 1.05); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+/* A look to one side and back: the "head turn". */
+@keyframes flip {
+  0%, 100% { transform: scaleX(1); }
+  35%, 65% { transform: scaleX(-1); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0) scale(1); }
+  50% { transform: rotate(180deg) scale(0.92); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes dizzy {
+  0%, 100% { transform: rotate(0) translateX(0); }
+  25% { transform: rotate(-10deg) translateX(-5%); }
+  75% { transform: rotate(10deg) translateX(5%); }
+}
+
+@keyframes squeeze {
+  to { transform: scale(1.22, 0.7); }
+}
+
+@keyframes spring {
+  0% { transform: translateY(0) scale(1.22, 0.7); }
+  35% { transform: translateY(-24%) scale(0.88, 1.14); }
+  65% { transform: translateY(0) scale(1.08, 0.92); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+/* The speech bubble, under the mascot where the caption sits. */
+.mascot-bubble {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  max-width: 128px;
+  width: max-content;
+  padding: 4px 9px;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) scale(0.6);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.mascot-bubble::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: calc(50% - 5px);
+  border: 5px solid transparent;
+  border-top: 0;
+  border-bottom-color: #fff;
+}
+
+.mascot-bubble.on {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  animation: bubble-pop 0.22s ease-out;
+}
+
+.mascot.tiny .mascot-bubble {
+  display: none;
+}
+
+/* The bubble takes the caption's place while it speaks. */
+#island:has(.mascot-bubble.on) #caption {
+  opacity: 0 !important;
+}
+
+@keyframes bubble-pop {
+  0% { transform: translateX(-50%) scale(0.6); }
+  70% { transform: translateX(-50%) scale(1.08); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes tick-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Effects float above the head. Hidden on the tiny compact mascot. */
+.mascot-fx {
+  position: absolute;
+  left: 50%;
+  top: -6%;
+  width: 60%;
+  height: 50%;
+  pointer-events: none;
+}
+
+.mascot.tiny .mascot-fx {
+  display: none;
+}
+
+.mascot-fx span {
+  position: absolute;
+  left: 40%;
+  bottom: 0;
+  font-weight: 800;
+  opacity: 0;
+  animation: float-up 1.6s ease-out infinite;
+}
+
+.fx-zzz span {
+  color: #c7d2fe;
+  font-size: 14px;
+}
+
+.fx-bang span {
+  left: 30%;
+  color: var(--amber);
+  font-size: 26px;
+  animation: pop 0.9s ease-out infinite;
+}
+
+.fx-question span {
+  left: 30%;
+  color: var(--dim);
+  font-size: 24px;
+  animation: pop 1.4s ease-out infinite;
+}
+
+/* Bored: "…" drifting up. */
+.fx-dots span {
+  color: var(--dim);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.fx-dots span:nth-child(2) { left: 52%; }
+.fx-dots span:nth-child(3) { left: 64%; }
+
+.fx-hearts span {
+  color: #fb7185;
+  font-size: 16px;
+}
+
+.fx-sparkles span {
+  color: #fde047;
+  font-size: 15px;
+  animation: twinkle 1.1s ease-in-out infinite;
+}
+
+.fx-sparkles span:nth-child(1) { left: -10%; bottom: 20%; }
+.fx-sparkles span:nth-child(2) { left: 70%; bottom: 40%; }
+.fx-sparkles span:nth-child(3) { left: 30%; bottom: 80%; }
+
+@keyframes float-up {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.7); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(14px, -26px) scale(1.1); }
+}
+
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  30% { opacity: 1; transform: scale(1.15); }
+  60%, 100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* Thin scrollbars inside the island. */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2d33;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+select option {
+  background: #141518;
+}
+
+/* ── Public web preview (npm run build:web) ─────────────────────────────── */
+
+body.web {
+  overflow: auto;
+  background:
+    radial-gradient(1000px 520px at 10% 110%, rgba(34, 197, 94, 0.18), transparent 60%),
+    radial-gradient(800px 460px at 95% -10%, rgba(99, 102, 241, 0.22), transparent 60%),
+    linear-gradient(160deg, #0d1424, #070a12 60%) fixed;
+}
+
+body.web #root {
+  position: fixed;
+  outline: none;
+  transform-origin: 50% 0;
+  z-index: 2;
+}
+
+#web-intro {
+  position: absolute;
+  left: 50%;
+  width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+  padding: 22px 24px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1.55;
+  user-select: text;
+}
+
+#web-intro h1 {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+#web-intro ul {
+  margin: 12px 0 12px 18px;
+}
+
+#web-intro li {
+  margin: 4px 0;
+}
+
+#web-intro .fine {
+  font-size: 12.5px;
+  color: var(--dim-2);
+}
+
+#web-intro a {
+  color: var(--accent);
+}
+
+/* Shown only on a phone held upright, where the island is scaled way down. */
+#web-intro .rotate {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  #web-intro .rotate {
+    display: block;
+    margin: -4px 0 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--accent);
+    font-weight: 600;
+  }
+}
+
+/* ── Header: five tabs, only the open one labelled ──────────────────────── */
+
+.tab:not(.on) {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+.tab:not(.on) span {
+  display: none;
+}
+
+.sol-chip {
+  margin-right: 8px;
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sol-chip b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.header-actions .status-dot {
+  margin-right: 6px;
+}
+
+/* ── Watchlist extras ───────────────────────────────────────────────────── */
+
+.c-spark {
+  width: 58px;
+  display: flex;
+  justify-content: center;
+}
+
+.row.head .c-spark {
+  justify-content: center;
+}
+
+.spark polyline {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.spark polyline.up {
+  stroke: var(--up);
+}
+
+.spark polyline.down {
+  stroke: var(--down);
+}
+
+.row {
+  position: relative;
+}
+
+/* Quick actions float over the right of the row on hover. */
+.row-actions {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  gap: 1px;
+  padding: 0 4px 0 18px;
+  background: linear-gradient(90deg, transparent, var(--card) 16px);
+  border-radius: 8px;
+}
+
+.row:hover .row-actions {
+  display: flex;
+}
+
+.row-actions .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.icon-btn.x2 {
+  width: auto !important;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+/* RugCheck shield next to a symbol. */
+.safe {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.safe.low {
+  color: var(--up);
+}
+
+.safe.medium {
+  color: var(--amber);
+}
+
+.safe.high {
+  color: var(--down);
+  background: rgba(244, 80, 94, 0.15);
+}
+
+.safe.pending,
+.safe.unknown {
+  color: var(--dim-3);
+  cursor: default;
+}
+
+.safe.pending svg {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ── Segmented switches (Trending Hot/New, Discipline Today/Journal) ────── */
+
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.seg-btn {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seg-btn.on {
+  background: var(--tab-on);
+  color: var(--ink);
+}
+
+.seg.corner {
+  position: absolute;
+  top: 4px;
+  right: 14px;
+  z-index: 1;
+}
+
+/* ── Trending ───────────────────────────────────────────────────────────── */
+
+.seg-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.caveat {
+  font-size: 10.5px;
+  color: var(--dim-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trending-note {
+  margin-left: auto;
+}
+
+.c-age {
+  width: 44px;
+  text-align: right;
+  color: var(--dim);
+}
+
+.c-liq {
+  width: 62px;
+  text-align: right;
+  color: var(--dim);
+}
+
+.c-add {
+  width: 34px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.icon-btn.add {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+}
+
+.icon-btn.add.done {
+  color: var(--dim-3);
+  cursor: default;
+}
+
+/* ── Wallets ────────────────────────────────────────────────────────────── */
+
+.wallet-list {
+  flex-direction: column;
+  gap: 4px;
+  max-height: 196px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.wallet-row {
+  height: 44px;
+  padding: 4px 6px;
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.wallet-row.mine {
+  box-shadow: inset 2px 0 0 var(--amber);
+}
+
+.w-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.w-line .icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
+.icon-btn.star.on {
+  color: var(--amber);
+}
+
+.w-name {
+  font-weight: 650;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w-addr {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--dim-3);
+}
+
+.w-total {
+  margin-left: auto;
+  font-weight: 650;
+}
+
+.w-change {
+  min-width: 112px;
+  text-align: right;
+  font-size: 11px;
+}
+
+.w-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  padding-left: 30px;
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.w-detail .chip {
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+.w-detail .dim {
+  color: var(--dim-3);
+}
+
+.w-detail .err {
+  color: var(--down);
+}
+
+.wallets .add-bar .field.small {
+  width: 90px;
+}
+
+.fine-print {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--dim-3);
+}
+
+/* ── Discipline: today and journal ──────────────────────────────────────── */
+
+.log-bar .field.note-in {
+  flex: 1 1 auto;
+  min-width: 60px;
+}
+
+.week-chart {
+  display: flex;
+  gap: 8px;
+  height: 92px;
+  /* Room for the Today/Journal switch in the corner. */
+  margin-top: 26px;
+}
+
+.week-chart .day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.week-chart .half {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.week-chart .half.up {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.week-chart .half.down {
+  align-items: flex-start;
+}
+
+.week-chart i {
+  width: 60%;
+  min-height: 2px;
+  border-radius: 3px;
+}
+
+.week-chart .half.up i {
+  background: var(--up);
+}
+
+.week-chart .half.down i {
+  background: var(--down);
+}
+
+.week-chart .lbl {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--dim-2);
+  text-align: center;
+}
+
+.week-stats {
+  margin: 6px 0 2px;
+  font-size: 11.5px;
+}
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.j-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 20px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.j-when {
+  width: 72px;
+  color: var(--dim-2);
+}
+
+.j-pnl {
+  width: 76px;
+  text-align: right;
+  font-weight: 600;
+}
+
+.j-note {
+  flex: 1;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.j-note.dim {
+  color: var(--dim-3);
+}
+
+.field.note-edit {
+  flex: 1;
+  height: 20px;
+  font-size: 11.5px;
+}
+
+.journal-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.journal-foot .btn {
+  height: 24px;
+  font-size: 11.5px;
+}
+
+/* ── Mascot outfit ──────────────────────────────────────────────────────── */
+
+.mascot-outfit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* ── Web preview: shared-link notice ────────────────────────────────────── */
+
+#web-intro .shared {
+  margin: -4px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.16);
+  color: #c7d2fe;
+  font-weight: 600;
+}
+
+.mascot-outfit[hidden] {
+  display: none;
+}
+
+/* ── Multichain ─────────────────────────────────────────────────────────── */
+
+/* SOL / BSC / ETH / HOOD next to a symbol. */
+.chain-tag {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 14px;
+  color: var(--chain, var(--dim));
+  background: color-mix(in srgb, var(--chain, #888) 16%, transparent);
+}
+
+/* Header prices: one per native coin of the chosen chains. */
+.natives {
+  display: flex;
+  gap: 8px;
+  margin-right: 8px;
+}
+
+.natives .sol-chip {
+  margin-right: 0;
+  font-size: 10.5px;
+}
+
+/* The mood caption never spills out of the island: two lines, then "…". */
+#caption {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-height: 32px;
+}
+
+/* ── Watchlist search results ───────────────────────────────────────────── */
+
+.results-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  margin-bottom: 2px;
+}
+
+.results-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-head .icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
+.results .row.top {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tok-name {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--dim-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-btn.add {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Trending switches ──────────────────────────────────────────────────── */
+
+.seg-label {
+  font-size: 10.5px;
+  color: var(--dim-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.seg.chains .seg-btn {
+  padding: 0 8px;
+}
+
+.c-vol {
+  width: 60px;
+  text-align: right;
+  color: var(--dim);
+}
+
+.trending .c-mc {
+  width: 58px;
+}
+
+.trending .c-liq {
+  width: 56px;
+}
+
+.trending .c-age {
+  width: 38px;
+}
+
+.c-liq.suspect {
+  color: var(--amber);
+}
+
+.results .c-vol {
+  width: 58px;
+}
+
+/* The symbol keeps its room; a long token name gives way. */
+.c-tok .sym {
+  flex: none;
+  max-width: 96px;
+}
+
+.results-pane .row.head {
+  height: 18px;
+}
+
+/* ── Positions ──────────────────────────────────────────────────────────── */
+
+.ticker .t-own {
+  color: var(--amber);
+  font-size: 10px;
+}
+
+.pos-summary {
+  display: flex;
+  gap: 16px;
+  padding: 2px 6px 6px;
+  font-size: 11.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-summary b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.pos-summary b.pct.up {
+  color: var(--up);
+}
+
+.pos-summary b.pct.down {
+  color: var(--down);
+}
+
+.positions .rows {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.c-pnl {
+  width: 72px;
+  text-align: right;
+}
+
+.c-x {
+  width: 40px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.c-x.big {
+  color: var(--up);
+  font-weight: 700;
+}
+
+.positions .c-price.entry {
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+}
+
+.positions .row:hover .c-price.entry {
+  border-bottom-color: var(--dim-2);
+}
+
+.entry-field {
+  width: 74px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  text-align: right;
+}
+
+.positions .since {
+  color: var(--dim-2);
+  font-size: 10px;
+}
+
+.empty-actions {
+  margin-top: 10px;
+}
+
+/* ── Watchlist volume and buys / sells (as GMGN shows them) ─────────────── */
+
+.watchlist .c-tok {
+  overflow: hidden;
+}
+
+.watchlist .c-tok .sym {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watchlist .c-mc {
+  width: 58px;
+}
+
+.watchlist .c-vol {
+  width: 54px;
+  text-align: right;
+}
+
+.c-vol.pick {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.c-vol.pick:hover {
+  color: var(--ink);
+}
+
+.c-txns {
+  width: 64px;
+  text-align: right;
+  color: var(--dim-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-txns .buys {
+  color: var(--up);
+}
+
+.c-txns .sells {
+  color: var(--down);
+}
+
+.watchlist .c-spark {
+  width: 50px;
+}
+
+.watchlist .c-pct {
+  width: 50px;
+}
+
+/* ── Header: Fear & Greed ───────────────────────────────────────────────── */
+
+.fng .fng-value {
+  font-weight: 700;
+}
+
+.fng.tone-up .fng-value {
+  color: var(--up);
+}
+
+.fng.tone-down .fng-value {
+  color: var(--down);
+}
+
+.fng.tone-warn .fng-value {
+  color: var(--amber);
+}
+
+/* Many coins in the header: the chips give way, never the buttons. */
+.header-actions {
+  min-width: 0;
+}
+
+.header-actions .natives {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.header-actions > :not(.natives) {
+  flex: none;
+}
+
+.header-actions .natives {
+  gap: 6px;
+}
+
+#header .tabs {
+  gap: 2px;
+}
+
+.natives.crowded .sol-chip {
+  font-size: 10px;
+}
+
+/* ── Share my day ───────────────────────────────────────────────────────── */
+
+.discipline .foot .share {
+  color: var(--accent, var(--up));
+  font-weight: 650;
+}
+
+.discipline .foot .money {
+  color: var(--dim-2);
+}
+
+.discipline .foot .share-note {
+  margin-right: 8px;
+  color: var(--dim);
+}
+
+/* ── My wallet: the wallet line and the activity log ───────────────────── */
+
+.mine-line {
+  display: flex;
+  gap: 6px;
+  padding: 0 6px 4px;
+  min-height: 22px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.mine-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px 0 8px;
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.mine-chip b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.mine-chip .icon-btn {
+  width: 18px;
+  height: 18px;
+}
+
+.mine-status {
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.mine-status.err {
+  color: var(--amber);
+}
+
+/* Reading the wallet's history: progress, then what it found. */
+.history-line {
+  padding: 0 8px 4px;
+  font-size: 11px;
+  color: var(--calm);
+}
+
+.history-line.err {
+  color: var(--amber);
+}
+
+.positions .link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.positions .activity {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.c-when {
+  width: 64px;
+  color: var(--dim-2);
+  font-size: 11px;
+}
+
+.c-side {
+  width: 86px;
+  font-weight: 650;
+  font-size: 11.5px;
+}
+
+.side-opened,
+.side-bought {
+  color: var(--up);
+}
+
+.side-sold,
+.side-closed {
+  color: var(--down);
+}
+
+.side-tracked {
+  color: var(--dim);
+}
+
+.wallet-setup .add-bar {
+  margin-top: 4px;
+}
+
+/* ── Following ──────────────────────────────────────────────────────────── */
+
+.w-move {
+  font-weight: 650;
+}
+
+.w-move.up {
+  color: var(--up);
+}
+
+.w-move.down {
+  color: var(--down);
+}
+
+.w-checked {
+  margin-left: auto;
+  font-size: 10.5px;
+}
+
+.wallets .w-detail {
+  padding-left: 2px;
+}
+
+/* ── Browser: settings in a panel over the page ─────────────────────────── */
+
+#settings-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.settings-box {
+  position: relative;
+  width: min(720px, 100%);
+  height: min(86vh, 900px);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0b0d12;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.settings-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.settings-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Wardrobe ───────────────────────────────────────────────────────────── */
+
+.wardrobe-btn {
+  position: absolute;
+  left: 12px;
+  top: 46px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim-2);
+  cursor: pointer;
+}
+
+.wardrobe-btn:hover,
+.wardrobe-btn.on {
+  color: var(--ink);
+  background: var(--card);
+}
+
+.wardrobe-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.wardrobe-more {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dim);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.wardrobe-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  max-height: 176px;
+  overflow-y: auto;
+}
+
+.wardrobe .look {
+  aspect-ratio: 1;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.wardrobe .look:hover {
+  border-color: var(--dim-2);
+}
+
+.wardrobe .look.on {
+  border-color: rgba(74, 222, 128, 0.7);
+}
+
+.mini-candy {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Costumes: bigger cards with their name under. */
+.wardrobe-grid.named {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.wardrobe-grid.named .look {
+  aspect-ratio: auto;
+  padding: 4px 4px 3px;
+}
+
+.wardrobe-grid.named .mini-candy {
+  height: auto;
+  aspect-ratio: 1;
+}
+
+/* Backgrounds: a little island with a dot and a line of ticker on it. */
+.island-swatch {
+  position: relative;
+  display: block;
+  height: 26px;
+  margin: 4px 2px 2px;
+  border-radius: 0 0 9px 9px;
+}
+
+.island-swatch i {
+  position: absolute;
+  top: 10px;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.island-swatch .sw-dot {
+  left: 8px;
+  width: 6px;
+  background: var(--accent);
+}
+
+.island-swatch .sw-line {
+  left: 20px;
+  width: 30%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.island-swatch .sw-up {
+  right: 10px;
+  width: 16%;
+  background: var(--up);
+}
+
+/* Thirteen backgrounds in two rows. */
+.wardrobe-grid.islands {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.wardrobe-grid.islands .look {
+  padding: 4px 4px 3px;
+}
+
+.wardrobe-grid.islands .look-name {
+  font-size: 10px;
+}
+
+.look-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+}
+
+.mini-candy img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* The "while you were away" card lists its lines one under the other. */
+.view.event .detail {
+  white-space: pre-line;
+}
+
+/* ── Watchlist folders ──────────────────────────────────────────────────── */
+
+.folders {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  margin-bottom: 2px;
+  overflow: hidden;
+}
+
+.folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.folder:hover {
+  color: var(--ink);
+}
+
+.folder.on {
+  background: rgba(74, 222, 128, 0.16);
+  color: var(--ink);
+}
+
+.folder .count {
+  color: var(--dim-2);
+  font-size: 10px;
+}
+
+.folder.add {
+  width: 22px;
+  padding: 0;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.folder.mini {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 10.5px;
+}
+
+.field.folder-field {
+  width: 110px;
+  height: 22px;
+  font-size: 11px;
+}
+
+/* ── Sidebar: the island open on a side edge ────────────────────────────── */
+/* Narrow and tall (see SIDEBAR_* in src/core/layout.ts): the tabs and the
+   prices on two rows, a band with the mascot and its line, then the view,
+   with more rows and only the columns that matter. */
+
+body.browser.sidebar #root {
+  width: 400px;
+  height: 640px;
+}
+
+.sidebar #content {
+  width: 380px;
+}
+
+/* The sidebar grows out of its edge: its content holds to that edge while it opens. */
+body[data-placement="left"] #content {
+  left: 0;
+  transform: none;
+}
+
+body[data-placement="right"] #content {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.sidebar #header {
+  height: 70px;
+  padding: 8px 12px 0;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  row-gap: 8px;
+}
+
+/* The prices drop to a row of their own; the buttons stay up with the tabs. */
+.sidebar #header .header-actions {
+  display: contents;
+}
+
+.sidebar #header .status-dot {
+  margin-left: auto;
+}
+
+.sidebar #header .natives {
+  order: 2;
+  flex: 1 0 100%;
+  margin: 0;
+  padding-left: 4px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.sidebar .view {
+  inset: 142px 0 0 0;
+  padding: 4px 12px 10px;
+}
+
+/* The event card and the greeting: the mascot on top, the words under it. */
+.sidebar .view.event,
+.sidebar .view.greeting {
+  inset: 0;
+  padding: 120px 20px 14px;
+  text-align: center;
+}
+
+.sidebar .view.event .event-foot {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* The wardrobe button: at the band's far end, clear of the mascot. */
+.sidebar .wardrobe-btn {
+  top: 78px;
+  left: auto;
+  right: 12px;
+}
+
+#caption.beside {
+  padding: 0;
+  text-align: left;
+  font-size: 11.5px;
+}
+
+/* More rows before a list scrolls (its inline height is the top island's). */
+.sidebar .watchlist .rows:not(.results),
+.sidebar .trending .rows {
+  max-height: 300px !important;
+}
+
+/* Watchlist: token, market cap, 1h and 24h. */
+.sidebar .watchlist .c-spark,
+.sidebar .watchlist .c-vol,
+.sidebar .watchlist .c-txns,
+.sidebar .watchlist > .row.head > :nth-child(6),
+.sidebar .watchlist .rows:not(.results) .row > :nth-child(6) {
+  display: none;
+}
+
+/* Search results and trending: token, market cap, liquidity or change, add. */
+.sidebar .results-pane .c-vol,
+.sidebar .results-pane .c-age,
+.sidebar .trending .c-age,
+.sidebar .trending .c-liq,
+.sidebar .trending .c-vol {
+  display: none;
+}
+
+.sidebar .seg-bar {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+/* My wallet: value, profit and %. */
+.sidebar .positions .c-price,
+.sidebar .positions .c-x {
+  display: none;
+}
+
+.sidebar .seg.corner {
+  position: static;
+  margin-bottom: 4px;
+}
+
+.sidebar .wardrobe-grid {
+  grid-template-columns: repeat(6, 1fr);
+  max-height: 420px;
+}
+
+.sidebar .wardrobe-grid.named,
+.sidebar .wardrobe-grid.islands {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.sidebar .wardrobe-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* The field and its buttons on one row, the note under them. */
+.sidebar .add-bar {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.sidebar .add-bar .note {
+  flex: 1 0 100%;
+  max-width: none;
+}
+
+/* Discipline counted from the wallet: what it means, and the way to type one in. */
+.discipline .auto-line {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.discipline .auto-line a {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}

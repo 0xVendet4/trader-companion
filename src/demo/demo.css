@@ -1,0 +1,262 @@
+/* The demo stage: a 1280×720 fake desktop with the real island on top, captions
+   and title cards. Recorded into a video by scripts/record-demo.mjs. */
+
+body.demo {
+  background: #000;
+  overflow: hidden;
+}
+
+/* A fixed, clipped frame: without it a phone widens the page to fit the
+   1280 px stage instead of letting the stage shrink. */
+#frame {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Always 1280×720 inside; demo.ts scales it to fit the window (phone included). */
+#stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  transform-origin: 0 0;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 600px at 15% 110%, rgba(34, 197, 94, 0.22), transparent 60%),
+    radial-gradient(900px 500px at 95% -10%, rgba(99, 102, 241, 0.25), transparent 60%),
+    linear-gradient(160deg, #0d1424, #070a12 60%);
+}
+
+body.demo #root {
+  position: absolute;
+  inset: 0 auto auto 50%;
+  width: 720px;
+  height: 340px;
+  transform: translateX(-50%);
+  z-index: 5;
+  /* Visitors watch; only the scripted cursor drives the island. */
+  pointer-events: none;
+}
+
+/* A generic chart window, so the island sits on something that looks like a
+   trading day. Not any real terminal's look. */
+.chart-window {
+  position: absolute;
+  left: 110px;
+  top: 150px;
+  width: 1060px;
+  height: 480px;
+  border-radius: 12px;
+  background: rgba(10, 13, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.chart-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #8b93a1;
+  font-size: 12px;
+}
+
+.chart-bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2a2f3a;
+}
+
+.chart-bar span {
+  margin-left: 10px;
+  font-weight: 600;
+}
+
+#chart {
+  display: block;
+  width: 100%;
+  height: calc(100% - 34px);
+}
+
+.taskbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(20, 24, 33, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.taskbar span {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.taskbar .tray {
+  position: absolute;
+  right: 18px;
+  width: 22px;
+  height: 22px;
+}
+
+#demo-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 74px;
+  transform: translateX(-50%) translateY(10px);
+  padding: 14px 26px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  z-index: 8;
+}
+
+#demo-caption.on {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+#demo-caption em {
+  font-style: normal;
+  color: #4ade80;
+}
+
+#demo-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  z-index: 20;
+  opacity: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 11-6.5 1.2L16 21l-3 1.4-3.6-6.8L4 19z' fill='white' stroke='black' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+#demo-cursor.press {
+  scale: 0.85;
+}
+
+#demo-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background:
+    radial-gradient(700px 400px at 50% 40%, rgba(34, 197, 94, 0.18), transparent 70%),
+    #05070c;
+  color: #fff;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+  z-index: 30;
+}
+
+#demo-card.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#demo-card .play {
+  margin-top: 18px;
+  height: 52px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 26px;
+  background: #4ade80;
+  color: #04110a;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 40px rgba(74, 222, 128, 0.35);
+  transition: transform 0.15s ease;
+}
+
+#demo-card .play:hover {
+  transform: scale(1.04);
+}
+
+#demo-card .play.ghost {
+  background: transparent;
+  color: #a3aab5;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+  font-size: 17px;
+  height: 44px;
+}
+
+#demo-card img {
+  width: 150px;
+  height: 150px;
+  animation: breathe 2.8s ease-in-out infinite;
+}
+
+#demo-card h1 {
+  font-size: 56px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+#demo-card p {
+  font-size: 24px;
+  color: #a3aab5;
+}
+
+#demo-card .small {
+  font-size: 16px;
+  color: #6b7280;
+  margin-top: 10px;
+}
+
+#demo-badge {
+  position: absolute;
+  left: 16px;
+  bottom: 56px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  z-index: 8;
+}
+
+#rotate-hint {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  #rotate-hint {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 12%;
+    text-align: center;
+    font-size: 14px;
+    color: #6b7280;
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Trader Companion",
+  "version": "0.1.0",
+  "identifier": "com.tradercompanion.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.dexscreener.com https://dd.dexscreener.com; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://api.dexscreener.com https://api.rugcheck.xyz https://api.alternative.me",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.dexscreener.com https://dd.dexscreener.com; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://api.dexscreener.com https://api.rugcheck.xyz https://api.alternative.me ws://localhost:1420 http://localhost:1420"
+    },
+    "windows": [
+      {
+        "label": "island",
+        "title": "Trader Companion",
+        "url": "index.html",
+        "width": 240,
+        "height": 6,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": true,
+        "center": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "copyright": "MIT — includes code from Coucou © Louis Raillé",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "category": "Finance",
+    "shortDescription": "A mascot at the top of your screen that watches your memecoins",
+    "longDescription": "Trader Companion puts a mascot at the top of your screen: a Solana memecoin watchlist, price, market cap and liquidity alerts, and discipline reminders. It only reads public data (DexScreener) and never touches your wallet or private key. Not financial advice.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "installerHooks": "nsis/hooks.nsh"
+      }
+    }
+  }
+}
