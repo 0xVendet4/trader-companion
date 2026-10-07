@@ -620,6 +620,15 @@ class AppState {
   mode: IslandMode = "hidden";
   /** Minimized from the header: stays hidden, the mouse doesn't bring it back (see Island.minimize). */
   minimized = false;
+  /** The OS the app runs on ("windows", "linux"…), or "browser" outside it. */
+  os = "browser";
+  /**
+   * False where the app can't read the cursor across the screen (Linux): the
+   * page follows the mouse over the island itself, and the island stays at the
+   * top (no side or floating placement, no Ctrl pass-through, no screen "where
+   * the mouse is"). See src-tauri/src/platform/linux.rs.
+   */
+  cursorPoll = true;
   view: IslandViewName = "watchlist";
 
   settings: Settings = normalizeSettings(null);

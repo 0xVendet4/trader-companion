@@ -14,7 +14,7 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, WebviewWindow};
 
-use crate::platform::{ctrl_down, cursor_physical, left_button_down};
+use crate::platform::{self, ctrl_down, cursor_physical, left_button_down};
 use crate::settings::Settings;
 
 /// Logical size of the full window — room for the largest island view.
@@ -293,12 +293,30 @@ pub fn float_fractions(app: &AppHandle, s: &Settings) -> Option<(f64, f64, Strin
     ))
 }
 
+/// The placement the island can have here: without a cursor to read (Linux)
+/// only the top edge — a side or floating island needs the cursor poll to hover,
+/// drag and pass clicks through.
+pub fn effective(s: &Settings) -> Settings {
+    let mut s = s.clone();
+    if !platform::CURSOR_POLL {
+        s.placement = "top".into();
+    }
+    s
+}
+
 /// Places and sizes the window. `collapsed` picks the wake strip instead of the panel.
 pub fn apply_geometry(app: &AppHandle, s: &Settings, collapsed: bool) {
     let Some(win) = window(app) else { return };
+    let s = &effective(s);
     let Some(m) = placement_monitor(app, s) else { return };
     let (x, y, pw, ph) = window_frame(Display::of(&m), s, collapsed);
 
+    // GTK never sizes a non-resizable window below its natural size (200 px),
+    // so on Linux the 6 px wake strip would stay a 200 px block. tao re-applies
+    // the config's `resizable: false` after the first configure, so this is
+    // asked every time, just before the resize. (From Coucou, found by @YossiYad.)
+    #[cfg(target_os = "linux")]
+    let _ = win.set_resizable(true);
     let _ = win.set_size(PhysicalSize::new(pw, ph));
     let _ = win.set_position(PhysicalPosition::new(x, y));
     // Moving across displays can rescale the window: re-assert the physical size.
@@ -326,6 +344,9 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
         // Remembered across wakes so a display change while hidden is noticed the
         // moment the island comes back.
         let mut last_screen: Option<(i32, i32, u32, u32, u64)> = None;
+        // Without a cursor to read (Linux) the loop only watches the display
+        // layout, and twice a second is plenty for that.
+        let (period, screen_every) = if platform::CURSOR_POLL { (16, 30) } else { (500, 1) };
         loop {
             gate.wait_until_active();
             let mut last = (f64::MIN, f64::MIN);
@@ -334,13 +355,13 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
             // A button already held when the island wakes is not a new click.
             let mut was_down = left_button_down();
             while gate.is_active() {
-                std::thread::sleep(Duration::from_millis(16));
+                std::thread::sleep(Duration::from_millis(period));
 
                 // Monitors get plugged in, unplugged, rearranged and rescaled, and
                 // an island pinned to coordinates that no longer exist is an island
                 // nobody can reach. Checked about twice a second.
                 ticks = ticks.wrapping_add(1);
-                if ticks % 30 == 0 {
+                if ticks % screen_every == 0 {
                     let now = current_screen_key(&app);
                     if now.is_some() && now != last_screen {
                         let first = last_screen.is_none();
@@ -434,11 +455,35 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
     });
 }
 
-/// Re-applies click-through after the window or the island changed shape: the
-/// window takes the mouse again and the next poll tick decides from the cursor.
+/// Re-applies click-through after the window or the island changed shape.
+///
+/// With the cursor poll (Windows) the window takes the mouse again and the next
+/// tick decides from the cursor. Without it (Linux) the input region is set to
+/// the island itself, or to the wake strip while collapsed.
 pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
-    set_ignore_cursor(app, false);
-    gate.forget_ignore_state();
+    if platform::CURSOR_POLL {
+        set_ignore_cursor(app, false);
+        gate.forget_ignore_state();
+        return;
+    }
+    let Some(win) = window(app) else { return };
+    platform::set_input_region(&win, input_region(gate.collapsed.load(Ordering::Relaxed), *gate.rect.lock().unwrap()));
+}
+
+/// The part of the window that takes the mouse without a cursor poll: the wake
+/// strip while collapsed (never "the whole window": if it ever fails to shrink,
+/// the rest must not swallow clicks meant for what sits under the top of the
+/// screen), else the island and its margin, and nothing before it is drawn.
+pub fn input_region(collapsed: bool, r: IslandRect) -> platform::Region {
+    if collapsed {
+        return Some((0.0, 0.0, STRIP_W, STRIP_H));
+    }
+    if r.w <= 0.0 {
+        return Some((0.0, 0.0, 0.0, 0.0));
+    }
+    let x0 = (r.x - HIT_MARGIN).max(0.0);
+    let y0 = (r.y - HIT_MARGIN).max(0.0);
+    Some((x0, y0, r.x + r.w + HIT_MARGIN - x0, r.y + r.h + HIT_MARGIN - y0))
 }
 
 pub fn set_ignore_cursor(app: &AppHandle, ignore: bool) {
@@ -449,7 +494,7 @@ pub fn set_ignore_cursor(app: &AppHandle, ignore: bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::{window_frame, Display};
+    use super::{input_region, window_frame, Display, IslandRect, STRIP_H, STRIP_W};
     use crate::settings::Settings;
 
     const D: Display = Display { x: 0, y: 0, w: 1920, h: 1080, scale: 1.0 };
@@ -485,5 +530,16 @@ mod tests {
         // Never collapses, and never leaves the display.
         assert_eq!(window_frame(D, &with("float", 0.0, 0.0), true), (0, 0, 720, 340));
         assert_eq!(window_frame(D, &with("float", 1.0, 1.0), false), (1200, 740, 720, 340));
+    }
+
+    #[test]
+    fn without_a_cursor_poll_only_the_island_takes_the_mouse() {
+        // Collapsed: the wake strip, never the whole window.
+        assert_eq!(input_region(true, IslandRect::default()), Some((0.0, 0.0, STRIP_W, STRIP_H)));
+        // Nothing drawn yet: nothing.
+        assert_eq!(input_region(false, IslandRect::default()), Some((0.0, 0.0, 0.0, 0.0)));
+        // The island and its margin, kept inside the window.
+        let r = IslandRect { x: 200.0, y: 0.0, w: 320.0, h: 32.0 };
+        assert_eq!(input_region(false, r), Some((186.0, 0.0, 348.0, 46.0)));
     }
 }

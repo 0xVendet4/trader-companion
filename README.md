@@ -1,9 +1,9 @@
 # Candy — Trader Companion
 
-A tiny mascot that lives at the top of your Windows screen and keeps an eye on
-your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
+A tiny mascot that lives at the top of your screen, on Windows or Linux, and
+keeps an eye on your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
 
-### [Install Candy on Windows](#install)
+### [Install Candy](#install) on Windows or Linux
 
 Free and open source, and built on your own PC from this code: there is no
 prebuilt download to trust.
@@ -48,7 +48,8 @@ prebuilt download to trust.
   costumes (Gengar, Spiderman, Shadow, V) that redraw the whole mascot in
   every mood, and seasonal looks.
 - **Where it lives** — centred on the top edge, on the left or right edge (a
-  slim tab that opens into a sidebar), or floating: drag it anywhere.
+  slim tab that opens into a sidebar), or floating: drag it anywhere. On
+  Linux, the top edge.
 - **Token safety** — a RugCheck badge on every token: mint/freeze authority,
   holder concentration, unlocked liquidity.
 - **Trending** — DexScreener's most boosted and newest tokens on your chains,
@@ -63,35 +64,64 @@ prebuilt download to trust.
   minimize button (the shortcut or the tray icon brings Candy back), system
   notifications.
 
-Hold **Ctrl** over the island to click whatever is behind it (a browser tab, a
-title bar); it fades while the clicks go through.
+On Windows, hold **Ctrl** over the island to click whatever is behind it (a
+browser tab, a title bar); it fades while the clicks go through.
 
 ## Install
 
 Candy ships as source. You build it on your own PC, so what you run is
 exactly the code in this repository: there is nothing prebuilt to download,
-and nothing to trust that you can't read here.
+and nothing to trust that you can't read here. Get the code first: **Code →
+Download ZIP** at the top of this page, then unzip it (or `git clone` it).
 
-1. Get the code: **Code → Download ZIP** at the top of this page, then unzip
-   it (or `git clone` it).
-2. Double-click **`install.cmd`** in that folder. Windows may ask whether to
-   run it, since it came from the internet: it is a few lines that start
-   `scripts\install.ps1` (open either in Notepad to check).
+### Windows
+
+Double-click **`install.cmd`** in that folder. Windows may ask whether to run
+it, since it came from the internet: it is a few lines that start
+`scripts\install.ps1` (open either in Notepad to check).
 
 It checks for what a build needs (Node.js 20+, Rust with its MSVC toolchain,
 and Microsoft's C++ build tools) and offers to install anything missing with
 winget; it asks first, and the C++ tools take a few GB. Then it builds Candy,
 10–20 minutes the first time, and runs the installer it made. Candy lands in
-your Start menu. To update, get the new code and run `install.cmd` again:
-your settings stay.
+your Start menu.
 
 To only see what is missing:
 `powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -CheckOnly`.
-By hand, it is [Develop](#develop): the
-[prerequisites](https://tauri.app/start/prerequisites/), `npm ci`,
-`npm run pack`, then run `release\Candy-Windows-<version>-setup.exe`.
+By hand: the [prerequisites](https://tauri.app/start/prerequisites/),
+`npm ci`, `npm run pack`, then run `release\Candy-Windows-<version>-setup.exe`.
 
-Candy never asks for a wallet, a seed phrase or a private key.
+### Linux
+
+In a terminal, in that folder:
+
+```bash
+bash install.sh
+```
+
+It checks for the libraries a build needs (WebKitGTK 4.1, gtk-layer-shell,
+AppIndicator) and offers to install them with apt, dnf, pacman or zypper (it
+asks for your password), then Node.js 20+ through nvm and Rust through rustup,
+asking before each. Then it builds Candy, 10–20 minutes the first time, and
+installs it for your user only: `~/.local/bin/candy`, with an entry in your
+app menu. `bash install.sh --check` only says what is missing.
+
+Linux doesn't let an app read the cursor across the screen, so Candy works a
+little differently there:
+
+- On **KDE, COSMIC, Hyprland, Sway** and other compositors with layer-shell,
+  the island sits on the top edge above everything. On **GNOME** it runs
+  through XWayland, as an always-on-top window at the top of the screen.
+- It stays on the top edge; its eyes follow the mouse over the island only;
+  there is no Ctrl pass-through.
+- The show/hide shortcut works where your desktop lets apps have global
+  shortcuts (X11, and GNOME through XWayland).
+- A blank island on some graphics drivers: start it with
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1 candy`.
+
+To update, on either system, get the new code and run the installer again:
+your settings stay. Candy never asks for a wallet, a seed phrase or a private
+key.
 
 ## Safety
 
@@ -111,16 +141,18 @@ Candy never asks for a wallet, a seed phrase or a private key.
 
 ## Develop
 
-Requirements: Node 20+, Rust (MSVC toolchain), and the Visual Studio Build
-Tools with the "Desktop development with C++" workload — see
-[Tauri's prerequisites](https://tauri.app/start/prerequisites/).
+Requirements: Node 20+, Rust, and [Tauri's prerequisites](https://tauri.app/start/prerequisites/):
+on Windows the Visual Studio Build Tools with "Desktop development with C++"
+(and Rust's MSVC toolchain); on Linux WebKitGTK 4.1 and friends, plus
+gtk-layer-shell (`bash install.sh` installs them all).
 
 ```bash
 npm install
 npm run tauri dev     # the real app
 npm run dev           # the UI only, in a browser at http://localhost:1420
 npm test              # unit tests (alerts, mood, discipline, formatting)
-npm run pack          # installer → release/ (install.cmd does this, prerequisites included)
+npm run pack          # Windows installer → release/ (install.cmd does this, prerequisites included)
+npx tauri build --no-bundle   # Linux: the app → target/release/ (install.sh does this)
 ```
 
 In a browser the island runs on the same code, with settings kept in
@@ -156,7 +188,8 @@ It drives a headless Microsoft Edge; no ffmpeg needed.
 
 Candy has no account, no analytics and no telemetry. It keeps
 everything on your PC: settings, watchlist, journal and wallet book in
-`%APPDATA%\TraderCompanion`, a log in `%LOCALAPPDATA%\TraderCompanion`.
+`%APPDATA%\TraderCompanion` (Linux: `~/.config/candy`), a log in
+`%LOCALAPPDATA%\TraderCompanion` (Linux: `~/.local/share/candy`).
 
 It talks only to public services, for public data:
 

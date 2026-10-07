@@ -88,6 +88,8 @@ export function buildHeader(actions: ViewActions): ViewHost {
   let dockShown = "";
   function paintDock() {
     const place = State.settings.placement;
+    // Only the top edge without a cursor poll (Linux): nothing to pick.
+    dockWrap.style.display = IS_TAURI && !State.cursorPoll ? "none" : "";
     dockMenu.classList.toggle("on", dockOpen);
     dock.classList.toggle("on", dockOpen);
     for (const { id, b } of dockChoices) b.classList.toggle("on", id === place);

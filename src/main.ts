@@ -19,6 +19,10 @@ async function main() {
   const [boot, manifest] = await Promise.all([Bridge.boot(), loadManifest()]);
   State.settings = boot.settings;
   State.version = boot.version;
+  State.os = boot.os ?? "browser";
+  State.cursorPoll = boot.cursorPoll ?? true;
+  // No cursor poll (Linux): the page's own mouse events stand in for it.
+  if (IS_TAURI && !State.cursorPoll) island.followPage();
   island.useArt(manifest);
   island.applySettings();
 

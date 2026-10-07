@@ -23,6 +23,12 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # Read-only Solana RPC calls for the wallets tab (see solana_rpc in lib.rs).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+# The GTK that Tauri already runs on, to reach its window for layer-shell and
+# the input region. libgtk-layer-shell itself is called directly (platform/linux.rs).
+gtk = "0.18"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [
   "Win32_Foundation",

@@ -27,6 +27,10 @@ export interface BootInfo {
   /** Logical screen rect of the monitor the island lives on. */
   screen: { x: number; y: number; width: number; height: number; scale: number };
   version: string;
+  /** The OS the app runs on (absent in a browser). */
+  os?: string;
+  /** False where the cursor can't be read across the screen (see State.cursorPoll). */
+  cursorPoll?: boolean;
 }
 
 function devLoad(): Settings {

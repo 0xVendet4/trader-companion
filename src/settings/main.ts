@@ -16,6 +16,7 @@ import {
   MAX_WALLETS,
   MAX_WATCHLIST,
   OFFERED_COSTUMES,
+  State,
   THEME_IDS,
   normalizeSettings,
   validRpcUrl,
@@ -383,7 +384,8 @@ function generalSection(): HTMLElement {
   return section(
     "General",
     null,
-    row(
+    // Without a cursor poll (Linux) the island stays at the top edge.
+    !State.cursorPoll ? null : row(
       "Island position",
       select<Placement>(
         [
@@ -398,12 +400,12 @@ function generalSection(): HTMLElement {
       "Floating: drag the ticker where you want it; it stays on screen.",
     ),
     row("Refresh prices every", select<number>([[10, "10 s"], [15, "15 s"], [20, "20 s"], [30, "30 s"], [60, "1 min"]], () => settings.companion.pollSeconds, (v) => (settings.companion.pollSeconds = v))),
-    row("Keep the ticker on screen", toggle(() => settings.companion.keepTickerVisible, (v) => (settings.companion.keepTickerVisible = v)), "When off, the island hides after a minute and comes back when the mouse touches its edge of the screen. Hold Ctrl over the island to click what is behind it."),
+    row("Keep the ticker on screen", toggle(() => settings.companion.keepTickerVisible, (v) => (settings.companion.keepTickerVisible = v)), "When off, the island hides after a minute and comes back when the mouse touches its edge of the screen." + (State.cursorPoll ? " Hold Ctrl over the island to click what is behind it." : "")),
     row("Close the island after", select<number>([[8, "8 s"], [15, "15 s"], [30, "30 s"], [60, "1 min"]], () => settings.autoCloseInterval, (v) => (settings.autoCloseInterval = v))),
     row("Sounds", toggle(() => settings.soundEnabled, (v) => (settings.soundEnabled = v))),
     row("Volume", volume),
-    row("Screen", select<"primary" | "cursor">([["primary", "Main screen"], ["cursor", "Where the mouse is"]], () => settings.screen, (v) => (settings.screen = v))),
-    row("Start with Windows", toggle(() => settings.autostart, (v) => (settings.autostart = v))),
+    !State.cursorPoll ? null : row("Screen", select<"primary" | "cursor">([["primary", "Main screen"], ["cursor", "Where the mouse is"]], () => settings.screen, (v) => (settings.screen = v))),
+    row(State.os === "windows" || !IS_TAURI ? "Start with Windows" : "Start when you log in", toggle(() => settings.autostart, (v) => (settings.autostart = v))),
     rpcRow(),
     rpcKeySites(),
   );
@@ -911,13 +913,13 @@ function notificationsSection(): HTMLElement {
     row(
       "System notifications for alerts",
       h("span", { class: "with-unit" }, test, tg),
-      IS_TAURI ? "Windows notifications reach you even over a fullscreen game or video." : "Browser notifications, while this page is open.",
+      !IS_TAURI ? "Browser notifications, while this page is open." : State.os === "windows" ? "Windows notifications reach you even over a fullscreen game or video." : "Your desktop's notifications, even while the island is hidden.",
     ),
     note,
     row(
       "Show / hide the island",
       select<string>(HOTKEY_CHOICES, () => settings.companion.hotkey, (v) => (settings.companion.hotkey = v)),
-      IS_TAURI ? "Works from any app." : "In the browser it only works while the page has focus.",
+      !IS_TAURI ? "In the browser it only works while the page has focus." : State.os === "linux" ? "Works from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland)." : "Works from any app.",
     ),
   );
 }
@@ -998,6 +1000,8 @@ async function main() {
   if (!root) return;
   const [boot, manifest] = await Promise.all([Bridge.boot(), loadManifest()]);
   settings = boot.settings;
+  State.os = boot.os ?? "browser";
+  State.cursorPoll = boot.cursorPoll ?? true;
 
   const page = h(
     "main",

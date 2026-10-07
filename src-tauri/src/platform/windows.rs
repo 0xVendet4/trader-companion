@@ -14,7 +14,7 @@ use ::windows::Win32::UI::WindowsAndMessaging::{
     WS_EX_TOOLWINDOW,
 };
 
-use super::LocalTime;
+use super::{LocalTime, Region};
 
 /// Folder name under %APPDATA% and %LOCALAPPDATA%.
 const APP_DIR: &str = "TraderCompanion";
@@ -39,6 +39,9 @@ pub fn local_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."));
     base.join(APP_DIR)
 }
+
+/// Nothing to set before the app starts.
+pub fn prepare_environment() {}
 
 /// %APPDATA% and %LOCALAPPDATA% are already private to the user.
 pub fn ensure_private_dir(dir: &std::path::Path) -> std::io::Result<()> {
@@ -68,6 +71,10 @@ pub fn open_url(url: &str) {
 }
 
 // ── Cursor ────────────────────────────────────────────────────────────────────
+
+/// The cursor can be read anywhere on screen: the island polls it for hover,
+/// click-through, Ctrl, clicks elsewhere and dragging (island::spawn_cursor_poll).
+pub const CURSOR_POLL: bool = true;
 
 /// Cursor position in physical screen pixels.
 pub fn cursor_physical() -> Option<(f64, f64)> {
@@ -123,3 +130,7 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want);
     }
 }
+
+/// Click-through comes from the cursor poll here (set_ignore_cursor_events),
+/// not from an input region.
+pub fn set_input_region(_win: &WebviewWindow, _rect: Region) {}

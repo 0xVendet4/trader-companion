@@ -506,6 +506,8 @@ export class Island {
   /** Where the island lives now. A browser window too narrow for the panel keeps it on top. */
   private placement(): Placement {
     if (!IS_TAURI && window.innerWidth < PANEL_W + 40) return "top";
+    // Without a cursor poll (Linux) only the top edge works (see State.cursorPoll).
+    if (IS_TAURI && !State.cursorPoll) return "top";
     return State.settings.placement;
   }
 
@@ -725,6 +727,11 @@ export class Island {
     if (!IS_TAURI && this.followMouse) this.followPageCursor();
     // A floating stage follows the page's size; a narrow page puts the island on top.
     if (!IS_TAURI) window.addEventListener("resize", () => this.applyPlacement());
+  }
+
+  /** The app has no cursor poll here (Linux): follow the page's mouse events instead. */
+  followPage() {
+    if (this.followMouse) this.followPageCursor();
   }
 
   /**

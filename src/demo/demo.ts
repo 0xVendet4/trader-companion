@@ -299,7 +299,7 @@ async function run() {
 
   // Scene 11 — end card.
   card(
-    `<img src="/mascot/still/happy.svg" alt=""><h1>${FULL_NAME}</h1><p>Only public market data. Never your wallet, never your keys.</p><p class="small">for Windows · not financial advice</p>` +
+    `<img src="/mascot/still/happy.svg" alt=""><h1>${FULL_NAME}</h1><p>Only public market data. Never your wallet, never your keys.</p><p class="small">for Windows and Linux · not financial advice</p>` +
       (AUTOPLAY ? "" : `<button class="play ghost" type="button">↻ Watch again</button>`),
   );
   document.querySelector("#demo-card .play")?.addEventListener("click", () => location.reload());

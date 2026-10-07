@@ -32,6 +32,11 @@ pub struct BootInfo {
     settings: Settings,
     screen: ScreenInfo,
     version: String,
+    /// "windows", "linux"…: labels like "Start with Windows" follow it.
+    os: &'static str,
+    /// False where the cursor can't be read across the screen (Linux): the page
+    /// follows the mouse over the island itself, and the island stays on top.
+    cursor_poll: bool,
 }
 
 #[tauri::command]
@@ -42,6 +47,8 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         settings,
         screen,
         version: env!("CARGO_PKG_VERSION").to_string(),
+        os: std::env::consts::OS,
+        cursor_poll: platform::CURSOR_POLL,
     }
 }
 
@@ -89,10 +96,14 @@ fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
     shared.gate.set_active(!collapsed);
 }
 
-/// The front end pushes the island shape; the cursor poll decides click-through from it.
+/// The front end pushes the island shape; the cursor poll decides click-through
+/// from it, or (Linux) it becomes the window's input region.
 #[tauri::command]
-fn set_island_rect(shared: State<Shared>, x: f64, y: f64, width: f64, height: f64) {
+fn set_island_rect(app: AppHandle, shared: State<Shared>, x: f64, y: f64, width: f64, height: f64) {
     shared.gate.set_rect(island::IslandRect { x, y, w: width, h: height });
+    if !platform::CURSOR_POLL {
+        island::refresh_click_through(&app, &shared.gate);
+    }
 }
 
 /// Lets a text field in the island take the keyboard (pasting a token address,
@@ -623,6 +634,7 @@ fn open_settings_window(app: AppHandle) {
 }
 
 pub fn run() {
+    platform::prepare_environment();
     let loaded = settings::load();
     let gate = Arc::new(PollGate::new());
 
