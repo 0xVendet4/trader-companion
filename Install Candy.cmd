@@ -6,7 +6,7 @@ rem It asks before installing the tools a build needs (Node.js, Rust and
 rem Microsoft's C++ build tools) with winget, Windows' own app installer, by
 rem their official package ids. The build itself is "npm run setup"
 rem (scripts\setup.mjs), which you can read too. The details of each step go
-rem to a log; it opens in Notepad if something goes wrong.
+rem to a log; if something goes wrong, this window says what, in a sentence.
 
 setlocal
 title Install Candy
@@ -18,16 +18,21 @@ set "LOGDIR=%LOCALAPPDATA%\Candy-build"
 set "LOG=%LOGDIR%\install.log"
 if not exist "%LOGDIR%" mkdir "%LOGDIR%"
 echo Install Candy, %DATE% %TIME% > "%LOG%"
-rem CI passes --build-only: build, don't open the installer, don't wait for a key.
-rem Candy's own update (src-tauri/src/update.rs) passes --update: install
-rem silently and start Candy again.
-set "MODE=--no-wait"
+rem CI passes --build-only: build, don't install, don't wait for a key.
+rem Candy's own update (src-tauri/src/update.rs) passes --update: the same
+rem install, said differently.
+set "MODE="
 echo %* | findstr /c:"--build-only" >nul && set "MODE=--build-only"
 echo %* | findstr /c:"--update" >nul && set "MODE=--update"
+set "ARGS="
+if "%MODE%"=="--build-only" set "ARGS=--build-only"
 
 echo.
 echo   Candy - Trader Companion
 echo.
+rem Opened from inside the ZIP, Windows copies this file alone to a temporary
+rem folder: there is nothing to build there.
+if not exist "package.json" goto notextracted
 
 :check
 set "NODE=1"
@@ -59,15 +64,15 @@ rem A Windows app needs Rust's MSVC toolchain.
 rustup toolchain list 2>nul | findstr /c:"stable-x86_64-pc-windows-msvc" >nul || rustup toolchain install stable-x86_64-pc-windows-msvc --profile minimal >> "%LOG%" 2>&1
 echo   [1/3] Tools ................ ok
 
-echo   [2/3] Building Candy, some minutes the first time, seconds after...
-call npm.cmd ci >> "%LOG%" 2>&1 || goto failed
-call npm.cmd run setup -- %MODE% >> "%LOG%" 2>&1 || goto failed
+echo   [2/3] Building Candy: some minutes the first time, about a minute after...
+call npm.cmd ci >> "%LOG%" 2>&1 || goto npmfailed
+call npm.cmd run setup -- %ARGS% >> "%LOG%" 2>&1 || goto failed
 if "%MODE%"=="--build-only" echo   Built.& goto end
 
 if "%MODE%"=="--update" (
   echo   [3/3] Installed. Candy starts again.
 ) else (
-  echo   [3/3] Opening the installer
+  echo   [3/3] Installed. Candy starts, and it's in your Start menu.
 )
 echo.
 echo   Done. This window closes by itself.
@@ -96,13 +101,30 @@ echo   Some tools still aren't found. Close this window, then double-click
 echo   Install Candy again: a new window sees what was just installed.
 goto end
 
+:notextracted
+echo   Candy's code isn't next to this file: it was opened from inside the ZIP.
+echo   Right-click the ZIP, choose Extract All, then double-click Install Candy
+echo   in the folder that comes out.
+set "FAILED=1"
+goto end
+
+:npmfailed
+set "WHY=Couldn't download the packages the build needs. Is the internet on?"
+goto failed
+
 :failed
 set "FAILED=1"
+if "%MODE%"=="--build-only" type "%LOG%"& goto end
+rem What went wrong, in a sentence: a full disk, or the reasons setup.mjs
+rem gives (its lines that start with "Candy:"). The log has the rest.
+findstr /c:"ENOSPC" /c:"os error 112" "%LOG%" >nul && set "WHY=The disk is full. Free a few GB, then double-click Install Candy again."
 echo.
-echo   Something went wrong. The details are in:
+echo   Something went wrong.
+if defined WHY echo   %WHY%
+for /f "tokens=1* delims=:" %%a in ('findstr /b /c:"Candy:" "%LOG%"') do echo  %%b
+echo.
+echo   If you ask for help, send this file:
 echo   %LOG%
-if not "%MODE%"=="--build-only" start "" notepad "%LOG%"
-if "%MODE%"=="--build-only" type "%LOG%"
 
 :end
 echo.

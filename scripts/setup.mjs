@@ -5,12 +5,10 @@
 //   npm ci
 //   npm run setup                  build, then install
 //   npm run setup -- --build-only  build only (what CI runs)
-//   npm run setup -- --no-wait     Windows: open the installer and return at
-//                                  once (Install Candy.cmd, so its window can close)
-//   npm run setup -- --update      Windows: install silently, then start Candy
-//                                  again (the in-app update, see src-tauri/src/update.rs)
 //
-// Windows: builds the installer (npm run pack) and opens it.
+// Windows: builds the installer (npm run pack) and runs it with no wizard to
+//          click through, then starts Candy. Install Candy.cmd runs this, for
+//          a first install and for Candy's own update (src-tauri/src/update.rs).
 // Linux:   builds the app and installs it for your user only: ~/.local/bin/candy,
 //          its app-menu entry and icon in ~/.local/share.
 //
@@ -18,23 +16,33 @@
 // only rebuilds what changed: %LOCALAPPDATA%\Candy-build, ~/.cache/candy/build.
 // Delete it to free a few GB.
 
-import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statfsSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const buildOnly = process.argv.includes("--build-only");
-const noWait = process.argv.includes("--no-wait");
-const update = process.argv.includes("--update");
 const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
 
 const say = (text) => console.log(`  ${text}`);
 const step = (text) => console.log(`\n== ${text}`);
+// Install Candy.cmd shows its window the lines that start with "Candy:".
 function fail(text) {
-  console.error(`\n  ${text}\n`);
+  console.error(`\nCandy: ${text}\n`);
   process.exit(1);
+}
+/** Free space, in GB, on the disk where `path` is or would be; null if unknown. */
+function freeGB(path) {
+  try {
+    let dir = path;
+    while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+    const s = statfsSync(dir);
+    return (s.bavail * s.bsize) / 1e9;
+  } catch {
+    return null;
+  }
 }
 /** Runs a fixed command line (no user input in it), showing its output. */
 function run(line, env) {
@@ -58,7 +66,7 @@ if (!env.CARGO_TARGET_DIR) {
 
 step("Checking the tools (README → Install)");
 const cargo = quiet("cargo --version");
-if (cargo.status !== 0) fail("Rust isn't installed, or not on this terminal's PATH: see README → Install, then open a new terminal.");
+if (cargo.status !== 0) fail("Rust isn't installed, or not on this terminal's PATH: see Install in the README, then open a new terminal.");
 say(cargo.stdout.trim());
 if (process.platform === "win32") {
   // A Windows app needs Rust's MSVC toolchain, whatever the default one is.
@@ -77,12 +85,23 @@ if (process.platform === "win32") {
   say("WebKitGTK 4.1, gtk-layer-shell, librsvg, OpenSSL");
 }
 say(`Build cache: ${env.CARGO_TARGET_DIR}`);
+// A first build writes about 2 GB (its cache, Rust's downloads); later ones a
+// few hundred MB (only Candy's own code is compiled again).
+const firstBuild = !existsSync(join(env.CARGO_TARGET_DIR, "release"));
+const needGB = firstBuild ? 3 : 0.5;
+const free = freeGB(env.CARGO_TARGET_DIR);
+if (free !== null && free < needGB) {
+  fail(
+    `Not enough free disk space: ${free.toFixed(1)} GB, and ${firstBuild ? "a first build" : "a build"} ` +
+      `needs about ${needGB} GB. Free some space, then try again.`,
+  );
+}
 
 step("Building Candy from this source (10-20 minutes the first time, a few after)");
 if (process.platform === "win32") {
-  if (!run("npm run pack", env)) fail("The build failed: the messages above say why.");
+  if (!run("npm run pack", env)) fail("The build failed: the compiler's messages say why.");
 } else {
-  if (!run("npx tauri build --no-bundle", env)) fail("The build failed: the messages above say why.");
+  if (!run("npx tauri build --no-bundle", env)) fail("The build failed: the compiler's messages say why.");
 }
 if (buildOnly) {
   say("Built (--build-only: nothing installed).");
@@ -93,23 +112,12 @@ step("Installing");
 if (process.platform === "win32") {
   const setup = join(root, "release", `Candy-Windows-${version}-setup.exe`);
   if (!existsSync(setup)) fail(`No installer at ${setup}.`);
-  if (update) {
-    // The installer closes the running Candy itself when silent.
-    say("Installing the update quietly");
-    const res = spawnSync(setup, ["/S"], { stdio: "inherit" });
-    if (res.status !== 0) fail(`The installer stopped (exit code ${res.status}).`);
-    const app = join(env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "Candy", "trader-companion.exe");
-    if (existsSync(app)) spawn(app, [], { detached: true, stdio: "ignore" }).unref();
-    else say("Updated: open Candy from the Start menu.");
-    process.exit(0);
-  }
-  say(`Opening ${setup}`);
-  if (noWait) {
-    spawn(setup, [], { detached: true, stdio: "ignore" }).unref();
-    process.exit(0);
-  }
-  spawnSync(setup, { stdio: "inherit" });
-  say("Done: Candy is in your Start menu.");
+  // /S: no wizard. It closes a running Candy, keeps the settings and makes the
+  // Start menu and desktop shortcuts; /R starts Candy when it's done.
+  say(`Installing ${setup}`);
+  const res = spawnSync(setup, ["/S", "/R"], { stdio: "inherit" });
+  if (res.status !== 0) fail(`The installer stopped (exit code ${res.status}).`);
+  say("Done: Candy is starting, and it's in your Start menu.");
 } else {
   const home = homedir();
   const bin = join(env.CARGO_TARGET_DIR, "release", "trader-companion");

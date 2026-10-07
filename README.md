@@ -81,16 +81,17 @@ Download ZIP** at the top of this page, then unzip it (or `git clone` it).
 
 ### Windows
 
-**The simple way:** double-click **`Install Candy.cmd`** in the folder.
+**The simple way:** double-click **`Install Candy.cmd`** in the unzipped
+folder (opened from inside the ZIP, it finds nothing to build).
 
 Windows warns that the file came from the internet: click *More info → Run
 anyway* (or *Run*). It is a short text file; right-click → *Edit* shows all it
 does. It asks before installing the tools a build needs (Node.js, Rust and
 Microsoft's C++ build tools, with winget, Windows' own app installer), builds
-Candy, some minutes the first time, and opens its installer. Its window shows
-three steps and closes by itself; the details go to
-`%LOCALAPPDATA%\Candy-build\install.log`, which opens in Notepad if something
-goes wrong.
+Candy (some minutes the first time, about a minute after), installs it and
+starts it: there is no installer to click through. Its window shows three
+steps and closes by itself. If something goes wrong, it says what, and the
+details are in `%LOCALAPPDATA%\Candy-build\install.log`.
 
 **Or type it yourself:**
 
@@ -113,8 +114,8 @@ goes wrong.
    npm run setup
    ```
 
-   It builds Candy, 10–20 minutes the first time, and opens the installer it
-   made; Candy lands in your Start menu. If PowerShell says running scripts is
+   It builds Candy, 10–20 minutes the first time, installs it and starts it;
+   Candy lands in your Start menu. If PowerShell says running scripts is
    disabled, type `npm.cmd` instead of `npm`.
 
 ### Linux
