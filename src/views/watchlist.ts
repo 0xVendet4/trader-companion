@@ -12,6 +12,7 @@ import { h, clear } from "./dom";
 import { ICONS } from "./icons";
 import {
   btn,
+  setMajorTag,
   tokenTag,
   safetyFor,
   field,
@@ -204,13 +205,13 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   /** The chain tag is worth its room only once more than one chain is in play. */
   const showChain = (t: WatchToken) => State.companion.chains.length > 1 || t.chainId !== "solana";
 
-  function tokenCell(t: WatchToken): HTMLElement {
+  function tokenCell(t: WatchToken, tag: HTMLElement | null): HTMLElement {
     return h(
       "span",
       { class: "c-tok" },
       tokenImg(t.imageUrl, t.symbol),
       h("span", { class: "sym", text: t.symbol }),
-      tokenTag(t, showChain(t)),
+      tag,
       safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
     );
   }
@@ -263,6 +264,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       ];
       const actionsEl = h("span", { class: "row-actions" }, ...quick());
       const cells = {
+        // A major's tag shows its rank, which comes with the quotes.
+        tag: tokenTag(t, showChain(t), q),
         spark: h("span", { class: "c-spark" }),
         mc: h("span", { class: "c-mc" }),
         vol: h("span", { class: "c-vol" }),
@@ -274,7 +277,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       const row = h(
         "div",
         { class: "row", title: `Open ${t.symbol} on ${terminalLabel(State.companion.terminal, t)}` },
-        tokenCell(t),
+        tokenCell(t, cells.tag),
         cells.spark,
         cells.mc,
         cells.vol,
@@ -292,7 +295,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   }
 
   /** Each row's number cells, so prices update in place (see sync). */
-  const liveCells = new Map<string, Record<"spark" | "mc" | "vol" | "txns" | "m5" | "h1" | "h24", HTMLElement>>();
+  const liveCells = new Map<string, Record<"spark" | "mc" | "vol" | "txns" | "m5" | "h1" | "h24", HTMLElement> & { tag: HTMLElement | null }>();
   const filledAt = new Map<string, string>();
 
   function fillCells(key: string, stamp: number) {
@@ -302,6 +305,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     if (!c || filledAt.get(key) === stampKey) return;
     filledAt.set(key, stampKey);
     const q = State.quotes[key];
+    const t = State.token(key);
+    if (c.tag && q?.major && t) setMajorTag(c.tag, t, q);
     c.spark.replaceChildren(sparkline(key));
     c.mc.textContent = formatUsd(q?.marketCap);
     c.mc.title = `Market cap · price ${formatPrice(q?.priceUsd)}`;
@@ -350,7 +355,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
         { class: "c-tok" },
         tokenImg(t.imageUrl, t.symbol),
         h("span", { class: "sym", text: t.symbol }),
-        tokenTag(t, true),
+        tokenTag(t, true, q),
         safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
         h("span", { class: "tok-name", text: t.name }),
       ),

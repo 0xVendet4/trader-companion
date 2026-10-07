@@ -28,11 +28,13 @@ prebuilt download to trust.
 - **Search by name** — type "pump", pick from the results. Results rank by
   liquidity *backed by real money* (SOL / USDC / ETH / BNB in the pool), so
   fakes that report billions in liquidity of themselves sink, flagged ⚠.
-- **Major coins too** — BTC, ETH, SOL, BNB, XRP, DOGE, ADA, TRX, AVAX, LINK,
-  DOT, LTC, TON, SHIB and PEPE: search "btc" or "bitcoin" and the real one
-  comes first, tagged MAJOR, above the copycats that share the ticker. Each is
-  priced from a liquid token that tracks it (wrapped BTC on Ethereum…), with
-  the coin's own market cap and 24 h volume from CoinGecko.
+- **Major coins too** — the 30 largest by market cap on CoinGecko right now,
+  stablecoins and wrapped copies left out: search "btc" or "bitcoin" and the
+  real one comes first, tagged with its rank (#1), above the copycats that
+  share the ticker. Each is priced from a liquid token that tracks it (wrapped
+  BTC on Ethereum…), with the coin's own market cap and 24 h volume from
+  CoinGecko. A coin no token tracks on these chains (Stellar, Sui…) can't be
+  priced, so it isn't offered.
 - **Alerts** — price or market cap above/below a level, % up/down within 5–60
   minutes, and liquidity drops (a classic sign of liquidity being pulled). The
   mascot reacts, a sound plays, the island opens.
@@ -257,9 +259,10 @@ It talks only to public services, for public data:
   It is sent the token addresses on your watchlist and in your wallet.
 - **RugCheck** (`api.rugcheck.xyz`): a token's safety report, for tokens you open.
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
-- **CoinGecko** (`api.coingecko.com`): a major coin's own market cap and 24 h
-  volume, a few times an hour, only while one is on your watchlist or in a
-  search. It is sent the names of those coins (bitcoin, dogecoin…).
+- **CoinGecko** (`api.coingecko.com`): the largest coins (at most hourly, when
+  you search), and a major coin's own market cap, 24 h volume and rank, a few
+  times an hour, only while one is on your watchlist or in a search. It is
+  sent the names of those coins (bitcoin, dogecoin…).
 - **Solana's public RPC** (`api.mainnet-beta.solana.com`): the balances and
   transactions of the wallet addresses you add (public addresses only; read-only
   calls, spaced to stay under its limits). If you paste your own RPC URL in the settings

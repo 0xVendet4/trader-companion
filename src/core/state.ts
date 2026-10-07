@@ -3,6 +3,7 @@
 
 import type { Manifest, MascotState } from "../mascot/mascot";
 import { ALL_CHAINS, isChain, tokenKey, type ChainId } from "../market/chains";
+import { COINGECKO_ID } from "../market/coingecko";
 import { DEFAULT_CUSTOM_SKIN, normalizeCustomSkin } from "../mascot/skins";
 import { normalizeBook, normalizeLevels } from "../positions/positions";
 import type { FearGreed } from "../market/sentiment";
@@ -24,6 +25,8 @@ export interface WatchToken {
   imageUrl: string | null;
   /** The watchlist folder it sits in ("Runners"…); none: under All only. */
   folder?: string;
+  /** A major coin (src/market/majors.ts): its CoinGecko id; this token only tracks its price. */
+  coingecko?: string;
 }
 
 export type AlertKind =
@@ -483,7 +486,9 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
     watchlist: Array.isArray(c.watchlist)
       ? c.watchlist.slice(0, MAX_WATCHLIST).map((t) => {
           const chainId = isChain(t.chainId) ? t.chainId : "solana";
-          return { ...t, chainId, key: tokenKey(chainId, t.address) };
+          // A CoinGecko id goes into its URLs: only the shape it has.
+          const coingecko = typeof t.coingecko === "string" && COINGECKO_ID.test(t.coingecko) ? t.coingecko : undefined;
+          return { ...t, chainId, key: tokenKey(chainId, t.address), coingecko };
         })
       : [],
     chains: Array.isArray(c.chains) && c.chains.filter(isChain).length ? ALL_CHAINS.filter((x) => c.chains!.includes(x)) : ["solana"],
@@ -541,6 +546,8 @@ export interface Quote {
    * short-frame volume to show.
    */
   major?: boolean;
+  /** A major's rank by market cap right now (CoinGecko); null until it answers. */
+  rank?: number | null;
 }
 
 /** One poll's worth of the numbers alerts look back on. */

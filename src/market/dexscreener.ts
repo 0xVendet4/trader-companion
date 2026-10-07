@@ -274,9 +274,8 @@ export async function resolveAddress(
 export async function searchTokens(query: string, chains: ChainId[], signal?: AbortSignal): Promise<TrendingItem[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const found = await getJson<{ pairs?: DexPair[] | null }>(`/latest/dex/search?q=${encodeURIComponent(q)}`, signal);
   const best = new Map<string, DexPair>();
-  for (const p of found.pairs ?? []) {
+  for (const p of await searchPairs(q, signal)) {
     if (!isChain(p.chainId) || !chains.includes(p.chainId) || !p.baseToken) continue;
     const key = tokenKey(p.chainId, p.baseToken.address);
     const prev = best.get(key);
@@ -288,6 +287,12 @@ export async function searchTokens(query: string, chains: ChainId[], signal?: Ab
     .sort((a, b) => score(b[1]) - score(a[1]))
     .slice(0, SEARCH_RESULTS)
     .map(([key, p]) => ({ token: toWatchToken(p), quote: toQuote(key, p, now), boost: 0, pairCreatedAt: p.pairCreatedAt ?? null }));
+}
+
+/** DexScreener's search as it answers: up to 30 pairs, every chain. */
+export async function searchPairs(query: string, signal?: AbortSignal): Promise<DexPair[]> {
+  const found = await getJson<{ pairs?: DexPair[] | null }>(`/latest/dex/search?q=${encodeURIComponent(query.trim())}`, signal);
+  return found.pairs ?? [];
 }
 
 /** Solana base58 check, re-exported for callers that only need it. */

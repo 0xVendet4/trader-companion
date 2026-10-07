@@ -18,6 +18,7 @@ import {
   type CompanionEvent,
   type Quote,
   type Settings,
+  type TrendingItem,
   type WalletSnapshot,
   type WatchToken,
 } from "./core/state";
@@ -39,14 +40,28 @@ import {
   fetchQuotes,
   parseInput,
   resolveAddress,
+  searchPairs,
   searchTokens,
   toQuote,
   toWatchToken,
   type DexPair,
 } from "./market/dexscreener";
 import { MAX_FOLDERS, cleanFolderName } from "./market/folders";
-import { COINGECKO_TTL_MS, fetchMarkets } from "./market/coingecko";
-import { asMajor, majorFor, majorToken, searchMajors, type MajorMarket } from "./market/majors";
+import { COINGECKO_TTL_MS, TOP_TTL_MS, fetchCoins, fetchContracts, fetchTop } from "./market/coingecko";
+import {
+  KNOWN,
+  asMajor,
+  knownMajor,
+  knownTracker,
+  liveMajors,
+  majorFor,
+  majorOf,
+  majorToken,
+  searchMajors,
+  trackingPair,
+  type Coin,
+  type Major,
+} from "./market/majors";
 import { SAFETY_TTL_MS, fetchSafety } from "./market/safety";
 import { FNG_TTL_MS, fetchFearGreed } from "./market/sentiment";
 import { fetchTrending } from "./market/trending";
@@ -119,10 +134,14 @@ class CompanionController {
   private fngLoading = false;
   private fngTriedAt = 0;
   private walletAlertAt = new Map<string, number>();
-  /** Major coins' own market caps and volumes, by CoinGecko id, and when each came (see marketsFor). */
-  private markets: Record<string, MajorMarket & { at: number }> = {};
+  /** Major coins' own market caps, volumes and ranks, by CoinGecko id, and when each came (see marketsFor). */
+  private markets: Record<string, Coin & { at: number }> = {};
   /** After a refused call (mostly the keyless API's rate limit), CoinGecko is left alone until then. */
   private marketsRetryAt = 0;
+  /** CoinGecko's largest coins, read at most hourly (see majorsNow). */
+  private top: { coins: Coin[]; at: number } | null = null;
+  /** Each major's tracking token, once found this session; null: none Candy can price (see trackerFor). */
+  private trackers = new Map<string, Major | null>();
   /** Which wallet tokens have a real pair, and which rest (no pair, junk): see wallets/pricing. */
   private pricing: PricingMemory = { known: new Set(), resting: new Map() };
 
@@ -201,7 +220,7 @@ class CompanionController {
         // Held tokens ride along too, so positions move with the market.
         ...Object.keys(State.companion.book.positions).map((address) => ({ chainId: "solana" as const, address })),
       ];
-      const majorIds = tokens.map((t) => majorFor(t)?.coingecko).filter((id): id is string => !!id);
+      const majorIds = tokens.map((t) => majorFor(t)).filter((id): id is string => !!id);
       const [quotes, markets] = await Promise.all([fetchQuotes(refs, abort.signal), this.marketsFor(majorIds)]);
       if (abort.signal.aborted) return;
       this.failures = 0;
@@ -221,8 +240,8 @@ class CompanionController {
       // the header and positions keep the raw quotes.
       const watched = { ...quotes };
       for (const t of tokens) {
-        const m = majorFor(t);
-        if (m && watched[t.key]) watched[t.key] = asMajor(watched[t.key], markets[m.coingecko]);
+        const id = majorFor(t);
+        if (id && watched[t.key]) watched[t.key] = asMajor(watched[t.key], markets[id]);
       }
       this.applyQuotes(watched);
       this.applyPositionQuotes(quotes);
@@ -278,24 +297,104 @@ class CompanionController {
   }
 
   /**
-   * The major coins' own market caps and 24 h volumes, from CoinGecko, for the
-   * watchlist and for searches alike: one call for all of them when any is a
-   * few minutes old or missing. A refused call keeps what came before and
+   * The major coins' own market caps, 24 h volumes and ranks, from CoinGecko,
+   * for the watchlist and for searches alike: one call for all of them when any
+   * is a few minutes old or missing. A refused call keeps what came before and
    * leaves CoinGecko alone for a minute.
    */
-  private async marketsFor(ids: string[]): Promise<Record<string, MajorMarket>> {
+  private async marketsFor(ids: string[]): Promise<Record<string, Coin>> {
     const now = Date.now();
     const stale = ids.some((id) => now - (this.markets[id]?.at ?? 0) >= COINGECKO_TTL_MS);
     if (stale && now >= this.marketsRetryAt) {
       try {
-        const got = await fetchMarkets([...new Set(ids)]);
+        const got = await fetchCoins(ids);
         for (const [id, m] of Object.entries(got)) this.markets[id] = { ...m, at: now };
       } catch (err) {
-        this.marketsRetryAt = now + 60_000;
-        void Bridge.log(`CoinGecko: ${err instanceof Error ? err.message : err}`);
+        this.coingeckoRefused(err);
       }
     }
     return this.markets;
+  }
+
+  private coingeckoRefused(err: unknown) {
+    this.marketsRetryAt = Date.now() + 60_000;
+    void Bridge.log(`CoinGecko: ${err instanceof Error ? err.message : err}`);
+  }
+
+  /**
+   * The majors right now: CoinGecko's largest coins, less the dollars and the
+   * copies (see liveMajors), read at most hourly. Null when CoinGecko has never
+   * answered this session.
+   */
+  private async majorsNow(): Promise<Coin[] | null> {
+    const now = Date.now();
+    if ((!this.top || now - this.top.at >= TOP_TTL_MS) && now >= this.marketsRetryAt) {
+      try {
+        const coins = await fetchTop();
+        this.top = { coins, at: now };
+        // The list carries each coin's market data too: no call of its own.
+        for (const c of coins) this.markets[c.id] = { ...c, at: now };
+      } catch (err) {
+        this.coingeckoRefused(err);
+      }
+    }
+    return this.top ? liveMajors(this.top.coins) : null;
+  }
+
+  /**
+   * The token a major is priced from: KNOWN's, else the one DexScreener's
+   * search shows with its ticker at its price, else the contract CoinGecko
+   * gives for it (see majors.ts). Found once a session; null when no token
+   * tracks it on these chains (Stellar, Sui…), so it isn't offered.
+   */
+  private async trackerFor(c: Coin): Promise<Major | null> {
+    const known = knownTracker(c);
+    if (known) return known;
+    if (this.trackers.has(c.id)) return this.trackers.get(c.id) ?? null;
+    if (!c.priceUsd) return null; // nothing to check a token's price against
+    let pair = trackingPair(c, await searchPairs(c.symbol));
+    if (!pair) {
+      if (Date.now() < this.marketsRetryAt) return null; // not settled: asked again next time
+      try {
+        const contracts = await fetchContracts(c.id);
+        if (contracts.length) pair = trackingPair(c, Object.values(await fetchPairs(contracts)), true);
+      } catch (err) {
+        this.coingeckoRefused(err);
+        return null;
+      }
+    }
+    const major = pair ? majorOf(c, pair) : null;
+    this.trackers.set(c.id, major);
+    return major;
+  }
+
+  /** The majors a search means, first in its results, each with its quote. */
+  private async majorResults(query: string): Promise<TrendingItem[]> {
+    const live = await this.majorsNow();
+    let majors: Major[];
+    if (live) {
+      const found = await Promise.all(searchMajors(query, live).slice(0, 3).map((c) => this.trackerFor(c).catch(() => null)));
+      majors = found.filter((m): m is Major => !!m);
+    } else {
+      // CoinGecko unreachable: the coins checked by hand still answer.
+      majors = searchMajors(query, KNOWN);
+    }
+    if (majors.length === 0) return [];
+    const [pairs, markets] = await Promise.all([
+      fetchPairs(majors.map((m) => ({ chainId: m.chainId, address: m.address }))),
+      this.marketsFor(majors.map((m) => m.coingecko)),
+    ]);
+    const now = Date.now();
+    return majors.map((m) => {
+      const token = majorToken(m, null);
+      const pair = pairs[token.key];
+      return {
+        token: pair ? majorToken(m, toWatchToken(pair)) : token,
+        quote: pair ? asMajor(toQuote(token.key, pair, now), markets[m.coingecko]) : null,
+        boost: 0,
+        pairCreatedAt: null,
+      };
+    });
   }
 
   /** The Fear & Greed index, at most once an hour. A miss just waits. */
@@ -494,9 +593,13 @@ class CompanionController {
 
   /** Adds a token already resolved (a search result, a trending row). */
   addWatchToken(token: WatchToken): { ok: boolean; message: string } {
-    // A major added by its tracking token's address (WBTC…) is still BTC.
-    const major = majorFor(token);
-    if (major) token = majorToken(major, token);
+    // A major added by its tracking token's address (WBTC…) is still BTC,
+    // under the coin's name today.
+    const known = token.coingecko ? null : knownMajor(token.key);
+    if (known) {
+      const live = this.top?.coins.find((c) => c.id === known.coingecko);
+      token = majorToken(live ? (knownTracker(live) ?? known) : known, token);
+    }
     const list = State.companion.watchlist;
     if (list.length >= MAX_WATCHLIST) return { ok: false, message: `${MAX_WATCHLIST} tokens max.` };
     if (list.some((t) => t.key === token.key)) return { ok: false, message: `${token.symbol} is already on the list.` };
@@ -543,27 +646,16 @@ class CompanionController {
     State.search = { query, results: [], loading: true, error: null };
     State.notify();
     try {
-      // Major coins first ("btc" → Bitcoin), from the curated list: never one
-      // of the copycats that share the ticker (see market/majors).
-      const majors = searchMajors(query);
-      const [found, pairs, markets] = await Promise.all([
+      // Major coins first ("btc" → Bitcoin), the largest right now: never one
+      // of the copycats that share the ticker (see market/majors). A miss
+      // there leaves the plain search alone.
+      const [found, majors] = await Promise.all([
         searchTokens(query, State.companion.chains),
-        majors.length ? fetchPairs(majors.map((m) => ({ chainId: m.chainId, address: m.address }))) : Promise.resolve({} as Record<string, DexPair>),
-        this.marketsFor(majors.map((m) => m.coingecko)),
+        this.majorResults(query).catch(() => [] as TrendingItem[]),
       ]);
       if (State.search?.query !== query) return; // a newer search took over
-      const now = Date.now();
-      const top = majors.map((m) => {
-        const token = majorToken(m, null);
-        const pair = pairs[token.key];
-        return {
-          token: pair ? majorToken(m, toWatchToken(pair)) : token,
-          quote: pair ? asMajor(toQuote(token.key, pair, now), markets[m.coingecko]) : null,
-          boost: 0,
-          pairCreatedAt: null,
-        };
-      });
-      const results = [...top, ...found.filter((r) => !majorFor(r.token))];
+      const trackers = new Set(majors.map((r) => r.token.key));
+      const results = [...majors, ...found.filter((r) => !trackers.has(r.token.key))];
       State.search = { query, results, loading: false, error: null };
       this.ensureSafety(results.map((r) => r.token));
     } catch (err) {

@@ -1,16 +1,23 @@
 // Major coins on the watchlist: BTC, ETH, SOL, DOGE… They are not DEX tokens,
-// so each is priced from a fixed, liquid token that tracks it on a supported
-// chain (wrapped BTC on Ethereum, Binance-Peg DOGE on BSC…): DexScreener gives
-// its price, its 5m/1h/24h moves and the chart, like any token. What it can't
-// give is the coin's own market cap and volume — a wrapped token's are a sliver
-// of the coin's — so those come from CoinGecko (see coingecko.ts).
+// so each is priced from a liquid token that tracks it on a supported chain
+// (wrapped BTC on Ethereum, Binance-Peg DOGE on BSC…): DexScreener gives its
+// price, its 5m/1h/24h moves and the chart, like any token. What it can't give
+// is the coin's own market cap and volume — a wrapped token's are a sliver of
+// the coin's — so those come from CoinGecko (see coingecko.ts), with its rank.
 //
-// The list is curated by address on purpose: typing "btc" finds this BTC first,
-// never one of the copycats that share the ticker. Pure, like the rest of
+// Which coins are majors is live: CoinGecko's largest by market cap right now,
+// less the dollars, the gold and the wrapped or staked copies of another coin
+// (liveMajors). Each is priced from KNOWN's token when it has one, else from a
+// token that is provably the coin: the same symbol, at the coin's price, with
+// real money behind it (trackingPair), or the contract CoinGecko gives for it.
+// A copycat sharing the ticker has neither the price nor the money. A coin no
+// token tracks on these chains (Stellar, Sui…) can't be priced, so it isn't
+// offered. Without CoinGecko, KNOWN stands in. Pure, like the rest of
 // src/market's logic.
 
 import type { ChainId } from "./chains";
-import { tokenKey } from "./chains";
+import { isChain, tokenKey } from "./chains";
+import { backedLiquidity, suspectLiquidity, type DexPair } from "./dexscreener";
 import type { Quote, WatchToken } from "../core/state";
 
 export interface Major {
@@ -19,12 +26,28 @@ export interface Major {
   /** The token that tracks it, on a chain DexScreener covers. */
   chainId: ChainId;
   address: string;
-  /** CoinGecko's id, for the coin's own market cap and 24 h volume. */
+  /** CoinGecko's id, for the coin's own market cap, 24 h volume and rank. */
   coingecko: string;
 }
 
-/** Checked on DexScreener (liquidity) and CoinGecko (price) on 2026-10-07. */
-export const MAJORS: readonly Major[] = [
+/** A coin on CoinGecko's market list, as Candy reads it. */
+export interface Coin {
+  id: string;
+  /** Upper case, as tickers are shown. */
+  symbol: string;
+  name: string;
+  /** By market cap, CoinGecko's own count (its dollars included). */
+  rank: number | null;
+  priceUsd: number | null;
+  marketCap: number | null;
+  volume24h: number | null;
+}
+
+/** How many of CoinGecko's largest coins, the dollars and copies left out, are majors. */
+export const MAJOR_COUNT = 30;
+
+/** Tracking tokens checked by hand on DexScreener (liquidity) and CoinGecko (price) on 2026-10-07. */
+export const KNOWN: readonly Major[] = [
   { symbol: "BTC", name: "Bitcoin", chainId: "ethereum", address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", coingecko: "bitcoin" },
   { symbol: "ETH", name: "Ethereum", chainId: "ethereum", address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", coingecko: "ethereum" },
   { symbol: "SOL", name: "Solana", chainId: "solana", address: "So11111111111111111111111111111111111111112", coingecko: "solana" },
@@ -42,21 +65,95 @@ export const MAJORS: readonly Major[] = [
   { symbol: "PEPE", name: "Pepe", chainId: "ethereum", address: "0x6982508145454Ce325dDbE47a25d4ec3d2311933", coingecko: "pepe" },
 ];
 
-const BY_KEY = new Map(MAJORS.map((m) => [tokenKey(m.chainId, m.address), m]));
+const KNOWN_BY_KEY = new Map(KNOWN.map((m) => [tokenKey(m.chainId, m.address), m]));
+const KNOWN_BY_ID = new Map(KNOWN.map((m) => [m.coingecko, m]));
 
-/** The major coin a token stands for, if it is one of them. */
-export function majorFor(t: Pick<WatchToken, "key"> | { chainId: ChainId; address: string }): Major | null {
-  const key = "key" in t ? t.key : tokenKey(t.chainId, t.address);
-  return BY_KEY.get(key) ?? null;
+/** A known tracking token (WBTC is BTC), by its key. */
+export function knownMajor(key: string): Major | null {
+  return KNOWN_BY_KEY.get(key) ?? null;
 }
 
-/** Majors a search means: its symbol ("btc", "$btc") or a word of its name ("bitcoin", "shiba"). */
-export function searchMajors(query: string): Major[] {
+/** KNOWN's tracking token for a coin, under the coin's name today. */
+export function knownTracker(c: Pick<Coin, "id" | "symbol" | "name">): Major | null {
+  const m = KNOWN_BY_ID.get(c.id);
+  return m ? { ...m, symbol: c.symbol, name: c.name } : null;
+}
+
+/**
+ * The CoinGecko id of the coin a watchlist token stands for: a major added from
+ * a search carries it; one saved before that is known by its tracking token.
+ */
+export function majorFor(t: Pick<WatchToken, "key"> & Partial<Pick<WatchToken, "coingecko">>): string | null {
+  return t.coingecko ?? KNOWN_BY_KEY.get(t.key)?.coingecko ?? null;
+}
+
+const PEGGED = /usd|dollar|euro|\beur\b|gold|xau/i;
+const COPY = /wrapped|staked|bridged|binance-peg|\bpeg\b/i;
+
+/**
+ * The majors in CoinGecko's list: its largest coins, less those pegged to a
+ * currency or to gold, and the copies of a larger coin, by name ("Wrapped
+ * Bitcoin", "Lido Staked Ether") or by ticker (WETH, BTCB, JitoSOL).
+ */
+export function liveMajors(coins: readonly Coin[], count = MAJOR_COUNT): Coin[] {
+  const kept: Coin[] = [];
+  const ranked = [...coins].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+  for (const c of ranked) {
+    if (kept.length >= count) break;
+    const sym = c.symbol.toLowerCase();
+    if (PEGGED.test(`${c.name} ${c.symbol}`) || sym === "dai" || COPY.test(c.name)) continue;
+    const copies = kept.some((k) => {
+      const of = k.symbol.toLowerCase();
+      return of.length >= 3 && sym.length > of.length && (sym.startsWith(of) || sym.endsWith(of));
+    });
+    if (!copies) kept.push(c);
+  }
+  return kept;
+}
+
+/** Coins a search means: by symbol ("btc", "$btc") or a word of the name ("bitcoin", "shiba"). */
+export function searchMajors<T extends { symbol: string; name: string }>(query: string, list: readonly T[]): T[] {
   const q = query.trim().replace(/^\$/, "").toLowerCase();
   if (q.length < 2) return [];
-  return MAJORS.filter(
+  return list.filter(
     (m) => m.symbol.toLowerCase() === q || m.name.toLowerCase() === q || (q.length >= 3 && m.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(q))),
   );
+}
+
+/** Real money a tracking token's pool needs for its price to mean something. */
+export const MIN_TRACKING_LIQUIDITY = 100_000;
+/** How far a tracking token's price may sit from the coin's (CoinGecko lags a little). */
+const PRICE_TOLERANCE = 0.03;
+
+/** A pair whose base token trades at the coin's price, with real money behind it. */
+export function pricedLike(c: Pick<Coin, "priceUsd">, p: DexPair): boolean {
+  const price = Number(p.priceUsd);
+  if (!c.priceUsd || !(price > 0) || Math.abs(price / c.priceUsd - 1) > PRICE_TOLERANCE) return false;
+  return !suspectLiquidity(p) && backedLiquidity(p) >= MIN_TRACKING_LIQUIDITY;
+}
+
+/**
+ * The token that tracks a coin among DexScreener pairs: on a chain Candy
+ * reads, with the coin's ticker (or its wrapped one, WBTC), priced like it;
+ * the most liquid wins. `anySymbol` for pairs of a contract CoinGecko named.
+ */
+export function trackingPair(c: Coin, pairs: readonly DexPair[], anySymbol = false): DexPair | null {
+  const S = c.symbol.toUpperCase();
+  let best: DexPair | null = null;
+  for (const p of pairs) {
+    if (!isChain(p.chainId) || !p.baseToken) continue;
+    const b = p.baseToken.symbol.toUpperCase();
+    if (!anySymbol && b !== S && b !== `W${S}`) continue;
+    if (!pricedLike(c, p)) continue;
+    if (!best || backedLiquidity(p) > backedLiquidity(best)) best = p;
+  }
+  return best;
+}
+
+/** The major a tracking pair makes of a coin. */
+export function majorOf(c: Coin, p: DexPair): Major | null {
+  if (!isChain(p.chainId)) return null;
+  return { symbol: c.symbol, name: c.name, chainId: p.chainId, address: p.baseToken.address, coingecko: c.id };
 }
 
 /** The watchlist entry for a major: its own name and symbol, priced from its tracking token. */
@@ -70,30 +167,27 @@ export function majorToken(m: Major, from: Pick<WatchToken, "pairAddress" | "dex
     pairAddress: from?.pairAddress ?? "",
     dexId: from?.dexId ?? "",
     imageUrl: from?.imageUrl ?? null,
+    coingecko: m.coingecko,
   };
-}
-
-/** A major's market cap and 24 h volume, from CoinGecko. */
-export interface MajorMarket {
-  marketCap: number | null;
-  volume24h: number | null;
 }
 
 /**
  * A major's quote: DexScreener's price and moves, with the coin's own market
- * cap and 24 h volume (null until CoinGecko answers). The tracking pool's
- * liquidity, trades and short-frame volume say nothing about the coin: gone.
+ * cap, 24 h volume and rank (null until CoinGecko answers). The tracking
+ * pool's liquidity, trades and short-frame volume say nothing about the coin:
+ * gone.
  */
-export function asMajor(q: Quote, market: MajorMarket | undefined): Quote {
+export function asMajor(q: Quote, coin: Coin | undefined): Quote {
   const none = { buys: 0, sells: 0 };
   return {
     ...q,
-    marketCap: market?.marketCap ?? null,
+    marketCap: coin?.marketCap ?? null,
     liquidityUsd: null,
     suspectLiquidity: false,
-    volume: { m5: 0, h1: 0, h6: 0, h24: market?.volume24h ?? 0 },
+    volume: { m5: 0, h1: 0, h6: 0, h24: coin?.volume24h ?? 0 },
     txnsM5: none,
     txns: undefined,
     major: true,
+    rank: coin?.rank ?? null,
   };
 }
