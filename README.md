@@ -279,7 +279,7 @@ nothing to license.
 | `src/settings/` | Settings window |
 | `src/demo/` | Scripted demo for the presentation video |
 | `src-tauri/` | Window placement, click-through, tray, settings file, links |
-| `ASSETS.md` | Brief for the final mascot art and icon |
+| `scripts/` | Install, build, version bump, demo video and README pictures |
 
 ## Privacy
 

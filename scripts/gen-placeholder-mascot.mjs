@@ -1,13 +1,12 @@
-// Writes the placeholder mascot — Candy, a little candle — into public/mascot/:
-// one SVG per frame, the eyes as their own layer (eyes/, they follow the
-// mouse), whole-face stills for icons (still/), accessories, and mascot.json,
-// the manifest the app reads.
+// Writes the mascot — Candy, a little candle — into public/mascot/: one SVG
+// per frame, the eyes as their own layer (eyes/, they follow the mouse),
+// whole-face stills for icons (still/), accessories, and mascot.json, the
+// manifest the app reads.
 //
 //   node scripts/gen-placeholder-mascot.mjs
 //
-// This is stand-in art. The final character replaces the files in
-// public/mascot/ (PNG or SVG, any names) and their entries in mascot.json;
-// see ASSETS.md for the list of expressions and the sizes to deliver.
+// Other art can replace the files in public/mascot/ (PNG or SVG, any names)
+// and their entries in mascot.json: the app reads only the manifest.
 
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
