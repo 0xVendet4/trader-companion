@@ -63,8 +63,6 @@ prebuilt download to trust.
   minimize button (the shortcut or the tray icon brings Candy back), system
   notifications.
 
-*The mascot art is a placeholder.*
-
 Hold **Ctrl** over the island to click whatever is behind it (a browser tab, a
 title bar); it fades while the clicks go through.
 
@@ -102,7 +100,7 @@ Candy never asks for a wallet, a seed phrase or a private key.
   and Solana's public RPC for your wallet (with two keyless spares for when
   it is busy) — four read-only calls (balances, token accounts, and the
   transactions a position's entry comes from), whitelisted in Rust
-  (`solana_rpc`) and in the website's `web/api/rpc.js`.
+  (`solana_rpc`).
 - **Never** asks for, stores or touches a wallet, a seed phrase, a private key
   or an exchange account. It cannot trade.
 - Tokens are added by **address or link only**, never by ticker: every popular
@@ -123,24 +121,11 @@ npm run tauri dev     # the real app
 npm run dev           # the UI only, in a browser at http://localhost:1420
 npm test              # unit tests (alerts, mood, discipline, formatting)
 npm run pack          # installer → release/ (install.cmd does this, prerequisites included)
-npm run pack:edition -- <id>   # a friend's installer, with their exclusive costume
 ```
-
-An exclusive costume is made for one friend and is not in this repository: it
-lives in `editions/<id>/` on the machine that builds their installer. Only that
-installer offers it, and wears it from the first launch. Regular builds and the
-website never have it.
 
 In a browser the island runs on the same code, with settings kept in
 localStorage; open `/settings.html` for the settings window and `/demo.html`
 for the scripted demo.
-
-## Web preview
-
-The live island runs in a browser too. `npm run deploy:web` builds it
-(`release/trader-companion-demo/`) and publishes it to Vercel: `/` is the live
-island with real data, `/settings` its settings, `/tour` the scripted tour. It
-needs the Vercel CLI logged in; it works from cmd, PowerShell or bash.
 
 ## Demo video
 
@@ -182,8 +167,7 @@ It talks only to public services, for public data:
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
 - **Solana's public RPC** (`api.mainnet-beta.solana.com`): the balances and
   transactions of the wallet addresses you add (public addresses only; read-only
-  calls, spaced to stay under its limits). On the website, these go through
-  its own small proxy on Vercel. If you paste your own RPC URL in the settings
+  calls, spaced to stay under its limits). If you paste your own RPC URL in the settings
   (Helius, Alchemy, QuickNode…: a free key takes a minute), these calls go to
   it instead; the URL stays on your PC.
 - **Spare public RPCs**, only when Solana's is busy and no RPC of your own is
@@ -194,10 +178,3 @@ It talks only to public services, for public data:
 Each of these services sees your IP address, as with any website. Links you
 click open in your browser (GMGN, Axiom, DexScreener, RugCheck, Solscan,
 GitHub, and Helius or Alchemy for a free RPC key).
-
-## Credits
-
-Built on the Windows shell of [Coucou](https://github.com/Louis-CFM/coucou) by
-Louis Raillé (MIT): the island window, click-through and open/close animation.
-Coucou's character (Mochi), name, icons and sounds are not part of this
-project. See [LICENSE](LICENSE).

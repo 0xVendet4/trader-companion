@@ -48,7 +48,7 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "copyright": "MIT — includes code from Coucou © Louis Raillé",
+    "copyright": "MIT — see LICENSE",
     "license": "MIT",
     "licenseFile": "../LICENSE",
     "category": "Finance",
