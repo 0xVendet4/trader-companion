@@ -194,8 +194,9 @@ Candy never asks for a wallet, a seed phrase or a private key.
   (`solana_rpc`).
 - **Never** asks for, stores or touches a wallet, a seed phrase, a private key
   or an exchange account. It cannot trade.
-- Tokens are added by **address or link only**, never by ticker: every popular
-  memecoin has copycats with the same symbol.
+- Tokens are added by **address or link**, never by a ticker alone: every
+  popular memecoin has copycats with the same symbol, so a search shows the
+  candidates with their real liquidity and you pick one.
 - Links open only on a fixed list of sites (`ALLOWED_HOSTS` in
   `src-tauri/src/lib.rs`), never from token metadata.
 - Not financial advice. The app shows numbers and the alerts you set up.
@@ -236,7 +237,7 @@ It drives a headless Microsoft Edge; no ffmpeg needed.
 | Path | What |
 |---|---|
 | `src/companion.ts` | Polling, price history, alerts, discipline clock, mood, saving |
-| `src/market/` | DexScreener client, trading-terminal links |
+| `src/market/` | DexScreener, CoinGecko and RugCheck clients, major coins, trading-terminal links |
 | `src/alerts/`, `src/mood/`, `src/discipline/` | Pure logic, unit-tested |
 | `src/mascot/` | Sprite player driven by `public/mascot/mascot.json` |
 | `src/island/`, `src/views/` | The island window and its views |

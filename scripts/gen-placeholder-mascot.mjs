@@ -541,7 +541,7 @@ delete OUTFITS["outfits/shades.svg"];
 delete OUTFITS["outfits/laser.svg"];
 
 const MANIFEST = {
-  name: "Candy (placeholder)",
+  name: "Candy",
   outfits: {
     cap: "outfits/cap.svg",
     crown: "outfits/crown.svg",
