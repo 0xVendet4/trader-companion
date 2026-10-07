@@ -102,6 +102,20 @@ export const Bridge = {
   /** Writes to %LOCALAPPDATA%\TraderCompanion\companion.log. */
   log: (message: string) => call<void>("log_line", { message }),
 
+  /** The newest version on GitHub (src-tauri/src/update.rs), or null: offline, or a browser. */
+  checkUpdate: () => call<string>("check_update"),
+
+  /** Downloads the new code and starts its installer; resolves to what went wrong, or null once under way. */
+  async startUpdate(): Promise<string | null> {
+    if (!IS_TAURI) return "Updates come with the app.";
+    try {
+      await invoke("start_update");
+      return null;
+    } catch (err) {
+      return String(err);
+    }
+  },
+
   /**
    * A read-only Solana RPC call (getBalance, getTokenAccountsByOwner). The
    * public RPC refuses requests made from a web page, so the app goes through

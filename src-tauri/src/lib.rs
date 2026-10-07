@@ -10,6 +10,7 @@ mod log;
 mod platform;
 mod settings;
 mod tray;
+mod update;
 
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -224,6 +225,25 @@ fn quit_app(app: AppHandle) {
 #[tauri::command]
 fn log_line(message: String) {
     log::line(format!("ui  {message}"));
+}
+
+/// The newest version on GitHub (see update.rs); the page compares it.
+#[tauri::command]
+async fn check_update() -> Result<String, String> {
+    update::latest_version().await.map_err(|e| {
+        log::line(format!("update check: {e}"));
+        e
+    })
+}
+
+/// The user said yes: download the new code, unpack it and start its installer.
+#[tauri::command]
+async fn start_update() -> Result<(), String> {
+    log::line("update: starting");
+    update::start().await.map_err(|e| {
+        log::line(format!("update: {e}"));
+        e
+    })
 }
 
 // ── Wallets: read-only Solana RPC ─────────────────────────────────────────────
@@ -662,6 +682,8 @@ pub fn run() {
             open_url,
             quit_app,
             log_line,
+            check_update,
+            start_update,
             solana_rpc,
             open_settings_window,
         ])

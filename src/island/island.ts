@@ -86,6 +86,8 @@ function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: Parameter
       return { mascot: "tired", sound: "reminder" };
     case "away":
       return { mascot: "wave", sound: "greet" };
+    case "update":
+      return { mascot: "excited", sound: "greet" };
   }
 }
 

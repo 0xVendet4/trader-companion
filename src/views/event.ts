@@ -7,7 +7,9 @@ import { btn, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
 import { APP_NAME, MASCOT_NAME } from "../core/brand";
 import { formatDuration, formatPnl } from "../core/format";
+import { Bridge, IS_TAURI } from "../core/bridge";
 import { State, type CompanionEvent } from "../core/state";
+import { WHATS_NEW_URL } from "../core/update";
 import { TERMINALS } from "../market/links";
 
 function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail: string; tone: string } {
@@ -44,6 +46,16 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
       };
     case "away":
       return { eyebrow: "Welcome back", title: `While you were away (${e.away}):`, detail: e.lines.join("\n"), tone: "calm" };
+    case "update":
+      return {
+        eyebrow: "Update",
+        title: `${APP_NAME} ${e.version} is out (you have ${State.version}).`,
+        detail:
+          IS_TAURI && State.os === "windows"
+            ? "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay."
+            : "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.",
+        tone: "calm",
+      };
   }
 }
 
@@ -95,6 +107,26 @@ export function buildEvent(actions: ViewActions): ViewHost {
             }),
           );
           break;
+        case "update": {
+          const whatsNew = btn("What's new", "secondary", () => actions.openUrl(WHATS_NEW_URL));
+          if (IS_TAURI && State.os === "windows") {
+            const go = btn("Update now", "primary", async () => {
+              go.disabled = true;
+              detail.textContent = "Downloading the new code…";
+              const failed = await Bridge.startUpdate();
+              if (failed) {
+                go.disabled = false;
+                detail.textContent = `The update didn't start: ${failed}`;
+                return;
+              }
+              detail.textContent = "Building in its own window: Candy starts again when it's done.";
+            });
+            buttons.append(go, whatsNew, btn("Later", "secondary", () => actions.dismissEvent()));
+          } else {
+            buttons.append(whatsNew, btn("OK", "primary", () => actions.dismissEvent()));
+          }
+          break;
+        }
         default:
           buttons.append(btn("Got it", "primary", () => actions.dismissEvent()));
       }

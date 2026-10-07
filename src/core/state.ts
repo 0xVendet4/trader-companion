@@ -570,7 +570,9 @@ export type CompanionEvent =
   | { kind: "maxTrades"; id: string; count: number }
   | { kind: "cooldown"; id: string; minutes: number }
   /** Back at the screen after a while: what changed (see src/away). */
-  | { kind: "away"; id: string; away: string; lines: string[] };
+  | { kind: "away"; id: string; away: string; lines: string[] }
+  /** A newer Candy on GitHub: update now, with the user's go-ahead (see src/core/update.ts). */
+  | { kind: "update"; id: string; version: string };
 
 export type MarketStatus = "idle" | "loading" | "ok" | "error";
 

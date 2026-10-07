@@ -255,6 +255,18 @@ fn apply_input_region(gw: &impl IsA<gtk::Widget>, rect: Region) {
     }
 }
 
+// ── Updates ───────────────────────────────────────────────────────────────────
+
+/// Where an update's code would be unpacked: next to the build cache.
+pub fn update_dir() -> PathBuf {
+    xdg("XDG_CACHE_HOME", ".cache").join("candy").join("source")
+}
+
+/// Not yet: on Linux the island says how to update by hand (README → Install).
+pub fn unpack_and_install(_dir: &Path, _archive: &Path, _root: &Path) -> Result<(), String> {
+    Err("on Linux, update from the Candy folder: git pull (or a new ZIP), then npm ci and npm run setup".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

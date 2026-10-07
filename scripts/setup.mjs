@@ -7,6 +7,8 @@
 //   npm run setup -- --build-only  build only (what CI runs)
 //   npm run setup -- --no-wait     Windows: open the installer and return at
 //                                  once (Install Candy.cmd, so its window can close)
+//   npm run setup -- --update      Windows: install silently, then start Candy
+//                                  again (the in-app update, see src-tauri/src/update.rs)
 //
 // Windows: builds the installer (npm run pack) and opens it.
 // Linux:   builds the app and installs it for your user only: ~/.local/bin/candy,
@@ -25,6 +27,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const buildOnly = process.argv.includes("--build-only");
 const noWait = process.argv.includes("--no-wait");
+const update = process.argv.includes("--update");
 const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
 
 const say = (text) => console.log(`  ${text}`);
@@ -90,6 +93,16 @@ step("Installing");
 if (process.platform === "win32") {
   const setup = join(root, "release", `Candy-Windows-${version}-setup.exe`);
   if (!existsSync(setup)) fail(`No installer at ${setup}.`);
+  if (update) {
+    // The installer closes the running Candy itself when silent.
+    say("Installing the update quietly");
+    const res = spawnSync(setup, ["/S"], { stdio: "inherit" });
+    if (res.status !== 0) fail(`The installer stopped (exit code ${res.status}).`);
+    const app = join(env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "Candy", "trader-companion.exe");
+    if (existsSync(app)) spawn(app, [], { detached: true, stdio: "ignore" }).unref();
+    else say("Updated: open Candy from the Start menu.");
+    process.exit(0);
+  }
   say(`Opening ${setup}`);
   if (noWait) {
     spawn(setup, [], { detached: true, stdio: "ignore" }).unref();

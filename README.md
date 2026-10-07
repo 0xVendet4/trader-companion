@@ -168,11 +168,18 @@ little differently there:
 - A blank island on some graphics drivers: start it with
   `WEBKIT_DISABLE_DMABUF_RENDERER=1 candy`.
 
-To update, on either system, get the new code and run the installer again:
-your settings stay, and it only recompiles what changed, a few minutes. What
-it compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux:
-`~/.cache/candy/build`); delete that folder to free a few GB. Candy never asks for a wallet, a seed phrase or a private
-key.
+### Updates
+
+Candy checks GitHub for a newer version a minute after it starts and every
+few hours after, and asks before doing anything. On Windows, **Update now**
+downloads the new code, builds it in its own window (about a minute: what it
+compiled before is reused) and starts Candy again; your settings stay. On
+Linux, or by hand anywhere: get the new code and run the installer again.
+
+What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux:
+`~/.cache/candy/build`); delete that folder to free a few GB.
+
+Candy never asks for a wallet, a seed phrase or a private key.
 
 ## Safety
 
@@ -203,6 +210,7 @@ npm run dev           # the UI only, in a browser at http://localhost:1420
 npm test              # unit tests (alerts, mood, discipline, formatting)
 npm run setup         # build and install (README → Install); --build-only to just build
 npm run pack          # Windows: the installer → release/
+npm run bump -- 0.1.2 # a new version, everywhere it is written; push it and installs offer the update
 ```
 
 In a browser the island runs on the same code, with settings kept in
@@ -260,6 +268,10 @@ It talks only to public services, for public data:
   set: PublicNode (`solana-rpc.publicnode.com`) and Solana Vibe Station
   (`public.rpc.solanavibestation.com`), for the calls each one serves. They see
   the same thing: the wallet addresses asked about.
+
+And GitHub, for updates: a few times a day Candy reads the version in this
+repository (`raw.githubusercontent.com`), and only when you say *Update now*
+does it download the code (`codeload.github.com`).
 
 Each of these services sees your IP address, as with any website. Links you
 click open in your browser (GMGN, Axiom, DexScreener, RugCheck, Solscan,

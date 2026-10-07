@@ -134,3 +134,42 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
 /// Click-through comes from the cursor poll here (set_ignore_cursor_events),
 /// not from an input region.
 pub fn set_input_region(_win: &WebviewWindow, _rect: Region) {}
+
+// ── Updates ───────────────────────────────────────────────────────────────────
+
+/// Where an update's code is unpacked: next to the build cache (scripts/setup.mjs).
+pub fn update_dir() -> PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join("Candy-build").join("source")
+}
+
+/// Unpacks the update with Windows' own tar and starts its `Install Candy.cmd`
+/// in update mode, in a window of its own: it shows its three steps, installs
+/// silently (closing this Candy) and starts the new one.
+pub fn unpack_and_install(dir: &std::path::Path, archive: &std::path::Path, root: &std::path::Path) -> Result<(), String> {
+    let unpacked = Command::new("tar")
+        .arg("-xzf")
+        .arg(archive)
+        .arg("-C")
+        .arg(dir)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !unpacked.success() {
+        return Err("couldn't unpack the update".into());
+    }
+    let script = dir.join(root).join("Install Candy.cmd");
+    if !script.is_file() {
+        return Err(format!("no installer in the update ({})", script.display()));
+    }
+    Command::new("cmd.exe")
+        .args(["/c", "start", "Updating Candy"])
+        .arg(&script)
+        .arg("--update")
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}

@@ -4,7 +4,8 @@
 // only draws what this produces.
 
 import { evaluateRules, primeRule, pushSample, type RuleMemory } from "./alerts/alerts";
-import { Bridge } from "./core/bridge";
+import { Bridge, IS_TAURI } from "./core/bridge";
+import { UPDATE_CHECK_MS, isNewer } from "./core/update";
 import { formatPrice, formatUsd } from "./core/format";
 import { notify } from "./core/notify";
 import {
@@ -141,6 +142,27 @@ class CompanionController {
     window.setInterval(() => {
       if (State.mode === "expanded" && State.view === "trending") void this.refreshTrending();
     }, TRENDING_TTL_MS / 2);
+    // A minute in, then every few hours: a newer Candy on GitHub?
+    if (IS_TAURI) {
+      window.setTimeout(() => void this.checkUpdate(), 60_000);
+      window.setInterval(() => void this.checkUpdate(), UPDATE_CHECK_MS);
+    }
+  }
+
+  /** The newest version offered this session: "Later" means not again until the next start. */
+  private updateOffered: string | null = null;
+
+  /**
+   * Asks GitHub for the newest version (src-tauri/src/update.rs) and, when it
+   * is newer, offers it on the island. Nothing is downloaded until the user
+   * says so.
+   */
+  async checkUpdate() {
+    const latest = await Bridge.checkUpdate();
+    if (!latest || !isNewer(latest, State.version) || latest === this.updateOffered) return;
+    this.updateOffered = latest;
+    void Bridge.log(`update: ${latest} is out (running ${State.version})`);
+    this.raise({ kind: "update", id: uid(), version: latest });
   }
 
   // ── Market ──────────────────────────────────────────────────────────────────
@@ -466,7 +488,7 @@ class CompanionController {
     } catch (err) {
       return { ok: false, message: String(err instanceof Error ? err.message : err) };
     }
-    if (!token) return { ok: false, message: "Couldn't find that token on DexScreener." };
+    if (!token) return { ok: false, message: "DexScreener doesn't list it: inactive, too new, or not on Solana, BSC, Ethereum or Robinhood Chain." };
     return this.addWatchToken(token);
   }
 

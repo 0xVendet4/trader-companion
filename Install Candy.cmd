@@ -19,8 +19,11 @@ set "LOG=%LOGDIR%\install.log"
 if not exist "%LOGDIR%" mkdir "%LOGDIR%"
 echo Install Candy, %DATE% %TIME% > "%LOG%"
 rem CI passes --build-only: build, don't open the installer, don't wait for a key.
+rem Candy's own update (src-tauri/src/update.rs) passes --update: install
+rem silently and start Candy again.
 set "MODE=--no-wait"
 echo %* | findstr /c:"--build-only" >nul && set "MODE=--build-only"
+echo %* | findstr /c:"--update" >nul && set "MODE=--update"
 
 echo.
 echo   Candy - Trader Companion
@@ -61,7 +64,11 @@ call npm.cmd ci >> "%LOG%" 2>&1 || goto failed
 call npm.cmd run setup -- %MODE% >> "%LOG%" 2>&1 || goto failed
 if "%MODE%"=="--build-only" echo   Built.& goto end
 
-echo   [3/3] Opening the installer
+if "%MODE%"=="--update" (
+  echo   [3/3] Installed. Candy starts again.
+) else (
+  echo   [3/3] Opening the installer
+)
 echo.
 echo   Done. This window closes by itself.
 timeout /t 4 /nobreak >nul
