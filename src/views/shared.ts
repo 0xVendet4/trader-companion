@@ -7,6 +7,7 @@ import { ICONS } from "./icons";
 import { formatPct, formatUsd, pctClass } from "../core/format";
 import { State, type IslandViewName, type WatchToken } from "../core/state";
 import { CHAINS, type ChainId } from "../market/chains";
+import { majorFor } from "../market/majors";
 import { SAFETY_LABEL, describeSafety } from "../market/safety";
 import { sparkPath, sparkSeries } from "../market/sparkline";
 
@@ -103,6 +104,24 @@ export function liquidityCell(q: { liquidityUsd: number | null; suspectLiquidity
 export function chainTag(chainId: ChainId): HTMLElement {
   const c = CHAINS[chainId];
   return h("span", { class: "chain-tag", text: c.tag, title: c.label, style: `--chain:${c.color}` });
+}
+
+/**
+ * Next to a symbol: MAJOR for a major coin (its tracking token's chain would
+ * mislead: BTC is not an Ethereum coin), else its chain when that helps.
+ */
+export function tokenTag(t: Pick<WatchToken, "key" | "chainId">, showChain: boolean): HTMLElement | null {
+  const m = majorFor(t);
+  if (m) {
+    const title = `A major coin: priced from ${m.symbol} on ${CHAINS[m.chainId].label} (DexScreener); market cap and 24 h volume from CoinGecko.`;
+    return h("span", { class: "chain-tag major", text: "MAJOR", title });
+  }
+  return showChain ? chainTag(t.chainId) : null;
+}
+
+/** The RugCheck shield, or nothing for a major coin (no rug to check). */
+export function safetyFor(t: Pick<WatchToken, "key" | "chainId">, onOpen: () => void): HTMLElement | null {
+  return majorFor(t) ? null : safetyBadge(t, onOpen);
 }
 
 /** The RugCheck shield next to a symbol. Click → the full report. */

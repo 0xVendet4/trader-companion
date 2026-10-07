@@ -535,6 +535,12 @@ export interface Quote {
   /** Buys and sells per window (older saved quotes may lack it). */
   txns?: Record<Timeframe, { buys: number; sells: number }>;
   updatedAt: number;
+  /**
+   * A major coin (src/market/majors.ts): market cap and 24 h volume are the
+   * coin's own, from CoinGecko; there is no liquidity, trade count or
+   * short-frame volume to show.
+   */
+  major?: boolean;
 }
 
 /** One poll's worth of the numbers alerts look back on. */

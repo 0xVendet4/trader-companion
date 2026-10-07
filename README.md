@@ -28,6 +28,11 @@ prebuilt download to trust.
 - **Search by name** — type "pump", pick from the results. Results rank by
   liquidity *backed by real money* (SOL / USDC / ETH / BNB in the pool), so
   fakes that report billions in liquidity of themselves sink, flagged ⚠.
+- **Major coins too** — BTC, ETH, SOL, BNB, XRP, DOGE, ADA, TRX, AVAX, LINK,
+  DOT, LTC, TON, SHIB and PEPE: search "btc" or "bitcoin" and the real one
+  comes first, tagged MAJOR, above the copycats that share the ticker. Each is
+  priced from a liquid token that tracks it (wrapped BTC on Ethereum…), with
+  the coin's own market cap and 24 h volume from CoinGecko.
 - **Alerts** — price or market cap above/below a level, % up/down within 5–60
   minutes, and liquidity drops (a classic sign of liquidity being pulled). The
   mascot reacts, a sound plays, the island opens.
@@ -171,8 +176,8 @@ key.
 
 ## Safety
 
-- Reads **public data only**: DexScreener, RugCheck and alternative.me's Fear
-  & Greed index (public APIs, no key)
+- Reads **public data only**: DexScreener, RugCheck, CoinGecko (for major
+  coins) and alternative.me's Fear & Greed index (public APIs, no key)
   and Solana's public RPC for your wallet (with two keyless spares for when
   it is busy) — four read-only calls (balances, token accounts, and the
   transactions a position's entry comes from), whitelisted in Rust
@@ -243,6 +248,9 @@ It talks only to public services, for public data:
   It is sent the token addresses on your watchlist and in your wallet.
 - **RugCheck** (`api.rugcheck.xyz`): a token's safety report, for tokens you open.
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
+- **CoinGecko** (`api.coingecko.com`): a major coin's own market cap and 24 h
+  volume, a few times an hour, only while one is on your watchlist or in a
+  search. It is sent the names of those coins (bitcoin, dogecoin…).
 - **Solana's public RPC** (`api.mainnet-beta.solana.com`): the balances and
   transactions of the wallet addresses you add (public addresses only; read-only
   calls, spaced to stay under its limits). If you paste your own RPC URL in the settings

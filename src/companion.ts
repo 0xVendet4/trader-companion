@@ -44,6 +44,8 @@ import {
   type DexPair,
 } from "./market/dexscreener";
 import { MAX_FOLDERS, cleanFolderName } from "./market/folders";
+import { COINGECKO_TTL_MS, fetchMarkets } from "./market/coingecko";
+import { asMajor, majorFor, majorToken, searchMajors, type MajorMarket } from "./market/majors";
 import { SAFETY_TTL_MS, fetchSafety } from "./market/safety";
 import { FNG_TTL_MS, fetchFearGreed } from "./market/sentiment";
 import { fetchTrending } from "./market/trending";
@@ -116,6 +118,10 @@ class CompanionController {
   private fngLoading = false;
   private fngTriedAt = 0;
   private walletAlertAt = new Map<string, number>();
+  /** Major coins' own market caps and volumes, by CoinGecko id, and when each came (see marketsFor). */
+  private markets: Record<string, MajorMarket & { at: number }> = {};
+  /** After a refused call (mostly the keyless API's rate limit), CoinGecko is left alone until then. */
+  private marketsRetryAt = 0;
   /** Which wallet tokens have a real pair, and which rest (no pair, junk): see wallets/pricing. */
   private pricing: PricingMemory = { known: new Set(), resting: new Map() };
 
@@ -173,7 +179,8 @@ class CompanionController {
         // Held tokens ride along too, so positions move with the market.
         ...Object.keys(State.companion.book.positions).map((address) => ({ chainId: "solana" as const, address })),
       ];
-      const quotes = await fetchQuotes(refs, abort.signal);
+      const majorIds = tokens.map((t) => majorFor(t)?.coingecko).filter((id): id is string => !!id);
+      const [quotes, markets] = await Promise.all([fetchQuotes(refs, abort.signal), this.marketsFor(majorIds)]);
       if (abort.signal.aborted) return;
       this.failures = 0;
       State.sol = quotes[SOL_MINT] ?? State.sol;
@@ -188,7 +195,14 @@ class CompanionController {
       State.marketStatus = tokens.length ? "ok" : "idle";
       State.marketError = null;
       State.lastUpdate = Date.now();
-      this.applyQuotes(quotes);
+      // A major coin shows its own market cap and volume (see market/majors);
+      // the header and positions keep the raw quotes.
+      const watched = { ...quotes };
+      for (const t of tokens) {
+        const m = majorFor(t);
+        if (m && watched[t.key]) watched[t.key] = asMajor(watched[t.key], markets[m.coingecko]);
+      }
+      this.applyQuotes(watched);
       this.applyPositionQuotes(quotes);
       this.ensureSafety(tokens);
     } catch (err) {
@@ -239,6 +253,27 @@ class CompanionController {
     }
     if (changedTokens) this.save();
     this.evaluate(now);
+  }
+
+  /**
+   * The major coins' own market caps and 24 h volumes, from CoinGecko, for the
+   * watchlist and for searches alike: one call for all of them when any is a
+   * few minutes old or missing. A refused call keeps what came before and
+   * leaves CoinGecko alone for a minute.
+   */
+  private async marketsFor(ids: string[]): Promise<Record<string, MajorMarket>> {
+    const now = Date.now();
+    const stale = ids.some((id) => now - (this.markets[id]?.at ?? 0) >= COINGECKO_TTL_MS);
+    if (stale && now >= this.marketsRetryAt) {
+      try {
+        const got = await fetchMarkets([...new Set(ids)]);
+        for (const [id, m] of Object.entries(got)) this.markets[id] = { ...m, at: now };
+      } catch (err) {
+        this.marketsRetryAt = now + 60_000;
+        void Bridge.log(`CoinGecko: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    return this.markets;
   }
 
   /** The Fear & Greed index, at most once an hour. A miss just waits. */
@@ -364,7 +399,7 @@ class CompanionController {
    */
   ensureSafety(tokens: WatchToken[]) {
     const now = Date.now();
-    for (const mint of tokens.filter((t) => CHAINS[t.chainId].rugcheck).map((t) => t.key)) {
+    for (const mint of tokens.filter((t) => CHAINS[t.chainId].rugcheck && !majorFor(t)).map((t) => t.key)) {
       const r = State.safety[mint];
       if (r === "loading" || this.safetyQueue.includes(mint)) continue;
       if (r === "error" && now - (this.safetyErrorAt.get(mint) ?? 0) < 5 * 60_000) continue;
@@ -437,6 +472,9 @@ class CompanionController {
 
   /** Adds a token already resolved (a search result, a trending row). */
   addWatchToken(token: WatchToken): { ok: boolean; message: string } {
+    // A major added by its tracking token's address (WBTC…) is still BTC.
+    const major = majorFor(token);
+    if (major) token = majorToken(major, token);
     const list = State.companion.watchlist;
     if (list.length >= MAX_WATCHLIST) return { ok: false, message: `${MAX_WATCHLIST} tokens max.` };
     if (list.some((t) => t.key === token.key)) return { ok: false, message: `${token.symbol} is already on the list.` };
@@ -483,8 +521,27 @@ class CompanionController {
     State.search = { query, results: [], loading: true, error: null };
     State.notify();
     try {
-      const results = await searchTokens(query, State.companion.chains);
+      // Major coins first ("btc" → Bitcoin), from the curated list: never one
+      // of the copycats that share the ticker (see market/majors).
+      const majors = searchMajors(query);
+      const [found, pairs, markets] = await Promise.all([
+        searchTokens(query, State.companion.chains),
+        majors.length ? fetchPairs(majors.map((m) => ({ chainId: m.chainId, address: m.address }))) : Promise.resolve({} as Record<string, DexPair>),
+        this.marketsFor(majors.map((m) => m.coingecko)),
+      ]);
       if (State.search?.query !== query) return; // a newer search took over
+      const now = Date.now();
+      const top = majors.map((m) => {
+        const token = majorToken(m, null);
+        const pair = pairs[token.key];
+        return {
+          token: pair ? majorToken(m, toWatchToken(pair)) : token,
+          quote: pair ? asMajor(toQuote(token.key, pair, now), markets[m.coingecko]) : null,
+          boost: 0,
+          pairCreatedAt: null,
+        };
+      });
+      const results = [...top, ...found.filter((r) => !majorFor(r.token))];
       State.search = { query, results, loading: false, error: null };
       this.ensureSafety(results.map((r) => r.token));
     } catch (err) {

@@ -12,8 +12,8 @@
   "app": {
     "withGlobalTauri": false,
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.dexscreener.com https://dd.dexscreener.com; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://api.dexscreener.com https://api.rugcheck.xyz https://api.alternative.me",
-      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.dexscreener.com https://dd.dexscreener.com; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://api.dexscreener.com https://api.rugcheck.xyz https://api.alternative.me ws://localhost:1420 http://localhost:1420"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.dexscreener.com https://dd.dexscreener.com; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://api.dexscreener.com https://api.rugcheck.xyz https://api.alternative.me https://api.coingecko.com",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.dexscreener.com https://dd.dexscreener.com; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://api.dexscreener.com https://api.rugcheck.xyz https://api.alternative.me https://api.coingecko.com ws://localhost:1420 http://localhost:1420"
     },
     "windows": [
       {

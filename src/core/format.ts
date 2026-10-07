@@ -37,6 +37,8 @@ export function formatPrice(price: number | null | undefined): string {
 export function compact(n: number): string {
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
+  // Trillions: a major coin's market cap (BTC, ETH).
+  if (abs >= 1e12) return `${sign}${trim(abs / 1e12)}T`;
   if (abs >= 1e9) return `${sign}${trim(abs / 1e9)}B`;
   if (abs >= 1e6) return `${sign}${trim(abs / 1e6)}M`;
   if (abs >= 1e3) return `${sign}${trim(abs / 1e3)}K`;

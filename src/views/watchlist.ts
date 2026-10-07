@@ -12,12 +12,12 @@ import { h, clear } from "./dom";
 import { ICONS } from "./icons";
 import {
   btn,
-  chainTag,
+  tokenTag,
+  safetyFor,
   field,
   iconBtn,
   liquidityCell,
   pct,
-  safetyBadge,
   sparkline,
   tokenImg,
   type ViewActions,
@@ -28,11 +28,16 @@ import { Bridge } from "../core/bridge";
 import { compact, formatAge, formatPrice, formatUsd } from "../core/format";
 import { MAX_ROWS, ROW_H } from "../core/layout";
 import { shareEntry, shareText } from "../core/share";
-import { State, type Timeframe, type TrendingItem, type WatchToken } from "../core/state";
+import { State, type Quote, type Timeframe, type TrendingItem, type WatchToken } from "../core/state";
 import { CHAINS } from "../market/chains";
 import { folderTokens } from "../market/folders";
 import { terminalLabel } from "../market/links";
 import { rugcheckUrl } from "../market/safety";
+
+/** A major coin's volume: its own 24 h volume (CoinGecko); nothing for shorter frames. */
+function majorVolume(q: Quote, frame: Timeframe): string {
+  return frame === "h24" && q.volume.h24 > 0 ? formatUsd(q.volume.h24) : "—";
+}
 
 const FRAMES: Timeframe[] = ["m5", "h1", "h6", "h24"];
 const FRAME_LABEL: Record<Timeframe, string> = { m5: "5m", h1: "1h", h6: "6h", h24: "24h" };
@@ -205,8 +210,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       { class: "c-tok" },
       tokenImg(t.imageUrl, t.symbol),
       h("span", { class: "sym", text: t.symbol }),
-      showChain(t) ? chainTag(t.chainId) : null,
-      safetyBadge(t, () => actions.openUrl(rugcheckUrl(t.address))),
+      tokenTag(t, showChain(t)),
+      safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
     );
   }
 
@@ -300,8 +305,9 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     c.spark.replaceChildren(sparkline(key));
     c.mc.textContent = formatUsd(q?.marketCap);
     c.mc.title = `Market cap · price ${formatPrice(q?.priceUsd)}`;
-    c.vol.textContent = formatUsd(q?.volume[frame]);
-    const tx = q?.txns?.[frame] ?? (frame === "m5" ? q?.txnsM5 : undefined);
+    // A major coin: only its 24 h volume (CoinGecko), and no trade count.
+    c.vol.textContent = q?.major ? majorVolume(q, frame) : formatUsd(q?.volume[frame]);
+    const tx = q?.major ? undefined : (q?.txns?.[frame] ?? (frame === "m5" ? q?.txnsM5 : undefined));
     c.txns.replaceChildren();
     if (tx) {
       c.txns.append(h("span", { class: "buys", text: compact(tx.buys) }), "/", h("span", { class: "sells", text: compact(tx.sells) }));
@@ -344,13 +350,13 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
         { class: "c-tok" },
         tokenImg(t.imageUrl, t.symbol),
         h("span", { class: "sym", text: t.symbol }),
-        chainTag(t.chainId),
-        safetyBadge(t, () => actions.openUrl(rugcheckUrl(t.address))),
+        tokenTag(t, true),
+        safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
         h("span", { class: "tok-name", text: t.name }),
       ),
       h("span", { class: "c-mc", text: formatUsd(q?.marketCap), title: "Market cap" }),
       liquidityCell(q),
-      h("span", { class: "c-vol", text: formatUsd(q?.volume.h24), title: "Volume, 24 h" }),
+      h("span", { class: "c-vol", text: q?.major ? majorVolume(q, "h24") : formatUsd(q?.volume.h24), title: "Volume, 24 h" }),
       h("span", { class: "c-age", text: formatAge(item.pairCreatedAt), title: "Pair age" }),
       h("span", { class: "c-add" }, plus),
     );

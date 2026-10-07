@@ -28,12 +28,13 @@ describe("formatPrice", () => {
 });
 
 describe("compact", () => {
-  it("uses K, M and B", () => {
+  it("uses K, M, B and T", () => {
     expect(compact(950)).toBe("950");
     expect(compact(12_345)).toBe("12.3K");
     expect(compact(1_234_567)).toBe("1.23M");
     expect(compact(345_349_568)).toBe("345M");
     expect(compact(4_500_000_000)).toBe("4.50B");
+    expect(compact(1_667_639_960_180)).toBe("1.67T");
   });
 });
 
