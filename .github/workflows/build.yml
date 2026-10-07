@@ -1,8 +1,8 @@
 name: Build
 
 # Proves the source builds: runs the tests and builds the app the way
-# install.cmd (Windows) and install.sh (Linux) do on a user's PC, on every push
-# and pull request. Nothing is published or kept: Candy ships as source, and
+# `npm run setup` does on a user's PC (README → Install), on every push and
+# pull request. Nothing is published or kept: Candy ships as source, and
 # each user compiles their own (README → Install), so what they run is the
 # code they can read here.
 
@@ -14,6 +14,10 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # setup.mjs keeps its own cache outside the folder; here, the cached one.
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
 
 jobs:
   windows:
@@ -56,7 +60,7 @@ jobs:
           if ($conf -ne $pkg -or $conf -ne $cargo) { throw "the versions disagree" }
 
       - name: Build the installer
-        run: npm run pack
+        run: npm run setup -- --build-only
 
   linux:
     runs-on: ubuntu-24.04
@@ -69,7 +73,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      # What install.sh installs with apt.
+      # What README → Install lists for apt.
       - name: System libraries
         run: |
           sudo apt-get update
@@ -85,9 +89,6 @@ jobs:
           key: linux-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-cargo-
 
-      - name: install.sh finds everything
-        run: bash install.sh --check
-
       - name: Install dependencies
         run: npm ci
 
@@ -97,4 +98,4 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build the app
-        run: npx tauri build --no-bundle
+        run: npm run setup -- --build-only

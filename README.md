@@ -76,35 +76,66 @@ Download ZIP** at the top of this page, then unzip it (or `git clone` it).
 
 ### Windows
 
-Double-click **`install.cmd`** in that folder. Windows may ask whether to run
-it, since it came from the internet: it is a few lines that start
-`scripts\install.ps1` (open either in Notepad to check).
+1. **The tools, once.** In a terminal (search "Terminal" in the Start menu):
 
-It checks for what a build needs (Node.js 20+, Rust with its MSVC toolchain,
-and Microsoft's C++ build tools) and offers to install anything missing with
-winget; it asks first, and the C++ tools take a few GB. Then it builds Candy,
-10–20 minutes the first time, and runs the installer it made. Candy lands in
-your Start menu.
+   ```
+   winget install -e --id OpenJS.NodeJS.LTS
+   winget install -e --id Rustlang.Rustup
+   winget install -e --id Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+   ```
 
-To only see what is missing:
-`powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -CheckOnly`.
-By hand: the [prerequisites](https://tauri.app/start/prerequisites/),
-`npm ci`, `npm run pack`, then run `release\Candy-Windows-<version>-setup.exe`.
+   Node.js, Rust, and Microsoft's C++ build tools (a few GB; Windows asks for
+   permission). Skip any you already have.
+
+2. **Build and install.** Open a new terminal in the Candy folder (in Explorer,
+   right-click the folder → *Open in Terminal*) and run:
+
+   ```
+   npm ci
+   npm run setup
+   ```
+
+   It builds Candy, 10–20 minutes the first time, and opens the installer it
+   made; Candy lands in your Start menu. If PowerShell says running scripts is
+   disabled, type `npm.cmd` instead of `npm`.
 
 ### Linux
 
-In a terminal, in that folder:
+1. **The tools, once.** The build libraries, from your distribution:
 
-```bash
-bash install.sh
-```
+   ```bash
+   # Debian, Ubuntu, Mint, Pop!_OS
+   sudo apt install build-essential curl wget file pkg-config libssl-dev libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell-dev
+   # Fedora
+   sudo dnf install gcc gcc-c++ make curl wget file pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libxdo-devel libappindicator-gtk3-devel librsvg2-devel gtk-layer-shell-devel
+   # Arch, Manjaro
+   sudo pacman -S --needed base-devel curl wget file openssl webkit2gtk-4.1 xdotool libappindicator-gtk3 librsvg gtk-layer-shell
+   ```
 
-It checks for the libraries a build needs (WebKitGTK 4.1, gtk-layer-shell,
-AppIndicator) and offers to install them with apt, dnf, pacman or zypper (it
-asks for your password), then Node.js 20+ through nvm and Rust through rustup,
-asking before each. Then it builds Candy, 10–20 minutes the first time, and
-installs it for your user only: `~/.local/bin/candy`, with an entry in your
-app menu. `bash install.sh --check` only says what is missing.
+   Rust, from [rustup.rs](https://rustup.rs):
+
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+   And Node.js 20 or newer, from your distribution if it has one that recent,
+   or from [nodejs.org](https://nodejs.org/) (nvm works too).
+
+2. **Build and install.** In the Candy folder:
+
+   ```bash
+   npm ci
+   npm run setup
+   ```
+
+   It builds Candy, 10–20 minutes the first time, and installs it for your
+   user only: `~/.local/bin/candy`, with an entry in your app menu.
+
+What `npm run setup` does is in [`scripts/setup.mjs`](scripts/setup.mjs), a
+short file you can read before running it: it checks the tools, builds, and
+installs. What a build downloads is the libraries pinned in
+`package-lock.json` and `Cargo.lock`, and on Windows the NSIS installer
+maker Tauri uses.
 
 Linux doesn't let an app read the cursor across the screen, so Candy works a
 little differently there:
@@ -143,18 +174,17 @@ key.
 
 ## Develop
 
-Requirements: Node 20+, Rust, and [Tauri's prerequisites](https://tauri.app/start/prerequisites/):
-on Windows the Visual Studio Build Tools with "Desktop development with C++"
-(and Rust's MSVC toolchain); on Linux WebKitGTK 4.1 and friends, plus
-gtk-layer-shell (`bash install.sh` installs them all).
+Requirements: the tools in [Install](#install) (Node 20+, Rust, and
+[Tauri's prerequisites](https://tauri.app/start/prerequisites/) plus
+gtk-layer-shell on Linux).
 
 ```bash
 npm install
 npm run tauri dev     # the real app
 npm run dev           # the UI only, in a browser at http://localhost:1420
 npm test              # unit tests (alerts, mood, discipline, formatting)
-npm run pack          # Windows installer → release/ (install.cmd does this, prerequisites included)
-npx tauri build --no-bundle   # Linux: the app → target/release/ (install.sh does this)
+npm run setup         # build and install (README → Install); --build-only to just build
+npm run pack          # Windows: the installer → release/
 ```
 
 In a browser the island runs on the same code, with settings kept in

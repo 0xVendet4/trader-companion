@@ -1,6 +1,6 @@
 // Copies the installer Tauri buries in target/release/bundle/ into release/,
 // as release/Candy-Windows-<version>-setup.exe. Used by `npm run pack`, so by
-// install.cmd (scripts/install.ps1) and the build workflow too.
+// npm run setup (scripts/setup.mjs) and the build workflow too.
 // From Coucou for Windows (MIT, © Louis Raillé).
 
 import { readFileSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-// install.cmd builds into a cache that outlives the source folder (CARGO_TARGET_DIR).
+// npm run setup builds into a cache that outlives the source folder (CARGO_TARGET_DIR).
 const targetDir = process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(root, "target");
 const bundleRoot = join(targetDir, "release", "bundle");
 const outDir = join(root, "release");

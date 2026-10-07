@@ -12,6 +12,7 @@
     "mascot": "node scripts/gen-placeholder-mascot.mjs",
     "tauri": "tauri",
     "pack": "tauri build && node scripts/pack.mjs",
+    "setup": "node scripts/setup.mjs",
     "pack:edition": "node scripts/pack-edition.mjs",
     "record-demo": "node scripts/record-demo.mjs"
   },
