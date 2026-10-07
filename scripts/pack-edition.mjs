@@ -2,7 +2,7 @@
 // exclusive costume, offered in the wardrobe and worn from the first launch.
 // The costume lives in editions/<id>/ (costume.json and its art), which is kept
 // out of the repository; vite.config.ts adds it to the build as the "edition"
-// costume. Regular builds and the website never have it.
+// costume. Regular builds never have it.
 //
 //   npm run pack:edition -- <id>
 //

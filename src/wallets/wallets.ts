@@ -1,8 +1,8 @@
 // Wallet tracking by public address — read-only, never a key.
 //
-// Balances come from Solana's public RPC (through Rust in the app, through a
-// tiny proxy on the website: the public RPC refuses calls made straight from
-// a web page). A "buy" or "sell" is a balance that went up or down between
+// Balances come from Solana's public RPC (through Rust in the app, through the
+// dev server's proxy in a browser: the public RPC refuses calls made straight
+// from a web page). A "buy" or "sell" is a balance that went up or down between
 // two checks; that needs no transaction parsing, so no paid data provider.
 
 import { Bridge } from "../core/bridge";

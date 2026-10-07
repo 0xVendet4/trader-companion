@@ -54,8 +54,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
   const quiet = h("div", { class: "empty" });
   // Reading the wallet's history: progress, then what it found.
   const historyLine = h("div", { class: "history-line" });
-  // When the shared public RPC fails the wallet: where the fix is. The website
-  // has no RPC setting (its own server makes the calls).
+  // When the shared public RPC fails the wallet: where the fix is.
   const rpcHint = h(
     "div",
     { class: "history-line err" },
@@ -314,7 +313,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
 
   /** An own wallet couldn't be read, and the app is on the public RPC. */
   function publicRpcFailing(): boolean {
-    if (import.meta.env.VITE_WEB || State.settings.rpcUrl) return false;
+    if (State.settings.rpcUrl) return false;
     const mine = State.companion.wallets.filter((w) => w.mine);
     return !!State.historyRead?.error || mine.some((w) => !!State.wallets[w.address]?.error);
   }

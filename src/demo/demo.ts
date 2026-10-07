@@ -1,7 +1,7 @@
 // The presentation demo: the real island, fed by a scripted market instead of
 // DexScreener, with captions and a fake cursor. Open /demo.html with `npm run
-// dev`, build it for the web with `npm run build:web`, or turn it into a video
-// with scripts/record-demo.mjs (which opens it with ?autoplay).
+// dev`, or turn it into a video with scripts/record-demo.mjs (which opens it
+// with ?autoplay).
 //
 // Every token here is fictional, so no real coin is shown making moves it
 // never made.

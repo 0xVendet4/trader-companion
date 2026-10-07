@@ -402,11 +402,10 @@ function generalSection(): HTMLElement {
     row("Close the island after", select<number>([[8, "8 s"], [15, "15 s"], [30, "30 s"], [60, "1 min"]], () => settings.autoCloseInterval, (v) => (settings.autoCloseInterval = v))),
     row("Sounds", toggle(() => settings.soundEnabled, (v) => (settings.soundEnabled = v))),
     row("Volume", volume),
-    // The web preview has no screen to pick and nothing to start with Windows.
-    import.meta.env.VITE_WEB ? null : row("Screen", select<"primary" | "cursor">([["primary", "Main screen"], ["cursor", "Where the mouse is"]], () => settings.screen, (v) => (settings.screen = v))),
-    import.meta.env.VITE_WEB ? null : row("Start with Windows", toggle(() => settings.autostart, (v) => (settings.autostart = v))),
-    import.meta.env.VITE_WEB ? null : rpcRow(),
-    import.meta.env.VITE_WEB ? null : rpcKeySites(),
+    row("Screen", select<"primary" | "cursor">([["primary", "Main screen"], ["cursor", "Where the mouse is"]], () => settings.screen, (v) => (settings.screen = v))),
+    row("Start with Windows", toggle(() => settings.autostart, (v) => (settings.autostart = v))),
+    rpcRow(),
+    rpcKeySites(),
   );
 }
 

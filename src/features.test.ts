@@ -77,7 +77,7 @@ describe("share links", () => {
   });
 
   it("still imports links shared by older versions", () => {
-    expect(parseShared(`https://example.vercel.app/?list=${BONK},${WIF}`)).toEqual([BONK, WIF]);
+    expect(parseShared(`https://example.com/?list=${BONK},${WIF}`)).toEqual([BONK, WIF]);
     expect(parseShared(`?list=${BONK}`)).toEqual([BONK]);
   });
 

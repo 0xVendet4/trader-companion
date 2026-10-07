@@ -15,7 +15,7 @@ export const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 /**
  * The newest transaction format the reader understands. Solana has version 1
  * transactions; asking for less makes the RPC refuse every one of them.
- * Mirrors web/api/rpc.js and rpc_params in src-tauri/src/lib.rs.
+ * Mirrors rpc_params in src-tauri/src/lib.rs.
  */
 export const TX_VERSION = 1;
 

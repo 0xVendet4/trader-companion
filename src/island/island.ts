@@ -503,7 +503,7 @@ export class Island {
 
   // ── Placement ───────────────────────────────────────────────────────────────
 
-  /** Where the island lives now. A web preview too narrow for the window keeps it on top. */
+  /** Where the island lives now. A browser window too narrow for the panel keeps it on top. */
   private placement(): Placement {
     if (!IS_TAURI && window.innerWidth < PANEL_W + 40) return "top";
     return State.settings.placement;
@@ -522,8 +522,6 @@ export class Island {
     if (place !== this.placed) {
       this.placed = place;
       this.animateGeometry();
-      // The web preview lays its how-to around the island.
-      window.dispatchEvent(new Event("placement"));
     }
   }
 

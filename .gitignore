@@ -15,9 +15,9 @@ src-tauri/gen/schemas/
 # Frames written while recording the demo video
 demo-frames/
 
-# Local tool config and the Vercel project link
+# Local tool config, and the guide for AI agents (kept on this PC only)
 .claude/
-.vercel/
+CLAUDE.md
 
 # Friends' exclusive costumes (npm run pack:edition): private, never committed
 editions/

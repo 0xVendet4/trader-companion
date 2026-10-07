@@ -27,16 +27,6 @@ export interface BootInfo {
   /** Logical screen rect of the monitor the island lives on. */
   screen: { x: number; y: number; width: number; height: number; scale: number };
   version: string;
-  /** Browser only: nothing was saved yet (a first visit to the web preview). */
-  firstRun?: boolean;
-}
-
-function devSaved(): boolean {
-  try {
-    return localStorage.getItem(DEV_KEY) != null;
-  } catch {
-    return false;
-  }
 }
 
 function devLoad(): Settings {
@@ -56,7 +46,6 @@ export const Bridge = {
       settings: devLoad(),
       screen: { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, scale: 1 },
       version: "dev",
-      firstRun: !devSaved(),
     };
   },
 
@@ -112,7 +101,8 @@ export const Bridge = {
   /**
    * A read-only Solana RPC call (getBalance, getTokenAccountsByOwner). The
    * public RPC refuses requests made from a web page, so the app goes through
-   * Rust and the website through its own /api/rpc proxy.
+   * Rust, and the browser (npm run dev) through the dev server's /api/rpc
+   * proxy (vite.config.ts).
    */
   async rpc<T>(method: string, params: unknown[]): Promise<T> {
     if (IS_TAURI) return invoke<T>("solana_rpc", { method, params });

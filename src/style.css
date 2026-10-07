@@ -1319,79 +1319,6 @@ select option {
   background: #141518;
 }
 
-/* ── Public web preview (npm run build:web) ─────────────────────────────── */
-
-body.web {
-  overflow: auto;
-  background:
-    radial-gradient(1000px 520px at 10% 110%, rgba(34, 197, 94, 0.18), transparent 60%),
-    radial-gradient(800px 460px at 95% -10%, rgba(99, 102, 241, 0.22), transparent 60%),
-    linear-gradient(160deg, #0d1424, #070a12 60%) fixed;
-}
-
-body.web #root {
-  position: fixed;
-  outline: none;
-  transform-origin: 50% 0;
-  z-index: 2;
-}
-
-#web-intro {
-  position: absolute;
-  left: 50%;
-  width: min(560px, calc(100% - 32px));
-  transform: translateX(-50%);
-  padding: 22px 24px;
-  border-radius: 18px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  color: var(--dim);
-  font-size: 14px;
-  line-height: 1.55;
-  user-select: text;
-}
-
-#web-intro h1 {
-  color: var(--ink);
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-#web-intro ul {
-  margin: 12px 0 12px 18px;
-}
-
-#web-intro li {
-  margin: 4px 0;
-}
-
-#web-intro .fine {
-  font-size: 12.5px;
-  color: var(--dim-2);
-}
-
-#web-intro a {
-  color: var(--accent);
-}
-
-/* Shown only on a phone held upright, where the island is scaled way down. */
-#web-intro .rotate {
-  display: none;
-}
-
-@media (orientation: portrait) and (max-width: 700px) {
-  #web-intro .rotate {
-    display: block;
-    margin: -4px 0 14px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: rgba(74, 222, 128, 0.12);
-    color: var(--accent);
-    font-weight: 600;
-  }
-}
-
 /* ── Header: five tabs, only the open one labelled ──────────────────────── */
 
 .tab:not(.on) {
@@ -1840,17 +1767,6 @@ body.web #root {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
-}
-
-/* ── Web preview: shared-link notice ────────────────────────────────────── */
-
-#web-intro .shared {
-  margin: -4px 0 14px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(99, 102, 241, 0.16);
-  color: #c7d2fe;
-  font-weight: 600;
 }
 
 .mascot-outfit[hidden] {

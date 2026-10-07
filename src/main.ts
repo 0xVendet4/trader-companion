@@ -4,7 +4,6 @@
 import "./style.css";
 import { Bridge, IS_TAURI, onEvent, onSettingsChanged } from "./core/bridge";
 import { bindHotkey } from "./core/hotkey";
-import { parseShared } from "./core/share";
 import { Sound } from "./core/sound";
 import { State } from "./core/state";
 import { Companion } from "./companion";
@@ -15,10 +14,6 @@ async function main() {
   const root = document.getElementById("root");
   if (!root) return;
   if (!IS_TAURI) document.body.classList.add("browser");
-
-  // The public web preview adds a how-to and fits the island on a phone.
-  const web = !IS_TAURI && import.meta.env.VITE_WEB ? await import("./web/preview") : null;
-  web?.setupPreview(root);
 
   const island = new Island(root);
   const [boot, manifest] = await Promise.all([Bridge.boot(), loadManifest()]);
@@ -75,13 +70,6 @@ async function main() {
   Companion.onFeeling = (state, line) => island.feel(state, line);
   Companion.start();
   island.launch();
-  // A shared watchlist link (?list=…) adds its tokens; otherwise a first visit
-  // to the web preview gets a starter list.
-  const shared = IS_TAURI ? [] : parseShared(location.search);
-  if (shared.length) {
-    history.replaceState(null, "", location.pathname);
-    void Companion.importList(shared).then((n) => web?.sharedNotice(n, shared.length));
-  } else if (web && boot.firstRun && State.companion.watchlist.length === 0) void web.seedWatchlist();
 
   if (!IS_TAURI) {
     document.addEventListener("click", () => Sound.resume(), { once: true });

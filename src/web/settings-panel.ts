@@ -1,7 +1,6 @@
 // In a browser, the settings open over the page instead of in a new tab: the
 // settings page in a frame, in a panel. Both pages share localStorage, so a
-// change there reaches the island through the usual `storage` event. The
-// website's CSP lets the site frame itself, and nothing else.
+// change there reaches the island through the usual `storage` event.
 
 import { h } from "../views/dom";
 

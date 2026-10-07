@@ -30,7 +30,7 @@ import {
   todayKey,
   undoLastTrade,
 } from "./discipline/discipline";
-import { CHAINS, isChain, nativeCoins, tokenKey } from "./market/chains";
+import { CHAINS, nativeCoins, tokenKey } from "./market/chains";
 import {
   SOL_MINT,
   WBTC,
@@ -497,24 +497,6 @@ class CompanionController {
   closeSearch() {
     State.search = null;
     State.notify();
-  }
-
-  /** Adds a shared list's tokens ("address" or "chain:address") not on the watchlist yet. */
-  async importList(entries: string[]): Promise<number> {
-    let added = 0;
-    for (const entry of entries) {
-      if (State.companion.watchlist.length >= MAX_WATCHLIST) break;
-      const [chainPart, addrPart] = entry.includes(":") ? entry.split(":", 2) : ["solana", entry];
-      const chainId = isChain(chainPart) ? chainPart : null;
-      if (!chainId || State.token(tokenKey(chainId, addrPart))) continue;
-      try {
-        const token = await resolveAddress({ kind: "address", address: addrPart, chainId, isPool: false });
-        if (token && this.addWatchToken(token).ok) added++;
-      } catch {
-        /* skip what DexScreener doesn't know */
-      }
-    }
-    return added;
   }
 
   removeToken(key: string) {

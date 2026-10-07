@@ -222,7 +222,7 @@ const SOLANA_RPC: &str = "https://api.mainnet-beta.solana.com";
 /// The only calls the app may make, and the params it may send with them: a
 /// balance, the token accounts, a token account's latest signatures and one
 /// transaction (to find what a position cost). All read-only: nothing that
-/// writes, signs or sends — the app holds no key. Mirrors web/api/rpc.js.
+/// writes, signs or sends — the app holds no key.
 const TOKEN_PROGRAMS: &[&str] = &[
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
     "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",

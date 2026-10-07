@@ -2,9 +2,9 @@ import { defineConfig, type Plugin } from "vite";
 import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
-// The public Solana RPC refuses calls carrying a web page's Origin. In
-// development /api/rpc is forwarded without it; on the website the same path
-// is web/api/rpc.js (a Vercel function), and in the app it is Rust.
+// The public Solana RPC refuses calls carrying a web page's Origin. In the
+// browser (npm run dev) /api/rpc is forwarded without it; in the app the call
+// goes through Rust.
 const solanaProxy = {
   "/api/rpc": {
     target: "https://api.mainnet-beta.solana.com",
