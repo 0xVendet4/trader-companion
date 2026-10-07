@@ -44,7 +44,8 @@ if (res.status !== 0) process.exit(res.status ?? 1);
 
 // The newest installer Tauri wrote, under this edition's name (the regular
 // names stay for regular builds).
-const dir = join(root, "target", "release", "bundle", "nsis");
+const targetDir = process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(root, "target");
+const dir = join(targetDir, "release", "bundle", "nsis");
 const built = readdirSync(dir)
   .filter((f) => f.endsWith("-setup.exe"))
   .map((f) => join(dir, f))

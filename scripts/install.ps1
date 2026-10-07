@@ -119,6 +119,10 @@ if ($CheckOnly) {
 }
 
 Step "Building Candy from this source (10-20 minutes the first time)"
+# What Rust compiles is kept outside this folder, so an update from a new ZIP
+# only rebuilds what changed (a few minutes). Delete it to free a few GB.
+$env:CARGO_TARGET_DIR = Join-Path $env:LOCALAPPDATA "Candy-build"
+Say "Build cache: $env:CARGO_TARGET_DIR"
 & npm.cmd ci
 if ($LASTEXITCODE -ne 0) { Fail "npm ci failed: the messages above say why." }
 & npm.cmd run pack

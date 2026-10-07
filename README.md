@@ -120,7 +120,9 @@ little differently there:
   `WEBKIT_DISABLE_DMABUF_RENDERER=1 candy`.
 
 To update, on either system, get the new code and run the installer again:
-your settings stay. Candy never asks for a wallet, a seed phrase or a private
+your settings stay, and it only recompiles what changed, a few minutes. What
+it compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux:
+`~/.cache/candy/build`); delete that folder to free a few GB. Candy never asks for a wallet, a seed phrase or a private
 key.
 
 ## Safety

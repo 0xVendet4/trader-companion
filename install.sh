@@ -122,9 +122,13 @@ fi
 # ── Build ─────────────────────────────────────────────────────────────────────
 
 step "Building Candy from this source (10-20 minutes the first time)"
+# What Rust compiles is kept outside this folder, so an update from a new ZIP
+# only rebuilds what changed (a few minutes). Delete it to free a few GB.
+export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/candy/build"
+say "Build cache: $CARGO_TARGET_DIR"
 npm ci
 npx tauri build --no-bundle
-BIN="target/release/trader-companion"
+BIN="$CARGO_TARGET_DIR/release/trader-companion"
 [ -x "$BIN" ] || fail "No app at $BIN: the messages above say why."
 
 # ── Install ───────────────────────────────────────────────────────────────────

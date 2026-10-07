@@ -7,9 +7,11 @@ version = "0.1.1"
 edition = "2021"
 license = "MIT"
 
+# Every user builds Candy on their own PC (install.cmd, install.sh), so build
+# time beats the last megabytes: no link-time optimisation, codegen on every
+# core. With LTO and one codegen unit the final step ran on a single core for
+# minutes.
 [profile.release]
 opt-level = "s"
-lto = true
-codegen-units = 1
 panic = "abort"
 strip = true
