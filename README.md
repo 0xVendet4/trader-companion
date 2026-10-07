@@ -82,7 +82,10 @@ Windows warns that the file came from the internet: click *More info → Run
 anyway* (or *Run*). It is a short text file; right-click → *Edit* shows all it
 does. It asks before installing the tools a build needs (Node.js, Rust and
 Microsoft's C++ build tools, with winget, Windows' own app installer), builds
-Candy, some minutes the first time, and opens its installer.
+Candy, some minutes the first time, and opens its installer. Its window shows
+three steps and closes by itself; the details go to
+`%LOCALAPPDATA%\Candy-build\install.log`, which opens in Notepad if something
+goes wrong.
 
 **Or type it yourself:**
 

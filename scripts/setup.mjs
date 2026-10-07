@@ -5,6 +5,8 @@
 //   npm ci
 //   npm run setup                  build, then install
 //   npm run setup -- --build-only  build only (what CI runs)
+//   npm run setup -- --no-wait     Windows: open the installer and return at
+//                                  once (Install Candy.cmd, so its window can close)
 //
 // Windows: builds the installer (npm run pack) and opens it.
 // Linux:   builds the app and installs it for your user only: ~/.local/bin/candy,
@@ -14,7 +16,7 @@
 // only rebuilds what changed: %LOCALAPPDATA%\Candy-build, ~/.cache/candy/build.
 // Delete it to free a few GB.
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -22,6 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const buildOnly = process.argv.includes("--build-only");
+const noWait = process.argv.includes("--no-wait");
 const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
 
 const say = (text) => console.log(`  ${text}`);
@@ -88,6 +91,10 @@ if (process.platform === "win32") {
   const setup = join(root, "release", `Candy-Windows-${version}-setup.exe`);
   if (!existsSync(setup)) fail(`No installer at ${setup}.`);
   say(`Opening ${setup}`);
+  if (noWait) {
+    spawn(setup, [], { detached: true, stdio: "ignore" }).unref();
+    process.exit(0);
+  }
   spawnSync(setup, { stdio: "inherit" });
   say("Done: Candy is in your Start menu.");
 } else {
