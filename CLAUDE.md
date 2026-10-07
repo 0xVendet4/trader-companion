@@ -9,10 +9,12 @@ framework). UI text is English.
 - `npm run tauri dev` — the app. Needs Rust with the MSVC toolchain and the VS Build Tools.
 - `npm run dev` — the UI alone in a browser (http://localhost:1420, `/settings.html`, `/demo.html`).
 - `npm test` (vitest) and `cargo test --manifest-path src-tauri/Cargo.toml`.
+- `install.cmd` (`scripts/install.ps1`) — how users install: checks and offers to install the prerequisites (winget, rustup), builds with `npm run pack` on the MSVC toolchain, runs the installer. ASCII only (Windows PowerShell 5.1).
 - `npm run record-demo` — re-records the demo video (needs `npm run dev` running).
 - `npm run pack:edition -- <id>` — a friend's installer with their exclusive costume from `editions/<id>/` (git-ignored; joins the build as the `"edition"` costume in `vite.config.ts`); regular builds and the website never have it. Never commit `editions/`, nor a friend's costume name or art anywhere in the repository.
 
 ## Rules
+- Candy ships as source: users build their own installer (README → Install). Never publish binaries — no releases with an .exe, no workflow artifacts.
 - The app never handles wallets, seed phrases, private keys or exchange keys, and never trades. Public market data only.
 - Tokens are added by address or link, never by ticker (copycat tokens).
 - Every host a link can open must be in `ALLOWED_HOSTS` (`src-tauri/src/lib.rs`) and in `src/market/links.ts`. Never open URLs taken from token metadata.

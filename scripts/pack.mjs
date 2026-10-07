@@ -1,6 +1,6 @@
 // Copies the installer Tauri buries in target/release/bundle/ into release/,
-// with the name it ships under. Used by `npm run pack` and by the release
-// workflow, so both produce exactly the same file names.
+// as release/Candy-Windows-<version>-setup.exe. Used by `npm run pack`, so by
+// install.cmd (scripts/install.ps1) and the build workflow too.
 // From Coucou for Windows (MIT, © Louis Raillé).
 
 import { readFileSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
@@ -13,13 +13,12 @@ const outDir = join(root, "release");
 
 const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
 
-// What ships: where Tauri puts it, how to recognise it, and the names it is
-// published under (the rolling name always points at the latest release).
+// Where Tauri puts it, how to recognise it, and the name it gets.
 const packages = [
   {
     dir: "nsis",
     suffix: "-setup.exe",
-    names: [`Candy-Windows-${version}-setup.exe`, "Candy-Windows-setup.exe"],
+    names: [`Candy-Windows-${version}-setup.exe`],
   },
 ];
 

@@ -3,10 +3,10 @@
 A tiny mascot that lives at the top of your Windows screen and keeps an eye on
 your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
 
-### [⬇ Download Candy for Windows](https://github.com/0xVendett4/trader-companion/releases/latest/download/Candy-Windows-setup.exe)
+### [Install Candy on Windows](#install)
 
-Free and open source. Windows will warn you the first time: see
-[Download](#download) for why, and how to check the file.
+Free and open source, and built on your own PC from this code: there is no
+prebuilt download to trust.
 
 - **Watchlist ticker** — market cap, volume and buys / sells (5m, 1h, 6h or
   24h, as GMGN shows them) and 5m / 1h / 24h change, always in view; click to
@@ -68,24 +68,32 @@ Free and open source. Windows will warn you the first time: see
 Hold **Ctrl** over the island to click whatever is behind it (a browser tab, a
 title bar); it fades while the clicks go through.
 
-## Download
+## Install
 
-[Download the installer](https://github.com/0xVendett4/trader-companion/releases/latest/download/Candy-Windows-setup.exe) (always the newest version), or pick a
-version on the [Releases](https://github.com/0xVendett4/trader-companion/releases)
-page.
+Candy ships as source. You build it on your own PC, so what you run is
+exactly the code in this repository: there is nothing prebuilt to download,
+and nothing to trust that you can't read here.
 
-**The installer is not code-signed yet** (see
-[Code signing policy](#code-signing-policy)), so the first time you run it
-Windows SmartScreen says "Windows protected your PC": click **More info →
-Run anyway**. Before you do:
+1. Get the code: **Code → Download ZIP** at the top of this page, then unzip
+   it (or `git clone` it).
+2. Double-click **`install.cmd`** in that folder. Windows may ask whether to
+   run it, since it came from the internet: it is a few lines that start
+   `scripts\install.ps1` (open either in Notepad to check).
 
-- Download it only from this repository's Releases page. Every release is
-  built from the code here by the [Windows workflow](.github/workflows/windows.yml)
-  on GitHub's own machines; no installer is uploaded by hand.
-- Check the file: in PowerShell, `Get-FileHash <the installer>` must print the
-  SHA-256 written in the release notes.
-- Candy never asks for a wallet, a seed phrase or a private key.
-  An installer or a site that does is not this app.
+It checks for what a build needs (Node.js 20+, Rust with its MSVC toolchain,
+and Microsoft's C++ build tools) and offers to install anything missing with
+winget; it asks first, and the C++ tools take a few GB. Then it builds Candy,
+10–20 minutes the first time, and runs the installer it made. Candy lands in
+your Start menu. To update, get the new code and run `install.cmd` again:
+your settings stay.
+
+To only see what is missing:
+`powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -CheckOnly`.
+By hand, it is [Develop](#develop): the
+[prerequisites](https://tauri.app/start/prerequisites/), `npm ci`,
+`npm run pack`, then run `release\Candy-Windows-<version>-setup.exe`.
+
+Candy never asks for a wallet, a seed phrase or a private key.
 
 ## Safety
 
@@ -114,7 +122,7 @@ npm install
 npm run tauri dev     # the real app
 npm run dev           # the UI only, in a browser at http://localhost:1420
 npm test              # unit tests (alerts, mood, discipline, formatting)
-npm run pack          # installer → release/
+npm run pack          # installer → release/ (install.cmd does this, prerequisites included)
 npm run pack:edition -- <id>   # a friend's installer, with their exclusive costume
 ```
 
@@ -186,23 +194,6 @@ It talks only to public services, for public data:
 Each of these services sees your IP address, as with any website. Links you
 click open in your browser (GMGN, Axiom, DexScreener, RugCheck, Solscan,
 GitHub, and Helius or Alchemy for a free RPC key).
-
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io/),
-certificate by [SignPath Foundation](https://signpath.org/).
-
-Status: the application to SignPath Foundation has not been sent yet; until it
-is approved, Windows releases are unsigned (see [Download](#download)).
-
-- Releases are built from this repository by the
-  [Windows workflow](.github/workflows/windows.yml) on GitHub-hosted runners,
-  and only those builds are signed.
-- Committers and reviewers: [0xVendett4](https://github.com/0xVendett4).
-  Changes from anyone else are reviewed by a committer before they are merged.
-- Approvers: [0xVendett4](https://github.com/0xVendett4). Every
-  signing request is approved by hand.
-- What the app sends over the network is listed under [Privacy](#privacy).
 
 ## Credits
 
