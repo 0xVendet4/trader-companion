@@ -76,6 +76,16 @@ Download ZIP** at the top of this page, then unzip it (or `git clone` it).
 
 ### Windows
 
+**The simple way:** double-click **`Install Candy.cmd`** in the folder.
+
+Windows warns that the file came from the internet: click *More info → Run
+anyway* (or *Run*). It is a short text file; right-click → *Edit* shows all it
+does. It asks before installing the tools a build needs (Node.js, Rust and
+Microsoft's C++ build tools, with winget, Windows' own app installer), builds
+Candy, some minutes the first time, and opens its installer.
+
+**Or type it yourself:**
+
 1. **The tools, once.** In a terminal (search "Terminal" in the Start menu):
 
    ```

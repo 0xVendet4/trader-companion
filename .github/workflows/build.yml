@@ -59,8 +59,11 @@ jobs:
           "tauri.conf=$conf package.json=$pkg Cargo.toml=$cargo"
           if ($conf -ne $pkg -or $conf -ne $cargo) { throw "the versions disagree" }
 
+      # Install Candy.cmd as a user double-clicks it (the tools are already on
+      # the runner, so it goes straight to npm run setup).
       - name: Build the installer
-        run: npm run setup -- --build-only
+        shell: pwsh
+        run: '& "./Install Candy.cmd" --build-only'
 
   linux:
     runs-on: ubuntu-24.04
