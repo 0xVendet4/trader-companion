@@ -62,6 +62,8 @@ import { IslandStateMachine } from "./fsm";
 
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
 const HIT_MARGIN = 14;
+/** An island rect no cursor reaches, margin included: a minimized island's. */
+const NOWHERE = { x: -10_000, y: -10_000, w: 0, h: 0 };
 const GREETING_MS = 2600;
 
 const TICKER_STEP_MS = 3000;
@@ -626,8 +628,18 @@ export class Island {
     return 0;
   }
 
+  /**
+   * The placement the island's size and mascot follow. A floating island never
+   * hides (it has no edge to come back from), so minimized it shrinks away as
+   * the top one does, where it floats.
+   */
+  private shapePlacement(): Placement {
+    const place = this.placement();
+    return State.minimized && place === "float" ? "top" : place;
+  }
+
   private animateGeometry(shrinking?: boolean) {
-    const { w, h } = islandSize(State.mode, State.view, this.rowsFor(State.view), this.placement());
+    const { w, h } = islandSize(State.mode, State.view, this.rowsFor(State.view), this.shapePlacement());
     const r = State.mode === "expanded" ? EXPANDED_CORNER : COMPACT_CORNER;
     const shrink = shrinking ?? h < this.height.value - 0.5;
     if (shrink) {
@@ -652,14 +664,20 @@ export class Island {
     this.islandEl.style.left = `${rect.x}px`;
     this.islandEl.style.top = `${rect.y}px`;
     this.islandEl.style.borderRadius = islandCorners(this.placement(), r);
+    // Shrunk away while minimized: its glow ring would still draw a line
+    // where a floating island was.
+    this.islandEl.style.visibility = State.minimized && Math.min(w, hh) < 1 ? "hidden" : "";
 
+    // Minimized, nothing of the island takes the mouse, not even the margin
+    // around it (see HIT_MARGIN in island.rs): clicks go to what is behind.
+    const hit = State.minimized ? NOWHERE : rect;
     const p = this.pushedRect;
     if (
-      Math.abs(p.x - rect.x) > 0.5 || Math.abs(p.y - rect.y) > 0.5 ||
-      Math.abs(p.w - rect.w) > 0.5 || Math.abs(p.h - rect.h) > 0.5
+      Math.abs(p.x - hit.x) > 0.5 || Math.abs(p.y - hit.y) > 0.5 ||
+      Math.abs(p.w - hit.w) > 0.5 || Math.abs(p.h - hit.h) > 0.5
     ) {
-      this.pushedRect = rect;
-      void Bridge.setIslandRect(rect.x, rect.y, rect.w, rect.h);
+      this.pushedRect = hit;
+      void Bridge.setIslandRect(hit.x, hit.y, hit.w, hit.h);
     }
   }
 
@@ -1019,7 +1037,7 @@ export class Island {
       this.syncDom();
     }
 
-    const p = mascotPlacement(State.mode, State.view, this.height.value, this.placement());
+    const p = mascotPlacement(State.mode, State.view, this.height.value, this.shapePlacement());
     this.mCx.target = p.cx;
     this.mCy.target = p.cy;
     this.mSize.target = p.size;
