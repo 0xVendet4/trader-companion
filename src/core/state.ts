@@ -318,6 +318,9 @@ export interface CustomSkin {
 export type TrendingSort = "volume" | "mcap" | "liquidity" | "newest";
 export type Timeframe = "m5" | "h1" | "h6" | "h24";
 
+/** What the watchlist's value column shows: the price of major coins and the market cap of the rest ("auto"), or one of them for all. */
+export type ValueColumn = "auto" | "price" | "mcap";
+
 export interface Companion {
   watchlist: WatchToken[];
   /** Watchlist folders, by name (see src/market/folders.ts). */
@@ -360,6 +363,8 @@ export interface Companion {
   trendingFrame: Timeframe;
   /** The window for volume and buys/sells in the watchlist. */
   volumeFrame: Timeframe;
+  /** The watchlist's value column (see valueCell in format.ts). */
+  valueColumn: ValueColumn;
   /** The mascot dozes off late at night unless something big happens. */
   nightSleep: boolean;
   /** Seasonal looks: a Santa hat in December, a pumpkin at Halloween… */
@@ -440,6 +445,7 @@ export const DEFAULT_COMPANION: Companion = {
   trendingSort: "volume",
   trendingFrame: "h1",
   volumeFrame: "h1",
+  valueColumn: "auto",
   nightSleep: true,
   lively: true,
   seasonal: true,
@@ -518,6 +524,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   s.companion.watchlist = f.tokens;
   s.companion.activeFolder = f.active;
   if (!["m5", "h1", "h6", "h24"].includes(s.companion.volumeFrame)) s.companion.volumeFrame = "h1";
+  if (!["auto", "price", "mcap"].includes(s.companion.valueColumn)) s.companion.valueColumn = "auto";
   s.companion.positionAlerts = normalizeLevels(c.positionAlerts);
   return s;
 }

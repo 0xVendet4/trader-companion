@@ -1,7 +1,29 @@
 // Number formatting the way memecoin traders read it: market caps in K/M/B,
 // tiny prices with the zero count in subscript ($0.0₅3924), signed percentages.
 
+import type { Quote, ValueColumn } from "./state";
+
 const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
+
+type Valued = Pick<Quote, "priceUsd" | "marketCap" | "major"> | null | undefined;
+
+/**
+ * A row's value cell: a major coin is read by its price (BTC $83.4K), a
+ * memecoin by its market cap ($4.2M), unless the trader picked one for all.
+ */
+export function valueCell(mode: ValueColumn, q: Valued): { text: string; title: string } {
+  const price = mode === "price" || (mode === "auto" && !!q?.major);
+  return price
+    ? { text: formatPrice(q?.priceUsd), title: `Price · market cap ${formatUsd(q?.marketCap)}` }
+    : { text: formatUsd(q?.marketCap), title: `Market cap · price ${formatPrice(q?.priceUsd)}` };
+}
+
+/** The value column's head, for the rows under it. */
+export function valueHead(mode: ValueColumn, quotes: Valued[]): string {
+  if (mode !== "auto") return mode === "price" ? "Price" : "MC";
+  const majors = quotes.filter((q) => q?.major).length;
+  return majors === 0 ? "MC" : majors === quotes.length ? "Price" : "MC / Price";
+}
 
 function subscript(n: number): string {
   return String(n)

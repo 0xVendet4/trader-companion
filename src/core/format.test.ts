@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { compact, formatPct, formatPnl, formatPrice, parseAmount } from "./format";
+import { compact, formatPct, formatPnl, formatPrice, parseAmount, valueCell, valueHead } from "./format";
+
+describe("the value column", () => {
+  const btc = { priceUsd: 83_382, marketCap: 1.67e12, major: true };
+  const meme = { priceUsd: 0.004213, marketCap: 4_213_000 };
+
+  it("reads a major coin by its price and a memecoin by its market cap", () => {
+    expect(valueCell("auto", btc).text).toBe("$83.4K");
+    expect(valueCell("auto", btc).title).toBe("Price · market cap $1.67T");
+    expect(valueCell("auto", meme).text).toBe("$4.21M");
+  });
+
+  it("shows one of them for all when the trader picks it", () => {
+    expect(valueCell("price", meme).text).toBe("$0.004213");
+    expect(valueCell("mcap", btc).text).toBe("$1.67T");
+    expect(valueCell("auto", null).text).toBe("—");
+  });
+
+  it("names its head after what the rows show", () => {
+    expect(valueHead("auto", [btc, btc])).toBe("Price");
+    expect(valueHead("auto", [meme])).toBe("MC");
+    expect(valueHead("auto", [btc, meme])).toBe("MC / Price");
+    expect(valueHead("price", [meme])).toBe("Price");
+    expect(valueHead("mcap", [btc])).toBe("MC");
+  });
+});
 
 describe("formatPrice", () => {
   it("writes memecoin prices with the zero count in subscript", () => {

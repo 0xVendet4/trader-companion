@@ -4,27 +4,39 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Candy — demo</title>
-    <meta name="description" content="A tiny mascot at the top of your screen that watches your memecoins (Solana, BSC, Ethereum, Robinhood Chain): live ticker, alerts, discipline reminders." />
+    <meta name="description" content="A tiny mascot at the top of your screen that watches your memecoins (Solana, BSC, Ethereum, Robinhood Chain): live ticker, alerts, your wallet's PnL, discipline reminders." />
     <link rel="icon" type="image/svg+xml" href="/mascot/still/idle.svg" />
   </head>
   <body class="demo">
     <div id="frame">
-    <div id="stage">
-      <div id="desktop">
-        <div class="chart-window">
-          <div class="chart-bar"><i></i><i></i><i></i><span id="chart-title">CANDLE / SOL · 1m</span></div>
-          <svg id="chart" viewBox="0 0 1000 470" preserveAspectRatio="none"></svg>
+      <div id="stage">
+        <div id="ambient"><i></i><i></i><i></i></div>
+        <!-- The world: a 1280×720 desktop the camera moves over. -->
+        <div id="world">
+          <div id="punch">
+            <div id="desktop">
+              <div class="chart-window">
+                <div class="chart-bar"><i></i><i></i><i></i><span id="chart-title">CANDLE / SOL · 1m</span></div>
+                <svg id="chart" viewBox="0 0 1000 470" preserveAspectRatio="none"></svg>
+              </div>
+              <div class="taskbar"><span></span><span></span><span></span><span></span><span></span><img class="tray" src="/mascot/still/idle.svg" alt="" /></div>
+            </div>
+            <div id="root"></div>
+            <div id="world-fx"></div>
+            <div id="demo-cursor"></div>
+          </div>
         </div>
-        <div class="taskbar"><span></span><span></span><span></span><span></span><span></span><img class="tray" src="/mascot/still/idle.svg" alt="" /></div>
+        <!-- On top of the camera: words, cards, effects. -->
+        <div id="vignette"></div>
+        <div id="bars"></div>
+        <div id="fx"></div>
+        <div id="demo-caption"></div>
+        <div id="demo-keys"></div>
+        <div id="demo-share"></div>
+        <div id="demo-card"></div>
+        <div id="demo-badge">demo data · fictional tokens</div>
       </div>
-      <div id="root"></div>
-      <div id="demo-caption"></div>
-      <div id="demo-cursor"></div>
-      <div id="demo-card"></div>
-      <div id="demo-badge">demo data · fictional tokens</div>
     </div>
-    </div>
-    <div id="rotate-hint">Turn your phone sideways for a bigger view</div>
     <script type="module" src="/src/demo/demo.ts"></script>
   </body>
 </html>

@@ -8,8 +8,17 @@ keeps an eye on your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
 Free and open source, and built on your own PC from this code: there is no
 prebuilt download to trust.
 
-- **Watchlist ticker** — market cap, volume and buys / sells (5m, 1h, 6h or
-  24h, as GMGN shows them) and 5m / 1h / 24h change, always in view; click to
+<p align="center">
+  <img src="docs/images/hero.webp" width="860" alt="Candy open at the top of a trading screen: the watchlist with market cap, volume, buys and sells and the 5m, 1h and 24h moves, and the mascot on the left">
+</p>
+<p align="center">
+  <img src="docs/images/ticker.webp" width="348" alt="Folded, Candy is a one-line ticker at the top of the screen">
+  <br><sub>Folded, it is a one-line ticker at the top of your screen. Hover it to open.</sub>
+</p>
+
+- **Watchlist ticker** — market cap (the price, for major coins: click the
+  column to switch), volume and buys / sells (5m, 1h, 6h or 24h, as GMGN
+  shows them) and 5m / 1h / 24h change, always in view; click to
   open the full list, click a token to open it on GMGN, Axiom or DexScreener.
   Folders (Runners, Holds, Watching, your own) sort the list.
 - **My wallet** — add your own Solana wallet (public address only): its SOL and
@@ -73,6 +82,25 @@ prebuilt download to trust.
 
 On Windows, hold **Ctrl** over the island to click whatever is behind it (a
 browser tab, a title bar); it fades while the clicks go through.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/alert.webp" alt="An alert card: CANDLE up 34.2% in 5 minutes, Candy celebrating"><br><b>Alerts</b>: the moment something moves.</td>
+    <td width="50%"><img src="docs/images/search.webp" alt="A search for btc: Bitcoin first, tagged #1 with its price, then copycats with fake liquidity flagged"><br><b>Search</b>: the real coin first, fakes flagged ⚠.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/wallet.webp" alt="My wallet: three tokens with value, average entry, price now, profit and multiple"><br><b>My wallet</b>: entries, PnL and multiples, worked out for you.</td>
+    <td><img src="docs/images/discipline.webp" alt="Discipline: today's trades, the day's profit and the loss limit"><br><b>Discipline</b>: your own rules, kept for you.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/wardrobe.webp" alt="The wardrobe: a row of hats on Candy, who wears a crown and sunglasses"><br><b>Wardrobe</b>: hats, faces, colours, backgrounds.</td>
+    <td><img src="docs/images/share.png" alt="Share my day: a recap card with trades, profit, open positions and the top mover"><br><b>Share my day</b>: a recap image for X or Telegram.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/sidebar.webp" alt="Candy as a sidebar on the right edge of the screen"><br><b>Anywhere</b>: the top, a side, or floating.</td>
+    <td>All the numbers in these pictures come from the demo's made-up tokens.</td>
+  </tr>
+</table>
 
 ## Install
 
@@ -223,14 +251,21 @@ for the scripted demo.
 
 ## Demo video
 
-`/demo.html` plays a ~55 s scripted tour with fictional tokens. To turn it into
-an MP4 (1920×1080, no audio), with `npm run dev` running:
+`/demo.html` plays a scripted tour of about a minute and a half with
+fictional tokens. To turn it into an MP4 with sound, with `npm run dev`
+running:
 
 ```bash
-npm run record-demo   # → release/trader-companion-demo.mp4
+npm run record-demo   # → release/candy-demo.mp4 (1920×1080)
 ```
 
-It drives a headless Microsoft Edge; no ffmpeg needed.
+`-- vertical` makes a 1080×1920 cut too, `-- --music song.mp3` lays your own
+track under it, `-- --no-music` keeps only the effects.
+
+It drives a headless Microsoft Edge; no ffmpeg needed. The pictures in this
+README come from the same demo: `npm run screenshots` → `docs/images/`. The music and the
+effects are synthesised in [`src/demo/soundtrack.ts`](src/demo/soundtrack.ts):
+nothing to license.
 
 ## Layout
 

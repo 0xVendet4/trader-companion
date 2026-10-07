@@ -13,7 +13,7 @@ import { lookFilter } from "../mascot/skins";
 import { drawRecapCard } from "../share/card";
 import { openSettingsPanel } from "../web/settings-panel";
 import { buildRecap, recapDate } from "../share/recap";
-import { formatClock, formatPct, formatUsd, pctClass } from "../core/format";
+import { formatClock, formatPct, formatUsd, pctClass, valueCell } from "../core/format";
 import {
   CLOSE_MS,
   COMPACT_CORNER,
@@ -272,6 +272,23 @@ export class Island {
 
   /** Today's recap as an image: copied to the clipboard (and saved, in a browser). */
   private async shareDay(): Promise<string> {
+    const png = await this.recapImage();
+    const copied = await copyImage(png);
+    this.feel("cool", "looking good 😎");
+    if (!IS_TAURI) {
+      const url = URL.createObjectURL(png);
+      const a = h("a", { href: url, download: `my-day-${todayKey()}.png` });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return copied ? "Image copied and downloaded." : "Image downloaded.";
+    }
+    return copied ? "Image copied. Paste it on X or Telegram." : "Couldn't copy the image.";
+  }
+
+  /** Today's recap card, drawn as Share my day draws it (the demo shows it too). */
+  async recapImage(): Promise<Blob> {
     const c = State.companion;
     const day = summarize(currentLog(c.log));
     const held = Companion.positions();
@@ -300,7 +317,7 @@ export class Island {
       },
       FULL_NAME,
     );
-    const png = await drawRecapCard(
+    return drawRecapCard(
       recap,
       {
         manifest: this.manifest ? dressed(this.manifest, c.costume) : { name: "", states: {} },
@@ -310,18 +327,6 @@ export class Island {
       },
       FULL_NAME,
     );
-    const copied = await copyImage(png);
-    this.feel("cool", "looking good 😎");
-    if (!IS_TAURI) {
-      const url = URL.createObjectURL(png);
-      const a = h("a", { href: url, download: `my-day-${todayKey()}.png` });
-      document.body.append(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      return copied ? "Image copied and downloaded." : "Image downloaded.";
-    }
-    return copied ? "Image copied. Paste it on X or Telegram." : "Couldn't copy the image.";
   }
 
   // ── State machine ───────────────────────────────────────────────────────────
@@ -1178,7 +1183,7 @@ export class Island {
       const q = State.quotes[t.key];
       el.append(
         h("span", { class: "t-sym", text: t.symbol }),
-        h("span", { class: "t-mc", text: formatUsd(q.marketCap) }),
+        h("span", { class: "t-mc", text: valueCell(State.companion.valueColumn, q).text }),
         h("span", { class: `t-pct ${pctClass(q.change.m5)}`, text: `5m ${formatPct(q.change.m5)}` }),
         h("span", { class: `t-pct ${pctClass(q.change.h1)}`, text: `1h ${formatPct(q.change.h1)}` }),
       );

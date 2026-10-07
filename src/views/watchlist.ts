@@ -26,10 +26,10 @@ import {
 } from "./shared";
 import { Companion } from "../companion";
 import { Bridge } from "../core/bridge";
-import { compact, formatAge, formatPrice, formatUsd } from "../core/format";
+import { compact, formatAge, formatUsd, valueCell, valueHead } from "../core/format";
 import { MAX_ROWS, ROW_H } from "../core/layout";
 import { shareEntry, shareText } from "../core/share";
-import { State, type Quote, type Timeframe, type TrendingItem, type WatchToken } from "../core/state";
+import { State, type Quote, type Timeframe, type TrendingItem, type ValueColumn, type WatchToken } from "../core/state";
 import { CHAINS } from "../market/chains";
 import { folderTokens } from "../market/folders";
 import { terminalLabel } from "../market/links";
@@ -43,7 +43,26 @@ function majorVolume(q: Quote, frame: Timeframe): string {
 const FRAMES: Timeframe[] = ["m5", "h1", "h6", "h24"];
 const FRAME_LABEL: Record<Timeframe, string> = { m5: "5m", h1: "1h", h6: "6h", h24: "24h" };
 
+const VALUE_MODES: ValueColumn[] = ["auto", "price", "mcap"];
+
 export function buildWatchlist(actions: ViewActions): ViewHost {
+  // The value column: price for major coins and market cap for the rest, or
+  // one of them for all. A click on its head steps through the three.
+  const valueHeadEl = () =>
+    h("span", {
+      class: "c-mc pick",
+      title: "Market cap, or price. Click to change: price for major coins and market cap for the rest, price for all, market cap for all.",
+      onclick: () => {
+        const c = State.companion;
+        c.valueColumn = VALUE_MODES[(VALUE_MODES.indexOf(c.valueColumn) + 1) % VALUE_MODES.length];
+        Companion.save();
+        actions.blip();
+        filledAt.clear();
+        if (State.search) renderResults();
+      },
+    });
+  const listValueHead = valueHeadEl();
+  const resultsValueHead = valueHeadEl();
   // The volume window: a click on the column head steps through them.
   const volHead = h("span", {
     class: "c-vol pick",
@@ -121,7 +140,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     { class: "row head" },
     h("span", { class: "c-tok", text: "Token" }),
     h("span", { class: "c-spark", text: "Chart" }),
-    h("span", { class: "c-mc", text: "MC" }),
+    listValueHead,
     volHead,
     h("span", { class: "c-txns", text: "Txns", title: "Buys / sells over the same window" }),
     h("span", { class: "c-pct", text: "5m" }),
@@ -141,7 +160,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     "div",
     { class: "row head" },
     h("span", { class: "c-tok", text: "Token" }),
-    h("span", { class: "c-mc", text: "MC" }),
+    resultsValueHead,
     h("span", { class: "c-liq", text: "Liq", title: "Liquidity backed by SOL / USDC / ETH / BNB" }),
     h("span", { class: "c-vol", text: "Vol 24h" }),
     h("span", { class: "c-age", text: "Age" }),
@@ -308,8 +327,9 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     const t = State.token(key);
     if (c.tag && q?.major && t) setMajorTag(c.tag, t, q);
     c.spark.replaceChildren(sparkline(key));
-    c.mc.textContent = formatUsd(q?.marketCap);
-    c.mc.title = `Market cap · price ${formatPrice(q?.priceUsd)}`;
+    const value = valueCell(State.companion.valueColumn, q);
+    c.mc.textContent = value.text;
+    c.mc.title = value.title;
     // A major coin: only its 24 h volume (CoinGecko), and no trade count.
     c.vol.textContent = q?.major ? majorVolume(q, frame) : formatUsd(q?.volume[frame]);
     const tx = q?.major ? undefined : (q?.txns?.[frame] ?? (frame === "m5" ? q?.txnsM5 : undefined));
@@ -359,7 +379,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
         safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
         h("span", { class: "tok-name", text: t.name }),
       ),
-      h("span", { class: "c-mc", text: formatUsd(q?.marketCap), title: "Market cap" }),
+      h("span", { class: "c-mc", ...valueCell(State.companion.valueColumn, q) }),
       liquidityCell(q),
       h("span", { class: "c-vol", text: q?.major ? majorVolume(q, "h24") : formatUsd(q?.volume.h24), title: "Volume, 24 h" }),
       h("span", { class: "c-age", text: formatAge(item.pairCreatedAt), title: "Pair age" }),
@@ -401,6 +421,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       volHead.textContent = `Vol ${FRAME_LABEL[State.companion.volumeFrame]}`;
       const c = State.companion;
       const list = folderTokens(c.watchlist, c.activeFolder);
+      listValueHead.textContent = valueHead(c.valueColumn, list.map((t) => State.quotes[t.key]));
+      resultsValueHead.textContent = valueHead(c.valueColumn, State.search?.results.map((r) => r.quote) ?? []);
       const searching = State.search != null;
       folders.style.display = searching ? "none" : "";
       const foldersKey = `${c.activeFolder}|${c.folders.join(",")}|${c.watchlist.map((t) => t.folder ?? "").join(",")}`;

@@ -122,6 +122,28 @@ const NOTES: Record<SoundName, Note[]> = {
   ],
 };
 
+/**
+ * A sound's notes on any audio context, from `t0`: the engine below plays them
+ * live, and the demo's recorder renders them offline (src/demo/soundtrack.ts).
+ */
+export function scheduleSound(ctx: BaseAudioContext, dest: AudioNode, name: SoundName, t0: number) {
+  for (const n of NOTES[name]) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = n.type ?? "sine";
+    osc.frequency.value = n.f;
+    const start = t0 + n.at;
+    const peak = n.gain ?? 1;
+    env.gain.setValueAtTime(0.0001, start);
+    env.gain.exponentialRampToValueAtTime(peak, start + 0.008);
+    env.gain.exponentialRampToValueAtTime(0.0001, start + n.dur);
+    osc.connect(env);
+    env.connect(dest);
+    osc.start(start);
+    osc.stop(start + n.dur + 0.02);
+  }
+}
+
 class SoundEngine {
   enabled = true;
   volume = 0.12;
@@ -178,22 +200,7 @@ class SoundEngine {
       this.idleTimer = null;
     }
     if (ctx.state === "suspended") void ctx.resume();
-    const t0 = ctx.currentTime + 0.01;
-    for (const n of NOTES[name]) {
-      const osc = ctx.createOscillator();
-      const env = ctx.createGain();
-      osc.type = n.type ?? "sine";
-      osc.frequency.value = n.f;
-      const start = t0 + n.at;
-      const peak = n.gain ?? 1;
-      env.gain.setValueAtTime(0.0001, start);
-      env.gain.exponentialRampToValueAtTime(peak, start + 0.008);
-      env.gain.exponentialRampToValueAtTime(0.0001, start + n.dur);
-      osc.connect(env);
-      env.connect(master);
-      osc.start(start);
-      osc.stop(start + n.dur + 0.02);
-    }
+    scheduleSound(ctx, master, name, ctx.currentTime + 0.01);
     this.idle();
   }
 }
