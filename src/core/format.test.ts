@@ -45,6 +45,7 @@ describe("formatPrice", () => {
 
   it("handles ordinary and missing prices", () => {
     expect(formatPrice(1.5)).toBe("$1.500");
+    expect(formatPrice(84.5)).toBe("$84.50");
     expect(formatPrice(123.456)).toBe("$123.46");
     expect(formatPrice(65_000)).toBe("$65.0K");
     expect(formatPrice(null)).toBe("—");

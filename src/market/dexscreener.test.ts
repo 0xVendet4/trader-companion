@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { describe, expect, it } from "vitest";
 import { bestPairFor, extractAddress, parseInput, toQuote, type DexPair } from "./dexscreener";
 import { nativeCoins, tokenKey } from "./chains";

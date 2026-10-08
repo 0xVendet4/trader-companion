@@ -37,7 +37,7 @@ export function formatPrice(price: number | null | undefined): string {
   if (price == null || !Number.isFinite(price)) return "—";
   if (price === 0) return "$0";
   if (price >= 1000) return `$${compact(price)}`;
-  if (price >= 1) return `$${price.toFixed(price >= 100 ? 2 : 3)}`;
+  if (price >= 1) return `$${price.toFixed(price >= 10 ? 2 : 3)}`;
   if (price >= 0.01) return `$${price.toFixed(4)}`;
   // Leading zeros after "0." — 0.000003924 has 5. Corrected afterwards, since
   // log10 of an exact power of ten can land a hair either side of the integer.

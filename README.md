@@ -233,7 +233,7 @@ Candy never asks for a wallet, a seed phrase or a private key.
 
 ## Develop
 
-Requirements: the tools in [Install](#install) (Node 20+, Rust, and
+Requirements: the tools in [Install](#install) (Node 22+ for the tests, Rust, and
 [Tauri's prerequisites](https://tauri.app/start/prerequisites/) plus
 gtk-layer-shell on Linux).
 
@@ -297,7 +297,8 @@ It talks only to public services, for public data:
   It is sent the token addresses on your watchlist and in your wallet.
 - **RugCheck** (`api.rugcheck.xyz`): a token's safety report, for tokens you open.
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
-- **CoinGecko** (`api.coingecko.com`, logos from `coin-images.coingecko.com`):
+- **CoinGecko** (`api.coingecko.com`, logos from `coin-images.coingecko.com` and
+  `assets.coingecko.com`):
   the largest coins (at most hourly, when you search), and a major coin's own
   market cap, 24 h volume, rank and logo, a few times an hour, only while one
   is on your watchlist or in a search. It is sent the names of those coins

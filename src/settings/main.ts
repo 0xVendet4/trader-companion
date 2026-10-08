@@ -32,6 +32,7 @@ import {
 import { isAddress } from "../wallets/wallets";
 import { ALL_CHAINS, CHAINS, isChain, tokenKey, type ChainId } from "../market/chains";
 import { parseInput, resolveAddress } from "../market/dexscreener";
+import { majorFor } from "../market/majors";
 import { AXIOM_REFERRAL_URL, RPC_KEY_SITES, TERMINALS } from "../market/links";
 import { MASCOT_STATES, Mascot, accessory, dressed, loadManifest, type Manifest } from "../mascot/mascot";
 import { BASE_HUE, DEFAULT_CUSTOM_SKIN, customSwatch, skinFilter } from "../mascot/skins";
@@ -183,13 +184,23 @@ function watchlistSection(): HTMLElement {
         paint();
         paintAlerts();
       });
+      // A picture that fails to load (gone, or a host the CSP refuses) leaves the plain dot.
+      const pic = t.imageUrl ? h("img", { class: "tok", src: t.imageUrl, alt: "" }) : h("span", { class: "tok" });
+      pic.addEventListener("error", () => pic.replaceWith(h("span", { class: "tok" })));
       list.append(
         h(
           "div",
           { class: "item" },
-          t.imageUrl ? h("img", { class: "tok", src: t.imageUrl, alt: "" }) : h("span", { class: "tok" }),
+          pic,
           h("b", { text: t.symbol }),
-          h("span", { class: "chain-tag", text: CHAINS[t.chainId].tag, title: CHAINS[t.chainId].label, style: `--chain:${CHAINS[t.chainId].color}` }),
+          majorFor(t)
+            ? h("span", {
+                class: "chain-tag",
+                text: "MAJOR",
+                title: `A major coin: priced from a token that tracks it on ${CHAINS[t.chainId].label}.`,
+                style: "--chain:#f5b301",
+              })
+            : h("span", { class: "chain-tag", text: CHAINS[t.chainId].tag, title: CHAINS[t.chainId].label, style: `--chain:${CHAINS[t.chainId].color}` }),
           h("span", { class: "muted grow", text: t.name }),
           h("code", { text: shortAddress(t.address), title: t.address }),
           up,
