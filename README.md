@@ -206,6 +206,8 @@ few hours after, and asks before doing anything. On Windows, **Update now**
 downloads the new code, builds it in its own window (about a minute: what it
 compiled before is reused) and starts Candy again; your settings stay. On
 Linux, or by hand anywhere: get the new code and run the installer again.
+Which version you have: hover Candy's tray icon, or look next to the title of
+its Settings.
 
 What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux:
 `~/.cache/candy/build`); delete that folder to free a few GB.

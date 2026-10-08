@@ -40,6 +40,13 @@ h1 {
   margin-bottom: 18px;
 }
 
+h1 .app-version {
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8b93a1;
+}
+
 section {
   background: var(--card);
   border: 1px solid var(--hairline);

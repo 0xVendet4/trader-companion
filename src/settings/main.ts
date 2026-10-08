@@ -1006,7 +1006,8 @@ async function main() {
   const page = h(
     "main",
     {},
-    h("h1", { text: "Settings" }),
+    // Which Candy this is: what a friend asks when helping.
+    h("h1", {}, "Settings", h("span", { class: "app-version", text: `Candy ${boot.version}` })),
     watchlistSection(),
     alertsSection(),
     myWalletSection(),
