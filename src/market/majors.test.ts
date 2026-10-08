@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Quote } from "../core/state";
 import { EVM_ADDRESS, SOLANA_ADDRESS, isEvm, tokenKey } from "./chains";
-import { toCoins, toContracts } from "./coingecko";
+import { coinImage, toCoins, toContracts } from "./coingecko";
 import type { DexPair } from "./dexscreener";
 import {
   KNOWN,
@@ -38,6 +38,7 @@ const coin = (rank: number, symbol: string, name: string, priceUsd: number | nul
   priceUsd,
   marketCap: 1e9,
   volume24h: 1e8,
+  image: null,
 });
 
 /** A pool quoted in a dollar: `backed` is the real money on its quote side. */
@@ -118,7 +119,7 @@ describe("majors", () => {
       real,
     ];
     expect(trackingPair(xrp, pairs)).toBe(real);
-    expect(majorOf(xrp, real)).toEqual({ symbol: "XRP", name: "XRP", chainId: "bsc", address: BSC_XRP, coingecko: "xrp" });
+    expect(majorOf(xrp, real)).toEqual({ symbol: "XRP", name: "XRP", chainId: "bsc", address: BSC_XRP, coingecko: "xrp", image: null });
     expect(trackingPair(xrp, pairs.slice(0, 5))).toBeNull();
     // Its wrapped ticker counts; a contract CoinGecko named, any ticker.
     expect(trackingPair(coin(1, "BTC", "Bitcoin", 83_000), [pair("ethereum", "WBTC", "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", 82_900, 9e7)])).not.toBeNull();
@@ -127,8 +128,9 @@ describe("majors", () => {
     expect(trackingPair(coin(5, "XRP", "XRP", null), [real])).toBeNull();
   });
 
-  it("names a known coin as CoinGecko does today", () => {
-    expect(knownTracker({ id: "the-open-network", symbol: "GRAM", name: "Gram" })).toMatchObject({ symbol: "GRAM", name: "Gram", chainId: "ethereum" });
+  it("names a known coin as CoinGecko does today, with its logo", () => {
+    const logo = "https://coin-images.coingecko.com/coins/images/17980/large/ton.png";
+    expect(knownTracker({ id: "the-open-network", symbol: "GRAM", name: "Gram", image: logo })).toMatchObject({ symbol: "GRAM", name: "Gram", chainId: "ethereum", image: logo });
     expect(knownTracker({ id: "sui", symbol: "SUI", name: "Sui" })).toBeNull();
   });
 
@@ -138,6 +140,10 @@ describe("majors", () => {
     expect(t).toMatchObject({ symbol: "BTC", name: "Bitcoin", chainId: "ethereum", pairAddress: "pair", coingecko: "bitcoin" });
     expect(t.key).toBe(tokenKey("ethereum", btc.address));
     expect(majorToken({ symbol: "SUI", name: "Sui", chainId: "bsc", address: SUI_ON_BSC, coingecko: "sui" }, null).coingecko).toBe("sui");
+    // The coin's logo wins over its tracking token's (WBTC's is not BTC's).
+    const logo = "https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png";
+    expect(majorToken({ ...btc, image: logo }, { pairAddress: "p", dexId: "d", imageUrl: "https://cdn.dexscreener.com/wbtc.png" }).imageUrl).toBe(logo);
+    expect(majorToken(btc, { pairAddress: "p", dexId: "d", imageUrl: "https://cdn.dexscreener.com/wbtc.png" }).imageUrl).toBe("https://cdn.dexscreener.com/wbtc.png");
   });
 
   it("shows the coin's own market cap, volume and rank, and none of the pool's numbers", () => {
@@ -152,17 +158,26 @@ describe("majors", () => {
 
 describe("CoinGecko", () => {
   it("reads the coins it can, and drops the rest", () => {
+    const logo = "https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png?1696501400";
     const body = [
-      { id: "bitcoin", symbol: "btc", name: "Bitcoin", market_cap_rank: 1, current_price: 83007, market_cap: 1.667e12, total_volume: 3.82e10 },
-      { id: "dogecoin", symbol: "doge", name: "Dogecoin", market_cap_rank: 12, current_price: 0.088, market_cap: null, total_volume: null },
+      { id: "bitcoin", symbol: "btc", name: "Bitcoin", market_cap_rank: 1, current_price: 83007, market_cap: 1.667e12, total_volume: 3.82e10, image: logo },
+      { id: "dogecoin", symbol: "doge", name: "Dogecoin", market_cap_rank: 12, current_price: 0.088, market_cap: null, total_volume: null, image: "https://evil.example/doge.png" },
       { id: "Bad Id/../x", symbol: "x", name: "X" },
       { id: "nameless", symbol: "n" },
     ];
     expect(toCoins(body)).toEqual([
-      { id: "bitcoin", symbol: "BTC", name: "Bitcoin", rank: 1, priceUsd: 83007, marketCap: 1.667e12, volume24h: 3.82e10 },
-      { id: "dogecoin", symbol: "DOGE", name: "Dogecoin", rank: 12, priceUsd: 0.088, marketCap: null, volume24h: null },
+      { id: "bitcoin", symbol: "BTC", name: "Bitcoin", rank: 1, priceUsd: 83007, marketCap: 1.667e12, volume24h: 3.82e10, image: logo },
+      { id: "dogecoin", symbol: "DOGE", name: "Dogecoin", rank: 12, priceUsd: 0.088, marketCap: null, volume24h: null, image: null },
     ]);
     expect(toCoins({ error: "rate limited" })).toEqual([]);
+  });
+
+  it("takes logos from CoinGecko's own image hosts only, over https", () => {
+    expect(coinImage("https://assets.coingecko.com/coins/images/5/large/dogecoin.png")).toBe("https://assets.coingecko.com/coins/images/5/large/dogecoin.png");
+    expect(coinImage("http://coin-images.coingecko.com/coins/images/1/large/bitcoin.png")).toBeNull();
+    expect(coinImage("https://coin-images.coingecko.com.evil.example/x.png")).toBeNull();
+    expect(coinImage("javascript:alert(1)")).toBeNull();
+    expect(coinImage(42)).toBeNull();
   });
 
   it("reads a coin's contracts on the chains Candy reads", () => {

@@ -239,10 +239,19 @@ class CompanionController {
       // A major coin shows its own market cap and volume (see market/majors);
       // the header and positions keep the raw quotes.
       const watched = { ...quotes };
+      let newLogos = false;
       for (const t of tokens) {
         const id = majorFor(t);
-        if (id && watched[t.key]) watched[t.key] = asMajor(watched[t.key], markets[id]);
+        if (!id) continue;
+        if (watched[t.key]) watched[t.key] = asMajor(watched[t.key], markets[id]);
+        // A major wears its coin's logo: its tracking token (WBTC…) rarely has one.
+        const logo = markets[id]?.image;
+        if (logo && t.imageUrl !== logo) {
+          t.imageUrl = logo;
+          newLogos = true;
+        }
       }
+      if (newLogos) this.save();
       this.applyQuotes(watched);
       this.applyPositionQuotes(quotes);
       this.ensureSafety(tokens);
@@ -282,6 +291,11 @@ class CompanionController {
       if (q.pairAddress !== token.pairAddress) {
         token.pairAddress = q.pairAddress;
         State.history[token.key] = [];
+        changedTokens = true;
+      }
+      // A token without a picture when it was added may have one now.
+      if (!q.major && q.imageUrl && token.imageUrl !== q.imageUrl) {
+        token.imageUrl = q.imageUrl;
         changedTokens = true;
       }
       State.quotes[token.key] = q;

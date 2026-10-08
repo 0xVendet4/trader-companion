@@ -555,6 +555,8 @@ export interface Quote {
   major?: boolean;
   /** A major's rank by market cap right now (CoinGecko); null until it answers. */
   rank?: number | null;
+  /** The token's picture as DexScreener has it now (a token can get one after it was added). */
+  imageUrl?: string | null;
 }
 
 /** One poll's worth of the numbers alerts look back on. */

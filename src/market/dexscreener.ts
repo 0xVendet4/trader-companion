@@ -118,6 +118,7 @@ export function toQuote(key: string, p: DexPair, now = Date.now()): Quote {
       h24: { buys: n(p.txns?.h24?.buys), sells: n(p.txns?.h24?.sells) },
     },
     updatedAt: now,
+    imageUrl: p.info?.imageUrl ?? null,
   };
 }
 

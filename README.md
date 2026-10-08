@@ -297,10 +297,11 @@ It talks only to public services, for public data:
   It is sent the token addresses on your watchlist and in your wallet.
 - **RugCheck** (`api.rugcheck.xyz`): a token's safety report, for tokens you open.
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
-- **CoinGecko** (`api.coingecko.com`): the largest coins (at most hourly, when
-  you search), and a major coin's own market cap, 24 h volume and rank, a few
-  times an hour, only while one is on your watchlist or in a search. It is
-  sent the names of those coins (bitcoin, dogecoin…).
+- **CoinGecko** (`api.coingecko.com`, logos from `coin-images.coingecko.com`):
+  the largest coins (at most hourly, when you search), and a major coin's own
+  market cap, 24 h volume, rank and logo, a few times an hour, only while one
+  is on your watchlist or in a search. It is sent the names of those coins
+  (bitcoin, dogecoin…).
 - **Solana's public RPC** (`api.mainnet-beta.solana.com`): the balances and
   transactions of the wallet addresses you add (public addresses only; read-only
   calls, spaced to stay under its limits). If you paste your own RPC URL in the settings

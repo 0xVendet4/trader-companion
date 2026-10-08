@@ -20,6 +20,20 @@ const TOP_DEPTH = 100;
 export const COINGECKO_ID = /^[a-z0-9-]{1,80}$/;
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+
+/** Where CoinGecko keeps its logos; also in the CSP's img-src (src-tauri/tauri.conf.json). */
+const IMAGE_HOSTS = ["coin-images.coingecko.com", "assets.coingecko.com"];
+
+/** A logo URL on CoinGecko's own image hosts, over https; anything else is dropped. */
+export function coinImage(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" && IMAGE_HOSTS.includes(u.hostname) ? u.href : null;
+  } catch {
+    return null;
+  }
+}
 const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 
 /** The coins of a /coins/markets answer that can be read; the rest is dropped. */
@@ -39,6 +53,7 @@ export function toCoins(body: unknown): Coin[] {
       priceUsd: num(r.current_price),
       marketCap: num(r.market_cap),
       volume24h: num(r.total_volume),
+      image: coinImage(r.image),
     });
   }
   return out;

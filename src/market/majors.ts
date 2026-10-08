@@ -28,6 +28,8 @@ export interface Major {
   address: string;
   /** CoinGecko's id, for the coin's own market cap, 24 h volume and rank. */
   coingecko: string;
+  /** The coin's logo (its tracking token rarely has one), when CoinGecko gave it. */
+  image?: string | null;
 }
 
 /** A coin on CoinGecko's market list, as Candy reads it. */
@@ -41,6 +43,8 @@ export interface Coin {
   priceUsd: number | null;
   marketCap: number | null;
   volume24h: number | null;
+  /** Its logo, on CoinGecko's image host only (see coingecko.ts). */
+  image: string | null;
 }
 
 /** How many of CoinGecko's largest coins, the dollars and copies left out, are majors. */
@@ -73,10 +77,10 @@ export function knownMajor(key: string): Major | null {
   return KNOWN_BY_KEY.get(key) ?? null;
 }
 
-/** KNOWN's tracking token for a coin, under the coin's name today. */
-export function knownTracker(c: Pick<Coin, "id" | "symbol" | "name">): Major | null {
+/** KNOWN's tracking token for a coin, under the coin's name and logo today. */
+export function knownTracker(c: Pick<Coin, "id" | "symbol" | "name"> & Partial<Pick<Coin, "image">>): Major | null {
   const m = KNOWN_BY_ID.get(c.id);
-  return m ? { ...m, symbol: c.symbol, name: c.name } : null;
+  return m ? { ...m, symbol: c.symbol, name: c.name, image: c.image ?? null } : null;
 }
 
 /**
@@ -153,10 +157,10 @@ export function trackingPair(c: Coin, pairs: readonly DexPair[], anySymbol = fal
 /** The major a tracking pair makes of a coin. */
 export function majorOf(c: Coin, p: DexPair): Major | null {
   if (!isChain(p.chainId)) return null;
-  return { symbol: c.symbol, name: c.name, chainId: p.chainId, address: p.baseToken.address, coingecko: c.id };
+  return { symbol: c.symbol, name: c.name, chainId: p.chainId, address: p.baseToken.address, coingecko: c.id, image: c.image };
 }
 
-/** The watchlist entry for a major: its own name and symbol, priced from its tracking token. */
+/** The watchlist entry for a major: its own name, symbol and logo, priced from its tracking token. */
 export function majorToken(m: Major, from: Pick<WatchToken, "pairAddress" | "dexId" | "imageUrl"> | null): WatchToken {
   return {
     key: tokenKey(m.chainId, m.address),
@@ -166,7 +170,7 @@ export function majorToken(m: Major, from: Pick<WatchToken, "pairAddress" | "dex
     name: m.name,
     pairAddress: from?.pairAddress ?? "",
     dexId: from?.dexId ?? "",
-    imageUrl: from?.imageUrl ?? null,
+    imageUrl: m.image ?? from?.imageUrl ?? null,
     coingecko: m.coingecko,
   };
 }
