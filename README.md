@@ -20,7 +20,12 @@ prebuilt download to trust.
   column to switch), volume and buys / sells (5m, 1h, 6h or 24h, as GMGN
   shows them) and 5m / 1h / 24h change, always in view; click to
   open the full list, click a token to open it on GMGN, Axiom or DexScreener.
-  Folders (Runners, Holds, Watching, your own) sort the list.
+  Folders (Runners, Holds, Watching, your own) sort the list. Folded, a dot
+  per token shows how the whole list moved in the last hour, and a dot on
+  Candy flags an alert you haven't looked at yet.
+- **Drag and drop** — drag a token's link (DexScreener, GMGN, Axiom, an
+  explorer) or its address from your browser onto Candy: it swallows it and
+  the token joins your watchlist.
 - **My wallet** — add your own Solana wallet (public address only): its SOL and
   value show at once, its recent trades are read from its last 50
   transactions (round trips that closed go into your journal), and from then
@@ -46,7 +51,8 @@ prebuilt download to trust.
   priced, so it isn't offered.
 - **Alerts** — price or market cap above/below a level, % up/down within 5–60
   minutes, and liquidity drops (a classic sign of liquidity being pulled). The
-  mascot reacts, a sound plays, the island opens.
+  mascot reacts, a sound plays, the island opens on a card in the alert's
+  colour.
 - **Discipline** — your own rules: a daily loss limit, a max number of trades,
   a cooldown after a loss, and break reminders.
 - **A mascot with moods** — Candy is a candle: it wears your colour (green
@@ -58,8 +64,9 @@ prebuilt download to trust.
   break, sad after a loss, angry past your trade cap, relieved when a cooldown
   ends, curious about a new token, and reacts to SOL and
   to your own positions; a lasting mood settles after a while. Its eyes
-  follow your mouse, it fidgets, reacts to pokes, and sums up what changed
-  when you come back to the screen. 14 backgrounds for the island; a wardrobe
+  follow your mouse and it leans toward it, it fidgets, reacts to pokes, and
+  sums up what changed when you come back to the screen. 14 backgrounds for
+  the island; a wardrobe
   in the island with 23 hats, 23 face accessories and 23 colours (or any colour),
   costumes (Gengar, Spiderman, Shadow, V) that redraw the whole mascot in
   every mood, and seasonal looks.
@@ -78,7 +85,8 @@ prebuilt download to trust.
 - **Quick actions** — mini 24 h chart per token, copy the CA, one-click 2x
   alert, share your watchlist as a list of addresses, a show/hide shortcut and a
   minimize button (the shortcut or the tray icon brings Candy back), system
-  notifications.
+  notifications. The tray icon wears Candy's mood and colour, with a dot for
+  an alert you haven't seen.
 
 On Windows, hold **Ctrl** over the island to click whatever is behind it (a
 browser tab, a title bar); it fades while the clicks go through.

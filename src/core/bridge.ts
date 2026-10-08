@@ -65,6 +65,9 @@ export const Bridge = {
     }
   },
 
+  /** Candy's look on the tray icon: RGBA pixels, square, 16 to 64 px (see island/tray-icon.ts). */
+  setTrayIcon: (rgba: number[], width: number, height: number) => call<void>("set_tray_icon", { rgba, width, height }),
+
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
   setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
 

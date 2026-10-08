@@ -9,7 +9,7 @@ export const PANEL_W = 720;
 export const PANEL_H = 340;
 
 export const HIDDEN_W = 184;
-export const COMPACT_W = 320;
+export const COMPACT_W = 350;
 export const COMPACT_H = 32;
 export const EXPANDED_W = 660;
 

@@ -92,6 +92,20 @@ export function pctClass(p: number | null | undefined): "up" | "down" | "flat" {
   return p > 0 ? "up" : "down";
 }
 
+export type MoveLevel = -2 | -1 | 0 | 1 | 2;
+
+/**
+ * How hard a token moved, for the ticker's dots: 0 within ±0.5 %, ±1 within
+ * ±5 %, ±2 beyond; null with no number to go on.
+ */
+export function moveLevel(p: number | null | undefined): MoveLevel | null {
+  if (p == null || !Number.isFinite(p)) return null;
+  const a = Math.abs(p);
+  if (a < 0.5) return 0;
+  const level = a < 5 ? 1 : 2;
+  return p > 0 ? level : (-level as MoveLevel);
+}
+
 /** +0.5 SOL, −1.25 SOL. */
 export function formatPnl(n: number, unit: string): string {
   const abs = Math.abs(n);

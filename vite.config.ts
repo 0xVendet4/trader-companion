@@ -69,7 +69,15 @@ function edition(): Plugin | null {
 export default defineConfig({
   plugins: [edition()],
   clearScreen: false,
-  server: { port: 1420, strictPort: true, host: "127.0.0.1", proxy: solanaProxy },
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: "127.0.0.1",
+    proxy: solanaProxy,
+    // Rust's build output (a cargo test in another terminal locks its files,
+    // and watching them crashed the server) and the recorded videos.
+    watch: { ignored: ["**/target/**", "**/src-tauri/**", "**/release/**"] },
+  },
   envPrefix: ["VITE_", "TAURI_ENV_"],
   build: {
     target: "chrome110",

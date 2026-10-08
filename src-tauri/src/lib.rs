@@ -221,6 +221,12 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+/// Candy's look on the tray icon, drawn by the island page (see tray::set_icon).
+#[tauri::command]
+fn set_tray_icon(app: AppHandle, rgba: Vec<u8>, width: u32, height: u32) {
+    tray::set_icon(&app, rgba, width, height);
+}
+
 /// Lets the pages write to the same log as the Rust side.
 #[tauri::command]
 fn log_line(message: String) {
@@ -681,6 +687,7 @@ pub fn run() {
             start_float_drag,
             open_url,
             quit_app,
+            set_tray_icon,
             log_line,
             check_update,
             start_update,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compact, formatPct, formatPnl, formatPrice, parseAmount, valueCell, valueHead } from "./format";
+import { compact, formatPct, formatPnl, formatPrice, moveLevel, parseAmount, valueCell, valueHead } from "./format";
 
 describe("the value column", () => {
   const btc = { priceUsd: 83_382, marketCap: 1.67e12, major: true };
@@ -84,5 +84,22 @@ describe("parseAmount", () => {
     expect(parseAmount("20")).toBe(20);
     expect(parseAmount("abc")).toBeNull();
     expect(parseAmount("")).toBeNull();
+  });
+});
+
+describe("moveLevel", () => {
+  it("grades a move for the ticker's dots", () => {
+    expect(moveLevel(0.2)).toBe(0);
+    expect(moveLevel(-0.49)).toBe(0);
+    expect(moveLevel(1.8)).toBe(1);
+    expect(moveLevel(-2.1)).toBe(-1);
+    expect(moveLevel(41.8)).toBe(2);
+    expect(moveLevel(-28)).toBe(-2);
+  });
+
+  it("has nothing to say without a number", () => {
+    expect(moveLevel(null)).toBeNull();
+    expect(moveLevel(undefined)).toBeNull();
+    expect(moveLevel(Number.NaN)).toBeNull();
   });
 });

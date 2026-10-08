@@ -13,7 +13,7 @@ import { lookFilter } from "../mascot/skins";
 import { drawRecapCard } from "../share/card";
 import { openSettingsPanel } from "../web/settings-panel";
 import { buildRecap, recapDate } from "../share/recap";
-import { formatClock, formatPct, formatUsd, pctClass, valueCell } from "../core/format";
+import { formatClock, formatPct, formatUsd, moveLevel, pctClass, valueCell } from "../core/format";
 import {
   CLOSE_MS,
   COMPACT_CORNER,
@@ -35,9 +35,9 @@ import {
   windowSize,
 } from "../core/layout";
 import { Sound } from "../core/sound";
-import { State, type CompanionEvent, type IslandMode, type IslandViewName, type Placement } from "../core/state";
+import { State, type CompanionEvent, type IslandMode, type IslandViewName, type Placement, type WatchToken } from "../core/state";
 import { Companion } from "../companion";
-import { Mascot, accessory, dressed, type Manifest, type MascotState } from "../mascot/mascot";
+import { Mascot, accessory, dressed, type Badge, type Manifest, type MascotState } from "../mascot/mascot";
 import { NEUTRAL_GAZE, NOTICE_PX, fidgetDelay, gazeAt, pickFidget } from "../mascot/gaze";
 import {
   COSTUME_MS,
@@ -52,6 +52,7 @@ import {
   type Reaction,
 } from "../mascot/reactions";
 import { tokenKey } from "../market/chains";
+import { parseInput } from "../market/dexscreener";
 import { folderTokens } from "../market/folders";
 import { tokenUrl } from "../market/links";
 import { formatSignedUsd } from "../positions/positions";
@@ -67,6 +68,10 @@ const NOWHERE = { x: -10_000, y: -10_000, w: 0, h: 0 };
 const GREETING_MS = 2600;
 
 const TICKER_STEP_MS = 3000;
+/** The ticker's dots: one per token, this many at most (then "+N"). */
+const MAX_DOTS = 10;
+/** How long the ticker shows what a drop did. */
+const DROP_NOTE_MS = 3500;
 
 const modeOrder = (m: IslandMode) => (m === "hidden" ? 0 : m === "compact" ? 1 : 2);
 const TAB_VIEWS: ReadonlySet<IslandViewName> = new Set(["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "wardrobe"]);
@@ -153,6 +158,10 @@ export class Island {
   private manifest: Manifest | null = null;
   private lastRowsKey = "";
   private followMouse: boolean;
+  // A link or an address dragged onto the island (see wireDrop).
+  private dragDepth = 0;
+  private dropBusy = false;
+  private dropNote: { text: string; tone: "up" | "warn"; until: number } | null = null;
 
   /**
    * `followMouse: false` ignores the real mouse in a browser — the demo drives
@@ -749,9 +758,104 @@ export class Island {
       });
     }
 
+    this.wireDrop();
+
     if (!IS_TAURI && this.followMouse) this.followPageCursor();
     // A floating stage follows the page's size; a narrow page puts the island on top.
     if (!IS_TAURI) window.addEventListener("resize", () => this.applyPlacement());
+  }
+
+  /**
+   * A token link or address dragged from the browser onto the island: Candy
+   * opens its mouth and the token joins the watchlist, as if pasted in the
+   * field. Only what the field would take as an address counts; a drop never
+   * starts a search. Listens on the whole window, before the fields do.
+   */
+  private wireDrop() {
+    const carriesText = (e: DragEvent) => {
+      const types = e.dataTransfer?.types ?? [];
+      return types.includes("text/uri-list") || types.includes("text/plain");
+    };
+    const over = (on: boolean) => {
+      this.islandEl.classList.toggle("drop-ready", on);
+      if (on) {
+        this.mascot.react("alert", 60_000);
+        this.mascot.say("drop it on me!", 60_000);
+      } else {
+        this.mascot.settle();
+        this.mascot.say(null);
+      }
+      State.notify();
+    };
+    window.addEventListener(
+      "dragenter",
+      (e) => {
+        if (!carriesText(e)) return;
+        e.preventDefault();
+        if (this.dragDepth++ === 0) over(true);
+      },
+      true,
+    );
+    // Anything else (a file from Explorer…) is refused here: left to the
+    // webview, a dropped file would open in place of the island.
+    window.addEventListener(
+      "dragover",
+      (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = carriesText(e) ? "copy" : "none";
+      },
+      true,
+    );
+    window.addEventListener(
+      "dragleave",
+      () => {
+        if (this.dragDepth > 0 && --this.dragDepth === 0) over(false);
+      },
+      true,
+    );
+    window.addEventListener(
+      "drop",
+      (e) => {
+        e.preventDefault();
+        if (!carriesText(e)) return;
+        e.stopPropagation();
+        this.dragDepth = 0;
+        over(false);
+        const data = e.dataTransfer;
+        // A link's first line (uri-list keeps comments on lines starting with #).
+        const link = data?.getData("text/uri-list").split(/\r?\n/).find((l) => l.trim() && !l.startsWith("#"));
+        void this.dropped((link || data?.getData("text/plain") || "").trim());
+      },
+      true,
+    );
+  }
+
+  private async dropped(text: string) {
+    Sound.resume();
+    if (parseInput(text).kind !== "address") {
+      this.mascot.react("confused", 2200);
+      this.mascot.say("hm? drop a token's link or address", 2600);
+      this.noteDrop("Not a token link or address", "warn");
+      return;
+    }
+    this.dropBusy = true;
+    State.notify();
+    const res = await Companion.addToken(text);
+    this.dropBusy = false;
+    if (res.ok) {
+      Sound.play("blip");
+      this.mascot.react("love", 2600);
+      this.noteDrop(res.message, "up");
+    } else {
+      this.mascot.react("confused", 2200);
+      this.mascot.say(res.message, 2600);
+      this.noteDrop(res.message, "warn");
+    }
+  }
+
+  private noteDrop(text: string, tone: "up" | "warn") {
+    this.dropNote = { text, tone, until: Date.now() + DROP_NOTE_MS };
+    State.notify();
   }
 
   /** The app has no cursor poll here (Linux): follow the page's mouse events instead. */
@@ -1123,8 +1227,20 @@ export class Island {
     this.captionEl.title = State.mood.text;
 
     this.mascot.setMood(State.mood.state);
+    this.mascot.setBadge(this.badge());
     if (todayKey() !== this.lookDay && this.costumeTimer == null) this.wearChosen();
     this.renderTicker(performance.now());
+  }
+
+  /**
+   * The dot on the folded mascot: an alert not looked at yet, in its tone, or
+   * three dots while the first prices (or a dropped token) are on their way.
+   */
+  private badge(): Badge | null {
+    const unseen = State.unseen;
+    if (unseen?.kind === "alert") return unseen.tone;
+    if (this.dropBusy || (State.marketStatus === "loading" && !State.paused)) return "busy";
+    return null;
   }
 
   /** The compact pill: the last unseen alert, a discipline state, or the next token. */
@@ -1133,6 +1249,23 @@ export class Island {
     const el = this.tickerEl;
     el.replaceChildren();
     el.className = "ticker";
+
+    if (this.dragDepth > 0) {
+      el.classList.add("tone-up");
+      el.append(h("span", { class: "t-text", text: "Drop to add to your watchlist" }));
+      return;
+    }
+    if (this.dropBusy) {
+      el.append(h("span", { class: "t-text dim", text: "Adding…" }));
+      return;
+    }
+    const note = this.dropNote;
+    if (note && note.until > Date.now()) {
+      el.classList.add(`tone-${note.tone}`);
+      el.append(h("span", { class: "t-text", text: note.text }));
+      return;
+    }
+    this.dropNote = null;
 
     const unseen = State.unseen;
     if (unseen && unseen.kind === "alert") {
@@ -1188,7 +1321,31 @@ export class Island {
         h("span", { class: `t-pct ${pctClass(q.change.h1)}`, text: `1h ${formatPct(q.change.h1)}` }),
       );
     }
-    if (count > 1) el.append(h("span", { class: "t-count", text: `${i + 1}/${count}` }));
+    if (count > 1) el.append(this.tickerDots(held, tokens, i));
+  }
+
+  /**
+   * One dot per token in the ticker's turn, green or red by the last hour's
+   * move (brighter: a bigger move), the one on show ringed: the whole list at
+   * a glance. Past MAX_DOTS, the page of ten with the one on show, and "+N".
+   */
+  private tickerDots(held: ReturnType<typeof Companion.positions>, tokens: WatchToken[], current: number): HTMLElement {
+    const items = [
+      ...held.map(({ p }) => ({ symbol: p.symbol, h1: (State.positionQuotes[p.mint] ?? State.quotes[tokenKey("solana", p.mint)])?.change.h1 })),
+      ...tokens.map((t) => ({ symbol: t.symbol, h1: State.quotes[t.key]?.change.h1 })),
+    ];
+    const from = Math.floor(current / MAX_DOTS) * MAX_DOTS;
+    const shown = items.slice(from, from + MAX_DOTS);
+    const dots = h("span", { class: "t-dots" });
+    shown.forEach((x, k) => {
+      const level = moveLevel(x.h1);
+      const cls = level == null ? "none" : level > 0 ? `up${level}` : level < 0 ? `down${-level}` : "flat";
+      dots.append(h("b", { class: `t-dot ${cls}${from + k === current ? " on" : ""}`, title: `${x.symbol} ${formatPct(x.h1)} 1h` }));
+    });
+    const rest = items.length - shown.length;
+    const box = h("span", { class: "t-dotbox" }, dots);
+    if (rest > 0) box.append(h("span", { class: "t-more", text: `+${rest}`, title: `${rest} more, in turn` }));
+    return box;
   }
 
   /** A one-second clock while the island shows something that counts. */

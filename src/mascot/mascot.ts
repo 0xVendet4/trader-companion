@@ -7,6 +7,7 @@
 // manifest leaves out fall back to a close relative (see FALLBACK), so a first
 // art drop can cover just a few expressions.
 
+import { Spring } from "../core/anim";
 import type { CustomSkin, Skin } from "../core/state";
 import { skinFilter } from "./skins";
 
@@ -136,6 +137,11 @@ const FALLBACK: Record<MascotState, MascotState> = {
 
 const BASE = "mascot/";
 
+/** A manifest path as the page loads it. */
+export function artUrl(src: string): string {
+  return BASE + src;
+}
+
 /** The manifest path of a hat or face accessory, or null for none. */
 export function accessory(manifest: Manifest | null, slot: "outfits" | "faces", id: string): string | null {
   return id === "none" ? null : (manifest?.[slot]?.[id] ?? null);
@@ -174,6 +180,11 @@ const FX_GLYPHS: Record<Fx, string[]> = {
 /** How far the eyes travel at most, in % of the mascot's size. */
 const EYE_TRAVEL_X = 4.5;
 const EYE_TRAVEL_Y = 3;
+/** How far the body leans toward the cursor at most, in degrees. */
+const MAX_LEAN = 8;
+
+/** The dot in the mascot's corner (see Mascot.setBadge). */
+export type Badge = "up" | "down" | "warn" | "calm" | "busy";
 
 /** A blink swaps the eyes layer, or the whole frame of a one-frame state. */
 function canBlink(def: StateDef | null): boolean {
@@ -224,6 +235,13 @@ export class Mascot {
   private eyesImg: HTMLImageElement;
   private fxEl: HTMLElement;
   private bubble: HTMLElement;
+  private badgeEl: HTMLElement;
+  /** Holds the body: leans it toward the cursor, under the body's own motion. */
+  private leanEl: HTMLElement;
+  /** Trails the cursor and overshoots a little, like Grok Bot's. */
+  private lean = new Spring(0, 0.6, 0.5);
+  private leanFrame = 0;
+  private leanAt = 0;
 
   private manifest: Manifest = { name: "", states: {} };
   private mood: MascotState = "idle";
@@ -266,6 +284,12 @@ export class Mascot {
     // Eyes, face accessory and hat sit inside the body, so they move with
     // every motion; glasses stay put while the eyes look around behind them.
     this.body.append(this.img, this.eyesImg, this.faceImg, this.outfitImg);
+    this.leanEl = document.createElement("div");
+    this.leanEl.className = "mascot-lean";
+    this.leanEl.append(this.body);
+    this.badgeEl = document.createElement("div");
+    this.badgeEl.className = "mascot-badge";
+    this.badgeEl.hidden = true;
     this.fxEl = document.createElement("div");
     this.fxEl.className = "mascot-fx";
     this.el = document.createElement("div");
@@ -274,7 +298,7 @@ export class Mascot {
     // only ever set with textContent.
     this.bubble = document.createElement("div");
     this.bubble.className = "mascot-bubble";
-    this.el.append(this.body, this.fxEl, this.bubble);
+    this.el.append(this.leanEl, this.fxEl, this.bubble, this.badgeEl);
   }
 
   /** Loads (and, unless told not to, preloads) the art. Safe to call before the element is on screen. */
@@ -349,11 +373,57 @@ export class Mascot {
   }
 
   /**
-   * Points the eyes: x and y from −1 to 1 (see gaze.ts). Only the eyes layer
-   * moves, a few % of the mascot's size; a CSS transition smooths it.
+   * Points the eyes: x and y from −1 to 1 (see gaze.ts). The eyes layer moves
+   * a few % of the mascot's size (a CSS transition smooths it), and the body
+   * leans the same way a few degrees, trailing behind on a spring.
    */
   lookAt(g: { x: number; y: number }) {
     this.eyesImg.style.transform = g.x || g.y ? `translate(${(g.x * EYE_TRAVEL_X).toFixed(2)}%, ${(g.y * EYE_TRAVEL_Y).toFixed(2)}%)` : "";
+    this.lean.target = Math.round(g.x * MAX_LEAN * 10) / 10;
+    this.runLean();
+  }
+
+  /** Steps the lean while it moves; nothing runs once it has settled or while hidden. */
+  private runLean() {
+    if (this.leanFrame || !this.active || this.lean.target === this.lean.value) return;
+    this.leanAt = performance.now();
+    this.leanFrame = requestAnimationFrame(this.stepLean);
+  }
+
+  private stepLean = (now: number) => {
+    this.lean.step(Math.min(0.05, (now - this.leanAt) / 1000));
+    this.leanAt = now;
+    const settled = Math.abs(this.lean.target - this.lean.value) < 0.05 && Math.abs(this.lean.velocity) < 0.5;
+    if (settled) this.lean.set(this.lean.target);
+    this.showLean();
+    this.leanFrame = settled || !this.active ? 0 : requestAnimationFrame(this.stepLean);
+  };
+
+  private showLean() {
+    const a = this.lean.value;
+    this.leanEl.style.transform = a ? `translateX(${(a * 0.4).toFixed(2)}%) rotate(${a.toFixed(2)}deg)` : "";
+  }
+
+  /** A dot in the corner: an alert not looked at yet (its tone), or busy fetching. */
+  setBadge(badge: Badge | null) {
+    const cls = badge ? `mascot-badge ${badge}` : "mascot-badge";
+    if (this.badgeEl.className === cls && this.badgeEl.hidden === !badge) return;
+    this.badgeEl.className = cls;
+    this.badgeEl.hidden = !badge;
+    this.badgeEl.replaceChildren();
+    // Busy: three dots that take turns, like someone typing.
+    if (badge === "busy") for (let i = 0; i < 3; i++) this.badgeEl.append(document.createElement("i"));
+  }
+
+  /** Ends a reaction early: back to the mood at once. */
+  settle() {
+    if (this.reactionTimer != null) window.clearTimeout(this.reactionTimer);
+    this.reactionTimer = null;
+    if (this.reaction == null) return;
+    this.reaction = null;
+    this.reactionMotion = null;
+    this.shown = null;
+    this.apply();
   }
 
   /** A reaction (click, alert, fidget) is playing. */
@@ -415,6 +485,11 @@ export class Mascot {
     } else {
       this.stopTimers();
       this.say(null);
+      // Hidden: stand straight, with nothing left running.
+      if (this.leanFrame) cancelAnimationFrame(this.leanFrame);
+      this.leanFrame = 0;
+      this.lean.set(0);
+      this.showLean();
     }
   }
 

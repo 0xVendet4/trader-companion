@@ -753,6 +753,42 @@ body.passing #island {
   margin-bottom: 6px;
 }
 
+.view.event {
+  isolation: isolate;
+  --tone: transparent;
+}
+
+.view.event::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(110% 160% at 0% 30%, color-mix(in srgb, var(--tone) 30%, transparent),
+      color-mix(in srgb, var(--tone) 6%, transparent) 45%, transparent 70%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 18%, transparent);
+}
+
+.view.event[data-tone="up"] {
+  --tone: var(--up);
+}
+
+.view.event[data-tone="down"] {
+  --tone: var(--down);
+}
+
+.view.event[data-tone="warn"] {
+  --tone: var(--amber);
+}
+
+.view.event[data-tone="calm"] {
+  --tone: var(--calm);
+}
+
+.view.event .btn.secondary {
+  background: color-mix(in srgb, var(--tone) 15%, var(--card-2));
+}
+
 .event[data-tone="up"] .eyebrow {
   color: var(--up);
 }
@@ -834,7 +870,7 @@ body.passing #island {
   width: auto;
 }
 
-#compact.vertical .ticker .t-count {
+#compact.vertical .ticker .t-dotbox {
   margin: auto 0 0;
 }
 
@@ -861,10 +897,61 @@ body.passing #island {
   color: var(--dim);
 }
 
-.ticker .t-count {
+/* The whole list at a glance: a dot per token, by the last hour's move. */
+.ticker .t-dotbox {
+  flex: none;
   margin-left: auto;
-  color: var(--dim-3);
-  font-size: 10.5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  /* Room for the ring of the token on show: the ticker clips what overflows. */
+  padding: 3px;
+}
+
+.ticker .t-dots {
+  display: grid;
+  grid-template-columns: repeat(5, 6px);
+  grid-auto-rows: 6px;
+  gap: 3px;
+}
+
+.ticker .t-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dim-3);
+}
+
+.ticker .t-dot.up2 {
+  background: var(--up);
+}
+
+.ticker .t-dot.up1 {
+  background: color-mix(in srgb, var(--up) 55%, #000);
+}
+
+.ticker .t-dot.down1 {
+  background: color-mix(in srgb, var(--down) 55%, #000);
+}
+
+.ticker .t-dot.down2 {
+  background: var(--down);
+}
+
+.ticker .t-dot.none {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--dim-3);
+}
+
+/* The token on show. */
+.ticker .t-dot.on {
+  box-shadow: 0 0 0 1.5px #000, 0 0 0 2.6px var(--ink);
+}
+
+.ticker .t-more {
+  color: var(--dim-2);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .ticker .t-text {
@@ -904,6 +991,102 @@ body.passing #island {
   position: absolute;
   inset: 0;
   transform-origin: 50% 100%;
+}
+
+/* Holds the body and leans it toward the cursor (see Mascot.lookAt). */
+.mascot-lean {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+
+/* A dot in the folded mascot's corner: an alert not looked at yet, or busy. */
+.mascot-badge {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #000;
+  box-sizing: content-box;
+}
+
+.mascot-badge[hidden],
+.mascot:not(.tiny) .mascot-badge {
+  display: none;
+}
+
+.mascot-badge.up {
+  background: var(--up);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
+  animation: badge-pulse 1.6s ease-in-out infinite;
+}
+
+.mascot-badge.down {
+  background: var(--down);
+  box-shadow: 0 0 6px rgba(244, 80, 94, 0.8);
+  animation: badge-pulse 1s ease-in-out infinite;
+}
+
+.mascot-badge.warn {
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(245, 165, 36, 0.8);
+  animation: badge-pulse 1.3s ease-in-out infinite;
+}
+
+.mascot-badge.calm {
+  background: var(--calm);
+}
+
+.mascot-badge.busy {
+  left: -6px;
+  width: 15px;
+  height: 9px;
+  border-radius: 6px;
+  background: var(--calm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5px;
+}
+
+.mascot-badge.busy i {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #06202c;
+  animation: badge-typing 1.2s infinite;
+}
+
+.mascot-badge.busy i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.mascot-badge.busy i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes badge-pulse {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes badge-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* A token link dragged over the island (see Island.wireDrop). */
+#island.drop-ready {
+  box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.9), 0 0 24px rgba(52, 211, 153, 0.35);
 }
 
 /* The eyes layer: follows the cursor a few pixels (see Mascot.lookAt). */

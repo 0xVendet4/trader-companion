@@ -8,6 +8,7 @@ import { Sound } from "./core/sound";
 import { State } from "./core/state";
 import { Companion } from "./companion";
 import { Island } from "./island/island";
+import { syncTrayIcon } from "./island/tray-icon";
 import { loadManifest } from "./mascot/mascot";
 
 async function main() {
@@ -72,6 +73,8 @@ async function main() {
 
   Companion.onEvent = (e) => island.showEvent(e);
   Companion.onFeeling = (state, line) => island.feel(state, line);
+  // The tray icon wears Candy's mood and colour, and a dot for an alert not seen yet.
+  if (IS_TAURI) State.subscribe(syncTrayIcon);
   Companion.start();
   island.launch();
 
