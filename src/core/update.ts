@@ -7,8 +7,8 @@ export const UPDATE_REPO = "0xVendet4/trader-companion";
 /** What changed lately, for the update card's "What's new". */
 export const WHATS_NEW_URL = `https://github.com/${UPDATE_REPO}/commits/main`;
 
-/** How often the app asks GitHub for a newer version. */
-export const UPDATE_CHECK_MS = 6 * 60 * 60_000;
+/** How often the app asks GitHub for a newer version: one small file, so a release reaches everyone within the hour. */
+export const UPDATE_CHECK_MS = 30 * 60_000;
 
 /** "0.1.10" > "0.1.9": compares x.y.z numbers; anything unreadable is never newer. */
 export function isNewer(remote: string, local: string): boolean {

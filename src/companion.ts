@@ -161,7 +161,7 @@ class CompanionController {
     window.setInterval(() => {
       if (State.mode === "expanded" && State.view === "trending") void this.refreshTrending();
     }, TRENDING_TTL_MS / 2);
-    // A minute in, then every few hours: a newer Candy on GitHub?
+    // A minute in, then every half hour: a newer Candy on GitHub?
     if (IS_TAURI) {
       window.setTimeout(() => void this.checkUpdate(), 60_000);
       window.setInterval(() => void this.checkUpdate(), UPDATE_CHECK_MS);

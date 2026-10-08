@@ -202,7 +202,7 @@ little differently there:
 ### Updates
 
 Candy checks GitHub for a newer version a minute after it starts and every
-few hours after, and asks before doing anything. On Windows, **Update now**
+half hour after, and asks before doing anything. On Windows, **Update now**
 downloads the new code, builds it in its own window (about a minute: what it
 compiled before is reused) and starts Candy again; your settings stay. On
 Linux, or by hand anywhere: get the new code and run the installer again.
@@ -313,7 +313,7 @@ It talks only to public services, for public data:
   (`public.rpc.solanavibestation.com`), for the calls each one serves. They see
   the same thing: the wallet addresses asked about.
 
-And GitHub, for updates: a few times a day Candy reads the version in this
+And GitHub, for updates: every half hour Candy reads the version in this
 repository (`raw.githubusercontent.com`), and only when you say *Update now*
 does it download the code (`codeload.github.com`).
 
