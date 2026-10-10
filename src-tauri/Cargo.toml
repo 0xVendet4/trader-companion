@@ -28,10 +28,16 @@ libc = "0.2"
 # The GTK that Tauri already runs on, to reach its window for layer-shell and
 # the input region. libgtk-layer-shell itself is called directly (platform/linux.rs).
 gtk = "0.18"
+# The session bus, where media players announce what they play (MPRIS): the dance.
+dbus = "0.9"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [
+  "Media_Control",
+  "Storage_Streams",
   "Win32_Foundation",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
   "Win32_System_SystemInformation",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",

@@ -1,7 +1,9 @@
-// The show/hide shortcut. In the app it is global (works from any program);
-// in a browser it only works while the page has focus.
+// The global shortcuts (src/core/shortcuts.ts lists them): registered here, by
+// the island. In the app they work from any program; in a browser only while
+// the page has focus.
 
 import { IS_TAURI } from "./bridge";
+import { keyName, type ShortcutId } from "./shortcuts";
 
 export const HOTKEY_CHOICES: [string, string][] = [
   ["CommandOrControl+Shift+Space", "Ctrl + Shift + Space"],
@@ -21,31 +23,39 @@ export function matches(accel: string, e: { ctrlKey: boolean; metaKey: boolean; 
   const key = parts.pop()!.toLowerCase();
   const want = new Set(parts.map((p) => p.toLowerCase()));
   const ctrl = want.has("commandorcontrol") || want.has("control") || want.has("ctrl");
-  if (ctrl !== (e.ctrlKey || e.metaKey)) return false;
+  const sup = want.has("super") || want.has("meta");
+  // CommandOrControl is ⌘ on a Mac: there the Meta key stands for it.
+  if (ctrl !== (e.ctrlKey || (!sup && e.metaKey))) return false;
+  if (sup !== e.metaKey && !(ctrl && !sup && !e.ctrlKey)) return false;
   if (want.has("shift") !== e.shiftKey) return false;
   if (want.has("alt") !== e.altKey) return false;
-  const pressed = e.code === "Space" ? "space" : e.key.toLowerCase();
+  const named = e.code ? keyName(e.code) : null;
+  const pressed = (named ?? (e.key === " " ? "space" : e.key)).toLowerCase();
   return pressed === key;
 }
 
-let unbind: (() => void) | null = null;
+/** How a registration went: "inUse" when another program holds the keys. */
+export type BindResult = "on" | "off" | "inUse";
 
-/** Binds `accel` to `onPress`, replacing any previous binding. */
-export async function bindHotkey(accel: string, onPress: () => void): Promise<void> {
-  unbind?.();
-  unbind = null;
-  if (!accel) return;
+/** One binding per shortcut: a new one replaces the old one. */
+const bound = new Map<ShortcutId, { accel: string; release: () => Promise<void> }>();
+
+/** Binds `accel` to `onPress` for shortcut `slot`, replacing its previous binding. */
+export async function bindHotkey(accel: string, onPress: () => void, slot: ShortcutId = "toggle"): Promise<BindResult> {
+  await unbindHotkey(slot);
+  if (!accel) return "off";
   if (IS_TAURI) {
     try {
       const gs = await import("@tauri-apps/plugin-global-shortcut");
       await gs.register(accel, (e) => {
         if (e.state === "Pressed") onPress();
       });
-      unbind = () => void gs.unregister(accel);
+      bound.set(slot, { accel, release: () => gs.unregister(accel).catch(() => {}) });
+      return "on";
     } catch (err) {
-      console.error("[companion] shortcut", err);
+      console.error("[companion] shortcut", slot, err);
+      return "inUse";
     }
-    return;
   }
   const fn = (e: KeyboardEvent) => {
     if (!matches(accel, e)) return;
@@ -53,5 +63,25 @@ export async function bindHotkey(accel: string, onPress: () => void): Promise<vo
     onPress();
   };
   window.addEventListener("keydown", fn);
-  unbind = () => window.removeEventListener("keydown", fn);
+  bound.set(slot, {
+    accel,
+    release: async () => window.removeEventListener("keydown", fn),
+  });
+  return "on";
+}
+
+export async function unbindHotkey(slot: ShortcutId): Promise<void> {
+  const b = bound.get(slot);
+  bound.delete(slot);
+  await b?.release();
+}
+
+/** Lets go of every shortcut (Settings is recording a new one). */
+export async function unbindAll(): Promise<void> {
+  await Promise.all([...bound.keys()].map((slot) => unbindHotkey(slot)));
+}
+
+/** The keys a shortcut is registered with right now ("" = none). */
+export function boundKeys(slot: ShortcutId): string {
+  return bound.get(slot)?.accel ?? "";
 }

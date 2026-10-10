@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_GAZE, fidgetDelay, gazeAt, pickFidget } from "./gaze";
+import { NEUTRAL_GAZE, fidgetDelay, gazeAt, moodGaze, pickFidget } from "./gaze";
 
 describe("gazeAt", () => {
   it("looks straight ahead right under the cursor", () => {
@@ -37,5 +37,21 @@ describe("fidgets", () => {
   it("yawns when sleepy, moves when idle", () => {
     expect(pickFidget("sleepy", 0.2)?.say).toBe("*yawn*");
     expect(pickFidget("idle", 0)).not.toBeNull();
+  });
+});
+
+describe("moodGaze", () => {
+  it("looks down asleep, away when bored, and follows the cursor otherwise", () => {
+    expect(moodGaze("sleepy", 0)).toEqual({ x: 0, y: 0.7 });
+    expect(moodGaze("bored", 0)?.y).toBeGreaterThan(0);
+    expect(moodGaze("idle", 0)).toBeNull();
+    expect(moodGaze("happy", 3)).toBeNull();
+  });
+
+  it("wobbles when dizzy", () => {
+    const a = moodGaze("dizzy", 0.1)!;
+    const b = moodGaze("dizzy", 0.45)!;
+    expect(Math.sign(a.x)).not.toBe(Math.sign(b.x));
+    expect(Math.abs(a.x)).toBeLessThanOrEqual(0.55);
   });
 });

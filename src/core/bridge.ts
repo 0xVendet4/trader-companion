@@ -4,7 +4,7 @@
 // checked without compiling Rust.
 
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { normalizeSettings, type Settings } from "./state";
 
 export const IS_TAURI =
@@ -22,6 +22,25 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T |
   }
 }
 
+/** How the desktop Candy's window works here (desktop.rs DesktopInfo). */
+export type DesktopMode = "poll" | "window" | "off";
+
+export interface DesktopInfo {
+  mode: DesktopMode;
+  /** He was on the desktop when the app last quit. */
+  onDesktop: boolean;
+}
+
+/** An event for one window only (island ⇄ desktop Candy). Never throws. */
+export async function emitToWindow(label: string, event: string, payload?: unknown) {
+  if (!IS_TAURI) return;
+  try {
+    await emitTo(label, event, payload);
+  } catch (err) {
+    console.error(`[companion] emit ${event} failed`, err);
+  }
+}
+
 export interface BootInfo {
   settings: Settings;
   /** Logical screen rect of the monitor the island lives on. */
@@ -31,6 +50,8 @@ export interface BootInfo {
   os?: string;
   /** False where the cursor can't be read across the screen (see State.cursorPoll). */
   cursorPoll?: boolean;
+  /** The trader's first name from their OS account, for the greeting (src-tauri/src/identity.rs); null when it has none. */
+  firstName?: string | null;
 }
 
 function devLoad(): Settings {
@@ -135,6 +156,59 @@ export const Bridge = {
     const json = (await res.json().catch(() => null)) as { result?: T; error?: { message?: string } } | null;
     if (!res.ok || !json || json.error) throw new Error(json?.error?.message ?? `Solana RPC returned ${res.status}`);
     return json.result as T;
+  },
+
+  /** Which of these sound files the trader put in the sounds folder (src-tauri/src/sounds.rs). */
+  customSounds: (names: string[]) => call<string[]>("custom_sounds", { names }),
+  /** The bytes of one of them, to decode. */
+  customSound: (name: string) => call<ArrayBuffer>("custom_sound", { name }),
+  /** Settings → Open sounds folder. */
+  revealSoundsFolder: () => call<void>("reveal_sounds_folder"),
+  /** Settings → Reload: tells the island to read the folder again. */
+  reloadSounds: () => call<void>("reload_sounds"),
+  /** Watches what plays on the PC (src-tauri/src/music.rs); the island hears "now-playing" and "now-playing-art". */
+  setMediaWatch: (on: boolean) => call<void>("set_media_watch", { on }),
+  /** A button on the music card: playPause, next, previous, seek (s), shuffle / repeat (1, 0), volume (0–1). */
+  mediaControl: (action: string, value?: number) => call<boolean>("media_control", { action, value: value ?? null }),
+
+  // ── Candy on the desktop (src-tauri/src/desktop.rs) ───────────────────────
+  desktopInfo: () => call<DesktopInfo>("desktop_info"),
+  /** Dragged out of the island: (x, y) is the pointer in island-window coordinates. */
+  desktopPickUp: (x: number, y: number) => call<boolean>("desktop_pick_up", { x, y }),
+  /** Linux: the pointer moved during that drag (Windows carries him from Rust). */
+  desktopCarry: (x: number, y: number) => call<void>("desktop_carry", { x, y }),
+  desktopCarryEnd: (x: number, y: number) => call<void>("desktop_carry_end", { x, y }),
+  /** A drag started on the desktop Candy; resolves to his top-left corner, physical px. */
+  desktopDragBegin: () => call<[number, number] | null>("desktop_drag_begin"),
+  /** X11: top-left corner, physical pixels. */
+  desktopDragMove: (x: number, y: number) => call<void>("desktop_drag_move", { x, y }),
+  desktopDragEnd: (x: number, y: number) => call<void>("desktop_drag_end", { x, y }),
+  /** From the island to his spot. False: no spot on any connected display; `anywhere`: the first-visit corner then. */
+  desktopFlyOut: (anywhere = false) => call<boolean>("desktop_fly_out", { anywhere }),
+  /** To the island, then hidden. `forget`: he lives in the island again. */
+  desktopFlyHome: (forget: boolean) => call<boolean>("desktop_fly_home", { forget }),
+  /** Asleep, the cursor poll stops. */
+  desktopSetAsleep: (asleep: boolean) => call<void>("desktop_set_asleep", { asleep }),
+
+  /** Windows: a game, a video or a presentation fills the screen (alerts wait); false elsewhere. */
+  async fullscreenBusy(): Promise<boolean> {
+    return (await call<boolean>("fullscreen_busy")) ?? false;
+  },
+
+  /** What each accelerator types with AltGr on this PC's keyboard layouts ("" = nothing; null in a browser). */
+  shortcutTypes: (keys: string[]) => call<string[]>("shortcut_types", { keys }),
+
+  /**
+   * The clipboard's text for the paste shortcut, or null. The app reads it
+   * without taking focus; a browser asks the page's clipboard, which may refuse.
+   */
+  async readClipboard(): Promise<string | null> {
+    if (IS_TAURI) return call<string | null>("read_clipboard");
+    try {
+      return await navigator.clipboard.readText();
+    } catch {
+      return null;
+    }
   },
 
   /**

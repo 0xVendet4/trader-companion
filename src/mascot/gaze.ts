@@ -29,6 +29,26 @@ export function gazeAt(mx: number, my: number, cx: number, cy: number): Gaze {
   return { x: round((vx / dist) * pull), y: round((vy / dist) * pull) };
 }
 
+/**
+ * Where the face looks in a mood with a look of its own (Coucou's Mochi does
+ * the same): asleep, worn out or ill it looks down and still, bored it looks
+ * away and down, dizzy it wobbles from side to side (t: seconds). Null: it
+ * follows the cursor.
+ */
+export function moodGaze(state: MascotState, t: number): Gaze | null {
+  switch (state) {
+    case "sleepy":
+    case "tired":
+    case "sick":
+      return { x: 0, y: 0.7 };
+    case "bored":
+      return { x: -0.4, y: 0.5 };
+    case "dizzy":
+      return { x: Math.round(Math.sin(t * 9) * 55) / 100, y: 0.15 };
+  }
+  return null;
+}
+
 /** The cursor came this close (px) from further away: the mascot notices. */
 export const NOTICE_PX = 80;
 

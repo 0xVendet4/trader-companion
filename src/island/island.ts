@@ -10,9 +10,9 @@ import { currentLog, summarize, todayKey } from "../discipline/discipline";
 import { AWAY_MS, SNAPSHOT_EVERY_MS, awaySummary, type Snapshot } from "../away/away";
 import { activeSeason } from "../mascot/seasons";
 import { lookFilter } from "../mascot/skins";
-import { drawRecapCard } from "../share/card";
+import { drawRecapCard, type CardFormat, type CardLook } from "../share/card";
 import { openSettingsPanel } from "../web/settings-panel";
-import { buildRecap, recapDate } from "../share/recap";
+import { buildRecap, buildWeekRecap, recapDate, type WeekRange } from "../share/recap";
 import { formatClock, formatPct, formatUsd, moveLevel, pctClass, valueCell } from "../core/format";
 import {
   CLOSE_MS,
@@ -34,10 +34,11 @@ import {
   mascotPlacement,
   windowSize,
 } from "../core/layout";
-import { Sound } from "../core/sound";
-import { State, type CompanionEvent, type IslandMode, type IslandViewName, type Placement, type WatchToken } from "../core/state";
+import { SOUND_NAMES, Sound, type SoundName } from "../core/sound";
+import { stepTab, type ShortcutId } from "../core/shortcuts";
+import { State, type Companion as CompanionLook, type CompanionEvent, type IslandMode, type IslandViewName, type Placement, type WatchToken } from "../core/state";
 import { Companion } from "../companion";
-import { Mascot, accessory, dressed, type Badge, type Manifest, type MascotState } from "../mascot/mascot";
+import { Mascot, accessory, dressed, type Badge, type Manifest, type MascotState, type Motion, type MouthCue } from "../mascot/mascot";
 import { NEUTRAL_GAZE, NOTICE_PX, fidgetDelay, gazeAt, pickFidget } from "../mascot/gaze";
 import {
   COSTUME_MS,
@@ -52,37 +53,67 @@ import {
   type Reaction,
 } from "../mascot/reactions";
 import { tokenKey } from "../market/chains";
-import { parseInput } from "../market/dexscreener";
+import { parseInput, parsePasted } from "../market/dexscreener";
 import { folderTokens } from "../market/folders";
 import { tokenUrl } from "../market/links";
 import { formatSignedUsd } from "../positions/positions";
 import { h, svg } from "../views/dom";
 import { ICONS } from "../views/icons";
+import { shownTabs } from "../views/header";
+import { Tour } from "./tour";
+import { playArrivalFx } from "./greet-fx";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
+import { DRAG_THRESHOLD } from "../mascot/desktop-logic";
+import { DesktopLink } from "./desktop";
+import { islandDances } from "../core/music";
 import { IslandStateMachine } from "./fsm";
 
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
 const HIT_MARGIN = 14;
 /** An island rect no cursor reaches, margin included: a minimized island's. */
 const NOWHERE = { x: -10_000, y: -10_000, w: 0, h: 0 };
-const GREETING_MS = 2600;
+const GREETING_MS = 3900;
+/** The fall into the island and the landing bounce, before the hello (see Mascot.arrive). */
+const ARRIVAL_MS = 750;
 
 const TICKER_STEP_MS = 3000;
+/** A buy or sell just seen stays on the ticker this long (see State.feed). */
+const FEED_SHOW_MS = 12_000;
 /** The ticker's dots: one per token, this many at most (then "+N"). */
 const MAX_DOTS = 10;
 /** How long the ticker shows what a drop did. */
 const DROP_NOTE_MS = 3500;
+/** Poke motions the canvas plays as a roll of the whole drawing, in place of their CSS spin. */
+const CANVAS_ROLLS: Partial<Record<Motion, { turns: number; seconds: number }>> = {
+  spin: { turns: 1, seconds: 0.6 },
+  dizzy: { turns: 2, seconds: 1.3 },
+};
 
 const modeOrder = (m: IslandMode) => (m === "hidden" ? 0 : m === "compact" ? 1 : 2);
-const TAB_VIEWS: ReadonlySet<IslandViewName> = new Set(["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "wardrobe"]);
+const TAB_VIEWS: ReadonlySet<IslandViewName> = new Set(["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "wardrobe", "music"]);
 
 /** What the mascot does, and which sound plays, when an event pops up. */
-function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: Parameters<typeof Sound.play>[0] } {
+function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: SoundName } {
   switch (e.kind) {
-    case "alert":
-      if (e.tone === "up") return { mascot: "celebrate", sound: "alertUp" };
-      if (e.tone === "down") return { mascot: "shocked", sound: "alertDown" };
-      return { mascot: "alert", sound: "warn" };
+    case "alert": {
+      // A folder can have its own alert sound (Settings → Alerts).
+      const folder = State.token(e.address)?.folder;
+      const own = folder ? State.companion.folderSounds[folder] : undefined;
+      const sound = own && (SOUND_NAMES as readonly string[]).includes(own) ? (own as SoundName) : null;
+      if (e.tone === "up") return { mascot: "celebrate", sound: sound ?? "alertUp" };
+      if (e.tone === "down") return { mascot: "shocked", sound: sound ?? "alertDown" };
+      return { mascot: "alert", sound: sound ?? "warn" };
+    }
+    case "tilt":
+      return { mascot: "worried", sound: "reminder" };
+    case "sessionEnd":
+      return { mascot: "tired", sound: "reminder" };
+    case "checklist":
+      return { mascot: "focused", sound: "hmm" };
+    case "weekRecap":
+      return { mascot: "proud", sound: "greet" };
+    case "checkin":
+      return { mascot: "focused", sound: "hmm" };
     case "break":
       return { mascot: "tired", sound: "reminder" };
     case "lossLimit":
@@ -109,6 +140,11 @@ export class Island {
   private tickerEl!: HTMLElement;
   private captionEl!: HTMLElement;
   private wardrobeBtn!: HTMLElement;
+  private countdownEl!: HTMLElement;
+  /** The arrival's streaks and ring (see greet-fx.ts). */
+  private fxCanvas!: HTMLCanvasElement;
+  /** A dropped token being looked up: the bar along the bottom (see searchBar). */
+  private searchEl!: HTMLElement;
   private wakeStrip!: HTMLElement;
 
   private header!: ViewHost;
@@ -161,6 +197,40 @@ export class Island {
   // A link or an address dragged onto the island (see wireDrop).
   private dragDepth = 0;
   private dropBusy = false;
+  /** Lookups with the mouth open (a drop, a pasted address): a drag leaving meanwhile must not shut it. */
+  private lookups = 0;
+
+  /** Candy out on the desktop, in his own window (src/island/desktop.ts). */
+  private desktop = new DesktopLink({
+    reveal: () => this.reveal(),
+    wearing: () => {
+      // A look being tried on in the wardrobe shows on the desktop Candy too.
+      const tried = this.tried;
+      const kept = this.look();
+      return {
+        costume: tried?.costume ?? State.companion.costume,
+        hat: accessory(this.manifest, "outfits", tried?.outfit ?? kept.hat),
+        face: accessory(this.manifest, "faces", tried?.face ?? kept.face),
+        filter: lookFilter(tried ?? State.companion),
+      };
+    },
+    react: (state, ms) => this.mascot.react(state, ms),
+    poked: () => (State.lastActivity = performance.now()),
+    dropped: (text) => void this.dropped(text),
+    wardrobe: () => this.toggleWardrobe(),
+  });
+  /** The demo inside the app (tray → Try the demo): src/island/tour.ts. */
+  private tour = new Tour({
+    setView: (v) => {
+      State.minimized = false;
+      this.setView(v);
+    },
+    collapse: () => this.collapse(),
+    say: (line, ms) => this.mascot.say(line, ms),
+    react: (state, ms) => this.mascot.react(state, ms),
+  });
+  /** A press on the mascot that may become a drag out to the desktop: where it started. */
+  private mascotPress: { x: number; y: number } | null = null;
   private dropNote: { text: string; tone: "up" | "warn"; until: number } | null = null;
 
   /**
@@ -213,6 +283,40 @@ export class Island {
     this.mascot.setFace(accessory(this.manifest, "faces", face));
   }
 
+  /**
+   * Tries a look on (the wardrobe's hover): hat, face, colour or costume at
+   * once, nothing saved. Null puts the kept look back.
+   */
+  private previewLook(apply: ((c: CompanionLook) => void) | null) {
+    if (!this.manifest) return;
+    this.previewing = apply != null;
+    this.tried = null;
+    State.notify();
+    if (!apply) {
+      this.mascot.setFilter(lookFilter(State.companion));
+      this.wearCostume();
+      const { hat, face } = this.look();
+      this.mascot.setOutfit(accessory(this.manifest, "outfits", hat), false);
+      this.mascot.setFace(accessory(this.manifest, "faces", face));
+      return;
+    }
+    const look = { ...State.companion, customSkin: { ...State.companion.customSkin } };
+    apply(look);
+    this.tried = look;
+    if (look.costume !== this.worn) {
+      this.worn = look.costume;
+      this.mascot.use(dressed(this.manifest, look.costume));
+    }
+    this.mascot.setFilter(lookFilter(look));
+    this.mascot.setOutfit(accessory(this.manifest, "outfits", look.outfit), false);
+    this.mascot.setFace(accessory(this.manifest, "faces", look.face));
+  }
+
+  /** A look is being tried on (see previewLook): put the kept one back when the wardrobe goes. */
+  private previewing = false;
+  /** That look, for the desktop Candy too. */
+  private tried: CompanionLook | null = null;
+
   /** The day the look was put on: a new day may start or end a season. */
   private lookDay = "";
 
@@ -230,6 +334,8 @@ export class Island {
       // The app has a settings window; a browser gets a panel over the page.
       openSettings: () => (IS_TAURI ? void Bridge.openSettingsWindow() : openSettingsPanel()),
       openToken: (address, fallback) => {
+        // The demo's coins are made up: no site has them.
+        if (State.demo) return this.mascot.say("A made-up coin: nowhere to open it", 2200);
         const token = State.token(address) ?? fallback;
         if (token) void Bridge.openUrl(tokenUrl(State.companion.terminal, token));
       },
@@ -242,9 +348,38 @@ export class Island {
         void Bridge.focusWindow(on);
       },
       dismissEvent: () => this.dismissEvent(),
+      foldEvent: () => this.foldEvent(),
       relayout: () => this.animateGeometry(),
+      mouth: (state) => {
+        if (state === "open") {
+          this.lookups++;
+          this.cue({ kind: "open" });
+          return;
+        }
+        this.lookups = Math.max(0, this.lookups - 1);
+        this.cue(state === "shut" ? { kind: "unready", keepOpen: false } : { kind: "gulp" });
+      },
       shareDay: () => this.shareDay(),
+      shareWeek: (range, format) => this.shareWeek(range, format),
+      candy: (act) => {
+        const ms = act.ms ?? 1000;
+        if (act.react) this.mascot.react(act.react, ms);
+        if (act.say !== undefined) this.mascot.say(act.say, ms);
+        if (act.emit) this.mascot.emit(act.emit, 1);
+        if (act.hop) this.mascot.hop(7);
+        if (act.sound) Sound.play(act.sound);
+        if (act.look === null) this.mascot.lookAt(NEUTRAL_GAZE);
+        else if (act.look && State.companion.lively) {
+          // The eyes on the start of the line he is reading.
+          const m = this.mascot.el.getBoundingClientRect();
+          const r = act.look.getBoundingClientRect();
+          this.mascot.lookAt(gazeAt(m.left + m.width / 2, m.top + m.height / 2, r.left + Math.min(r.width, 160) / 2, r.top + r.height / 2));
+        }
+      },
+      // A sticky card, or a field being typed in, stays open anyway.
+      holdOpen: (on) => this.fsm.hold(on || State.companion.stickyAlerts || this.inputFocused, this.wasInIsland),
       applyLook: () => this.applySettings(),
+      previewLook: (apply) => this.previewLook(apply),
       minimize: () => this.minimize(),
     };
 
@@ -273,7 +408,19 @@ export class Island {
       svg(ICONS.shirt, 14, { stroke: 1.8 }),
     );
 
-    const clip = h("div", { id: "island-clip" }, this.contentEl, this.compactEl);
+    // The auto-close counting down: a thin bar that runs out along the bottom.
+    this.countdownEl = h("div", { class: "countdown" });
+    this.fsm.onCountdown = (seconds) => {
+      const el = this.countdownEl;
+      el.classList.remove("on");
+      if (seconds == null) return;
+      void el.offsetWidth;
+      el.style.animationDuration = `${seconds}s`;
+      el.classList.add("on");
+    };
+    this.fxCanvas = h("canvas", { class: "arrival-fx" }) as HTMLCanvasElement;
+    this.searchEl = h("div", { class: "search-bar" }, h("i"));
+    const clip = h("div", { id: "island-clip" }, this.fxCanvas, this.contentEl, this.compactEl, this.countdownEl, this.searchEl);
     this.islandEl = h("div", { id: "island" }, clip, this.captionEl, this.wardrobeBtn, this.mascot.el);
     this.root.append(this.wakeStrip, this.islandEl);
     this.applyGeometry();
@@ -281,19 +428,43 @@ export class Island {
 
   /** Today's recap as an image: copied to the clipboard (and saved, in a browser). */
   private async shareDay(): Promise<string> {
-    const png = await this.recapImage();
+    return this.deliver(await this.recapImage(), `my-day-${todayKey()}.png`);
+  }
+
+  /** A week's recap (the Monday card, or Share my week) as an image, wide or as a 9:16 story. */
+  private async shareWeek(range: WeekRange, format: CardFormat): Promise<string> {
+    const c = State.companion;
+    const recap = buildWeekRecap({ range, hideMoney: c.recapHideMoney, unit: c.discipline.unit, trades: c.journal }, FULL_NAME);
+    const png = await drawRecapCard(recap, this.cardLook(), FULL_NAME, format);
+    return this.deliver(png, `my-week-${todayKey(new Date(range.from))}${format === "story" ? "-story" : ""}.png`, format);
+  }
+
+  /** Copies a card to the clipboard (and saves it, in a browser), and says how that went. */
+  private async deliver(png: Blob, file: string, format: CardFormat = "wide"): Promise<string> {
     const copied = await copyImage(png);
     this.feel("cool", "looking good 😎");
+    const where = format === "story" ? "your story (Instagram, TikTok, Telegram)" : "X or Telegram";
     if (!IS_TAURI) {
       const url = URL.createObjectURL(png);
-      const a = h("a", { href: url, download: `my-day-${todayKey()}.png` });
+      const a = h("a", { href: url, download: file });
       document.body.append(a);
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       return copied ? "Image copied and downloaded." : "Image downloaded.";
     }
-    return copied ? "Image copied. Paste it on X or Telegram." : "Couldn't copy the image.";
+    return copied ? `Image copied. Paste it on ${where}.` : "Couldn't copy the image.";
+  }
+
+  /** How Candy looks on a card: the costume, colour, hat and face of now. */
+  private cardLook(): CardLook {
+    const c = State.companion;
+    return {
+      manifest: this.manifest ? dressed(this.manifest, c.costume) : { name: "", states: {} },
+      filter: lookFilter(c),
+      hat: accessory(this.manifest, "outfits", this.look().hat),
+      face: accessory(this.manifest, "faces", this.look().face),
+    };
   }
 
   /** Today's recap card, drawn as Share my day draws it (the demo shows it too). */
@@ -326,16 +497,7 @@ export class Island {
       },
       FULL_NAME,
     );
-    return drawRecapCard(
-      recap,
-      {
-        manifest: this.manifest ? dressed(this.manifest, c.costume) : { name: "", states: {} },
-        filter: lookFilter(c),
-        hat: accessory(this.manifest, "outfits", this.look().hat),
-        face: accessory(this.manifest, "faces", this.look().face),
-      },
-      FULL_NAME,
-    );
+    return drawRecapCard(recap, this.cardLook(), FULL_NAME);
   }
 
   // ── State machine ───────────────────────────────────────────────────────────
@@ -357,9 +519,22 @@ export class Island {
           break;
         case "greet":
           this.expand("greeting");
-          this.mascot.react("wave", GREETING_MS);
-          Sound.play("greet");
-          window.setTimeout(() => this.fsm.greetComplete(), GREETING_MS);
+          // The arrival: streaks as he drops into the island, a ring as he
+          // lands with a bounce; he slides aside, waves hello with a little
+          // hand, slides back and blinks as the island folds him into the ticker.
+          this.mascot.arrive();
+          this.playArrivalFx();
+          window.setTimeout(() => {
+            // Happy, not "wave": the hello's own drawn hands do the waving.
+            this.mascot.react("happy", GREETING_MS - ARRIVAL_MS);
+            Sound.play("greet");
+          }, ARRIVAL_MS);
+          window.setTimeout(() => {
+            this.mascot.blink();
+            this.fsm.greetComplete();
+            // Back to his spot on the desktop, if that is where he lives.
+            this.desktop.launch();
+          }, GREETING_MS);
           break;
       }
       State.notify();
@@ -368,6 +543,29 @@ export class Island {
 
   launch() {
     this.fsm.launch();
+  }
+
+  /** The arrival's streaks and ring, behind Candy, sized to the greeting island. */
+  private playArrivalFx() {
+    const place = this.shapePlacement();
+    const { w, h } = islandSize("expanded", "greeting", 0, place);
+    const at = mascotPlacement("expanded", "greeting", h, place);
+    this.fxCanvas.style.width = `${w}px`;
+    this.fxCanvas.style.height = `${h}px`;
+    playArrivalFx(this.fxCanvas, at.cx, at.cy);
+  }
+
+  /** Opens the wardrobe (the island opens with it), or closes it back to the last tab. */
+  toggleWardrobe() {
+    Sound.play("pop");
+    this.mascotHoverOut();
+    if (State.mode === "expanded" && State.view === "wardrobe") this.setView(State.lastTab);
+    else this.setView("wardrobe");
+  }
+
+  /** Wires Candy's desktop window (the app only; a browser has no second window). */
+  initDesktop() {
+    if (IS_TAURI) void this.desktop.init();
   }
 
   // ── Mode / view ─────────────────────────────────────────────────────────────
@@ -429,6 +627,36 @@ export class Island {
 
   /** A fired alert or a reminder: open on the event card. */
   showEvent(e: CompanionEvent) {
+    // Something fullscreen (a game, a video, a presentation): the card and its
+    // sound wait in the queue until it is over (Settings → Quiet in fullscreen).
+    if (this.quietCheck()) {
+      void Bridge.fullscreenBusy().then((busy) => (busy ? this.holdForFullscreen() : this.presentEvent(e)));
+      return;
+    }
+    this.presentEvent(e);
+  }
+
+  /** Whether to ask Windows about fullscreen before an alert shows. */
+  private quietCheck(): boolean {
+    return IS_TAURI && State.os === "windows" && State.companion.fullscreenQuiet;
+  }
+
+  /** Checks every 15 s until nothing is fullscreen, then shows what waited. Nothing runs once it is out. */
+  private holdForFullscreen() {
+    if (this.quietTimer != null) return;
+    this.quietTimer = window.setInterval(() => {
+      void Bridge.fullscreenBusy().then((busy) => {
+        if (busy || this.quietTimer == null) return;
+        window.clearInterval(this.quietTimer);
+        this.quietTimer = null;
+        const next = State.events[0];
+        if (next) this.presentEvent(next);
+      });
+    }, 15_000);
+  }
+  private quietTimer: number | null = null;
+
+  private presentEvent(e: CompanionEvent) {
     const r = reactionFor(e);
     // Minimized: it waits in the queue, and shows when Candy comes back (and
     // as a Windows notification, when those are on).
@@ -443,9 +671,17 @@ export class Island {
     this.mascot.react(r.mascot, 3500);
     this.fsm.forceHome();
     this.expand("event");
+    // Settings → Keep alert cards: it stays until it is looked at.
+    if (State.companion.stickyAlerts) this.fsm.pinned = true;
     // forceHome cancels the auto-close; with nobody at the island, restart it
     // so the card folds back into the ticker instead of staying up for good.
     if (!this.wasInIsland) this.fsm.mouseLeft();
+  }
+
+  /** The card's ⌃: folds it into the ticker, unanswered; opening the island shows it again. */
+  private foldEvent() {
+    this.fsm.pinned = false;
+    this.collapse();
   }
 
   private dismissEvent() {
@@ -499,6 +735,92 @@ export class Island {
     }
   }
 
+  /** Tray → Try the demo: starts it, or ends it early. */
+  toggleDemo() {
+    if (this.tour.running) this.stopDemo();
+    else {
+      Sound.resume();
+      if (State.paused) Companion.setPaused(false);
+      this.tour.start();
+    }
+  }
+
+  stopDemo() {
+    this.tour.stop();
+  }
+
+  /** A global shortcut was pressed (src/core/shortcuts.ts lists them). */
+  shortcut(id: ShortcutId) {
+    Sound.resume();
+    switch (id) {
+      case "toggle":
+        return this.toggle();
+      case "paste":
+        return void this.pasteToken();
+      case "alert":
+        return this.openAlert();
+      case "nextTab":
+      case "prevTab":
+        return this.stepTab(id === "nextTab" ? 1 : -1);
+      case "mute":
+        return this.toggleMute();
+      case "wardrobe":
+        return this.toggleWardrobe();
+      case "desktop":
+        return this.toggleDesktop();
+    }
+  }
+
+  /** Opens the island the way a shortcut does: the auto-close runs unless the pointer is in it. */
+  private openFromKeys(view: IslandViewName) {
+    State.minimized = false;
+    this.setView(view);
+    if (!this.wasInIsland) this.fsm.mouseLeft();
+  }
+
+  /** The waiting alert's card, or the Alerts tab when none waits. */
+  private openAlert() {
+    if (State.events.length) {
+      this.openFromKeys("event");
+      if (State.companion.stickyAlerts) this.fsm.pinned = true;
+      return;
+    }
+    this.openFromKeys("alerts");
+    this.mascot.say("No alert waiting", 1800);
+  }
+
+  /** The next or previous tab; a folded island opens on the last one. */
+  private stepTab(step: 1 | -1) {
+    const tabs = shownTabs();
+    if (State.mode !== "expanded") {
+      this.openFromKeys(tabs.includes(State.lastTab) ? State.lastTab : tabs[0]);
+      return;
+    }
+    const next = stepTab(tabs, State.view, step);
+    if (!next) return;
+    Sound.play("blip");
+    this.openFromKeys(next);
+  }
+
+  private toggleMute() {
+    State.settings.soundEnabled = !State.settings.soundEnabled;
+    Sound.setEnabled(State.settings.soundEnabled);
+    Companion.save();
+    if (State.mode === "hidden") this.reveal();
+    if (State.settings.soundEnabled) Sound.play("blip");
+    this.mascot.say(State.settings.soundEnabled ? "Sound on" : "Muted", 1600);
+  }
+
+  /** Candy out to his spot on the desktop, or home again. */
+  private toggleDesktop() {
+    if (!this.desktop.supported) {
+      if (State.mode === "hidden") this.reveal();
+      this.mascot.say("I can't leave the island here", 2200);
+      return;
+    }
+    void this.desktop.controller.flyOutOrHome();
+  }
+
   /** Applies settings at boot and whenever the settings window saves. */
   applySettings() {
     Sound.setEnabled(State.settings.soundEnabled);
@@ -511,6 +833,7 @@ export class Island {
     if (!State.companion.lively) this.mascot.lookAt(NEUTRAL_GAZE);
     this.scheduleFidget();
     this.fsm.homeToPetitDelay = State.settings.autoCloseInterval;
+    this.fsm.openOnHover = State.companion.openOnHover;
     // A floating island has no edge to hide behind: its ticker always stays.
     const stays = State.companion.keepTickerVisible || this.placement() === "float";
     this.fsm.petitToHiddenDelay = stays ? Infinity : 60;
@@ -637,7 +960,10 @@ export class Island {
     if (view === "discipline") return State.journalOpen ? 1 : 0;
     if (view === "event") {
       const e = State.events[0];
-      return e?.kind === "away" ? e.lines.length : 0;
+      // The checklist's six lines and what Candy makes of them; the away card's lines and its row of moves.
+      if (e?.kind === "checklist") return 7;
+      if (e?.kind === "weekRecap") return 3;
+      return e?.kind === "away" ? e.lines.length + (e.moves?.length ? 1 : 0) : 0;
     }
     return 0;
   }
@@ -736,16 +1062,74 @@ export class Island {
         else this.fsm.click();
         return;
       }
+      // A click inside: an island opened by a hover now stays open like a clicked one.
+      this.fsm.userInteracted();
       const p = this.pagePoint(e);
-      if (e.button === 0 && this.isMascotHit(p.x, p.y)) this.pressMascot();
+      if (e.button === 0 && this.isMascotHit(p.x, p.y)) {
+        this.pressMascot();
+        this.mascotPress = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    // Dragging Candy out of the island puts him on the desktop; from then on
+    // Rust carries his window (or the page does, on Linux).
+    window.addEventListener("mousemove", (e) => {
+      if (this.desktop.carrying) {
+        this.desktop.carry(e.clientX, e.clientY);
+        return;
+      }
+      const press = this.mascotPress;
+      if (!press) return;
+      if (!(e.buttons & 1)) {
+        this.mascotPress = null;
+        return;
+      }
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) <= DRAG_THRESHOLD) return;
+      this.mascotPress = null;
+      if (State.mode !== "expanded" || State.view === "greeting" || !this.desktop.canPickUp()) return;
+      // Not a poke after all.
+      this.pressing = false;
+      if (this.pressTimer != null) window.clearTimeout(this.pressTimer);
+      this.pressTimer = null;
+      if (this.squeezing) this.unsqueeze();
+      this.desktop.pickUp(e.clientX, e.clientY);
+    });
+
+    // Right-click on Candy: the wardrobe (Coucou's Mochi does the same), and closes it again.
+    this.islandEl.addEventListener("contextmenu", (e) => {
+      const p = this.pagePoint(e);
+      if (!this.isMascotHit(p.x, p.y)) return;
+      e.preventDefault();
+      this.toggleWardrobe();
     });
 
     // The release can land anywhere, so listen on the whole window.
-    window.addEventListener("mouseup", () => this.releaseMascot());
+    window.addEventListener("mouseup", (e) => {
+      this.mascotPress = null;
+      if (this.desktop.carrying) this.desktop.carryEnd(e.clientX, e.clientY);
+      this.releaseMascot();
+    });
 
+    // Keys while the island has the keyboard (typing in one of its fields):
+    // Ctrl+1–9 picks a tab, Ctrl+, opens Settings; Esc folds it once no field
+    // holds it (a field takes its own Esc).
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && State.mode === "expanded") this.collapse();
       State.lastActivity = performance.now();
+      if (State.mode !== "expanded") return;
+      if (e.key === "Escape") return this.collapse();
+      if (!e.ctrlKey || e.altKey || e.metaKey) return;
+      const digit = /^Digit([1-9])$/.exec(e.code);
+      if (digit) {
+        const tab = shownTabs()[Number(digit[1]) - 1];
+        e.preventDefault();
+        if (tab && tab !== State.view) {
+          Sound.play("blip");
+          this.setView(tab);
+        }
+      } else if (e.code === "Comma") {
+        e.preventDefault();
+        void (IS_TAURI ? Bridge.openSettingsWindow() : openSettingsPanel());
+      }
     });
 
     // A click anywhere but the island folds it away. In a browser that is any
@@ -778,13 +1162,7 @@ export class Island {
     };
     const over = (on: boolean) => {
       this.islandEl.classList.toggle("drop-ready", on);
-      if (on) {
-        this.mascot.react("alert", 60_000);
-        this.mascot.say("drop it on me!", 60_000);
-      } else {
-        this.mascot.settle();
-        this.mascot.say(null);
-      }
+      this.cue(on ? { kind: "ready" } : { kind: "unready", keepOpen: this.lookups > 0 });
       State.notify();
     };
     window.addEventListener(
@@ -803,6 +1181,11 @@ export class Island {
       (e) => {
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = carriesText(e) ? "copy" : "none";
+        // His eyes follow the link being dragged over him.
+        if (carriesText(e)) {
+          const p = this.pagePoint(e);
+          this.followCursor(p.x, p.y);
+        }
       },
       true,
     );
@@ -830,27 +1213,86 @@ export class Island {
     );
   }
 
-  private async dropped(text: string) {
+  /**
+   * The paste shortcut: whatever was copied, if the whole of it is a token
+   * address or link, goes in like a drop. Anything else is left alone (never
+   * searched, never sent anywhere) and Candy just looks puzzled.
+   */
+  async pasteToken() {
+    Sound.resume();
+    const text = await Bridge.readClipboard();
+    const parsed = text ? parsePasted(text) : null;
+    State.minimized = false;
+    if (this.fsm.state === "hidden") this.reveal();
+    if (!parsed) {
+      this.cue({ kind: "puzzled", say: "copy a token's link or address first" });
+      this.noteDrop("Nothing copied that looks like a token link or address", "warn");
+      return;
+    }
+    await this.dropped(text!);
+  }
+
+  /** A swallowing step, on whichever Candy is on screen: the island's, or the desktop's when he is out. */
+  private cue(c: MouthCue) {
+    if (State.mascotAway && this.desktop.supported) this.desktop.relay(c);
+    else this.mascot.cue(c);
+  }
+
+  /** A link or address given to Candy (dropped on him, here or on the desktop, or pasted with the shortcut). */
+  async dropped(text: string) {
     Sound.resume();
     if (parseInput(text).kind !== "address") {
-      this.mascot.react("confused", 2200);
-      this.mascot.say("hm? drop a token's link or address", 2600);
+      this.cue({ kind: "puzzled", say: "hm? drop a token's link or address" });
       this.noteDrop("Not a token link or address", "warn");
       return;
     }
+    if (this.dropBusy) {
+      this.noteDrop("One at a time: still adding the last one.", "warn");
+      return;
+    }
+    // The mouth stays open while the token is looked up; then he swallows it.
+    this.cue({ kind: "open" });
+    this.lookups++;
     this.dropBusy = true;
+    this.searchBar("on");
     State.notify();
     const res = await Companion.addToken(text);
     this.dropBusy = false;
+    this.lookups--;
     if (res.ok) {
       Sound.play("blip");
-      this.mascot.react("love", 2600);
+      this.cue({ kind: "gulp" });
+      this.searchBar("done");
+      window.setTimeout(() => Sound.play("pop"), 260);
       this.noteDrop(res.message, "up");
     } else {
-      this.mascot.react("confused", 2200);
-      this.mascot.say(res.message, 2600);
+      this.cue({ kind: "puzzled", say: res.message });
+      this.searchBar("fail");
       this.noteDrop(res.message, "warn");
     }
+    // Settings → Paste opens it: on the terminal too, added now or already there.
+    const parsed = parseInput(text);
+    if (State.companion.pasteOpens && parsed.kind === "address") {
+      // EVM addresses ignore case; Solana's don't.
+      const evm = parsed.address.startsWith("0x");
+      const same = (a: string) => (evm ? a.toLowerCase() === parsed.address.toLowerCase() : a === parsed.address);
+      const token = State.companion.watchlist.find((t) => same(t.address) || same(t.pairAddress));
+      if (token) void Bridge.openUrl(tokenUrl(State.companion.terminal, token));
+    }
+  }
+
+  /**
+   * The lookup's bar along the island's bottom: it fills while DexScreener is
+   * asked, then fills up green (added) or turns red (not found), and fades.
+   */
+  private searchBar(step: "on" | "done" | "fail") {
+    const el = this.searchEl;
+    if (step === "on") {
+      el.classList.remove("on", "done", "fail");
+      void el.offsetWidth;
+    }
+    el.classList.add(step);
+    if (step !== "on") window.setTimeout(() => el.classList.remove("on", "done", "fail"), 1400);
   }
 
   private noteDrop(text: string, tone: "up" | "warn") {
@@ -931,7 +1373,7 @@ export class Island {
       const fresh = this.takeSnapshot(now);
       const summary = awaySummary(this.snapshot, fresh, Companion.seenEvents);
       this.snapshot = fresh;
-      if (summary) Companion.raise({ kind: "away", id: `away-${now}`, away: summary.away, lines: summary.lines });
+      if (summary) Companion.raise({ kind: "away", id: `away-${now}`, away: summary.away, lines: summary.lines, moves: summary.moves });
       else this.mascot.say("welcome back!", 1800);
     }
     this.lastSeenAt = now;
@@ -1002,6 +1444,8 @@ export class Island {
   }
 
   private isMascotHit(x: number, y: number): boolean {
+    // Out on the desktop, the island's Candy is invisible: nothing to hit.
+    if (State.mascotAway) return false;
     const rect = this.islandRect();
     const cx = rect.x + this.mCx.value;
     const cy = rect.y + this.mCy.value;
@@ -1012,6 +1456,8 @@ export class Island {
   private mascotHoverIn() {
     if (performance.now() - this.lastLove < 8000) return;
     Sound.play("hover");
+    // Noticed: the eyes pop a little.
+    if (!this.mascot.reacting) this.mascot.pop();
     this.mascotHoverTimer = window.setTimeout(() => {
       this.mascotHoverTimer = null;
       this.lastLove = performance.now();
@@ -1098,8 +1544,14 @@ export class Island {
   }
 
   private playReaction(r: Reaction) {
-    this.mascot.react(r.state, r.ms, r.motion);
+    // The body takes the hit on the canvas: a spin rolls the whole drawing,
+    // anything else squashes it, and the hat is knocked askew either way.
+    const roll = CANVAS_ROLLS[r.motion];
+    this.mascot.react(r.state, r.ms, roll ? "none" : r.motion);
     this.mascot.say(r.say, r.ms);
+    if (roll) this.mascot.rollOnce(roll.turns, roll.seconds);
+    else this.mascot.squash(0.7);
+    this.mascot.nudgeHat(Math.random() < 0.5 ? 0.8 : -0.8);
     if (r.special === "wink") this.mascot.wink();
     Sound.play(r.sound);
   }
@@ -1175,7 +1627,8 @@ export class Island {
     el.style.height = `${s}px`;
     el.style.left = `${this.mCx.value - s / 2}px`;
     el.style.top = `${this.mCy.value - s / 2}px`;
-    el.style.opacity = String(opacity);
+    // Out on the desktop, the island's own Candy is not there.
+    el.style.opacity = String(State.mascotAway ? 0 : opacity);
     el.classList.toggle("tiny", State.mode === "compact");
 
     // The mood line: under the mascot, or beside it in the sidebar's band.
@@ -1183,7 +1636,8 @@ export class Island {
     if (isSide(this.placement()) && State.mode === "expanded") {
       const left = this.mCx.value + s / 2 + 8;
       cap.left = `${left}px`;
-      cap.top = `${this.mCy.value - 15}px`;
+      // Under the prices, which share the band (see .sidebar .natives).
+      cap.top = `${this.mCy.value - 6}px`;
       cap.width = `${Math.max(80, this.width.value - left - 12)}px`;
       this.captionEl.classList.add("beside");
     } else {
@@ -1199,7 +1653,15 @@ export class Island {
   private syncDom() {
     // Following turned off while its tab was open: back to the watchlist.
     if (State.view === "wallets" && !State.companion.following) State.view = "watchlist";
+    // Discipline turned off while its tab was open: the same.
+    if (State.view === "discipline" && !State.companion.disciplineOn) State.view = "watchlist";
     const expanded = State.mode === "expanded";
+    // The wardrobe closed or folded with a look still being tried on.
+    if (this.previewing && (!expanded || State.view !== "wardrobe")) this.previewLook(null);
+    // Music playing on the PC: the dance, folded or open (see islandDances);
+    // the mood may sit it out.
+    if (State.view === "music" && (!State.nowPlaying || !State.companion.musicCard)) State.view = "watchlist";
+    this.mascot.setDancing(State.companion.danceToMusic && islandDances({ playing: State.music, mode: State.mode, view: State.view }));
     // Lists that load or grow on their own (trending, a wallet added from the
     // settings window) change the island's height: follow them.
     const rowsKey = `${State.view}:${this.rowsFor(State.view)}`;
@@ -1256,16 +1718,26 @@ export class Island {
       return;
     }
     if (this.dropBusy) {
-      el.append(h("span", { class: "t-text dim", text: "Adding…" }));
+      el.append(svg(ICONS.search, 11, { stroke: 2.2 }), h("span", { class: "t-text dim", text: "Looking it up on DexScreener…" }));
       return;
     }
     const note = this.dropNote;
     if (note && note.until > Date.now()) {
       el.classList.add(`tone-${note.tone}`);
+      const fresh = Date.now() - (note.until - DROP_NOTE_MS) < 450;
+      if (note.tone === "up") el.append(h("span", { class: `t-check ${fresh ? "fresh" : ""}` }, svg(ICONS.check, 10, { stroke: 3 })));
       el.append(h("span", { class: "t-text", text: note.text }));
       return;
     }
     this.dropNote = null;
+
+    // The live feed: a buy or sell just seen, the trader's own or a followed wallet's.
+    const fresh = State.feed.at(-1);
+    if (fresh && Date.now() - fresh.t < FEED_SHOW_MS) {
+      el.classList.add(`tone-${fresh.tone}`);
+      el.append(h("span", { class: `t-live ${fresh.tone}` }), h("span", { class: "t-text", text: fresh.text }));
+      return;
+    }
 
     const unseen = State.unseen;
     if (unseen && unseen.kind === "alert") {
@@ -1278,7 +1750,7 @@ export class Island {
       el.append(h("span", { class: "t-text", text: "Daily loss limit hit" }));
       return;
     }
-    if (State.cooldownUntil > Date.now()) {
+    if (State.companion.disciplineOn && State.cooldownUntil > Date.now()) {
       el.classList.add("tone-calm");
       el.append(h("span", { class: "t-text", text: `Cooldown ${formatClock(State.cooldownUntil - Date.now())}` }));
       return;

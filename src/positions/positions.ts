@@ -324,6 +324,41 @@ export function crossedLevels(p: Position, price: number, levels: PositionAlerts
   return { hits, alerted };
 }
 
+/**
+ * The trader's own exit prices for one position (USD): a target above and a
+ * stop below; null removes one. A changed price can fire again.
+ */
+export function setTargets(book: PositionBook, mint: string, target: number | null, stop: number | null): PositionBook {
+  if (!book.positions[mint]) return book;
+  const next = clone(book);
+  const p = next.positions[mint];
+  const was = { target: p.target, stop: p.stop };
+  if (target != null && target > 0) p.target = target;
+  else delete p.target;
+  if (stop != null && stop > 0) p.stop = stop;
+  else delete p.stop;
+  p.alerted = p.alerted.filter((k) => (k !== "target" || p.target === was.target) && (k !== "stop" || p.stop === was.stop));
+  return next;
+}
+
+/** The position's own target or stop reached since last time, each once. */
+export function crossedTargets(p: Position, price: number): { hits: LevelHit[]; alerted: string[] } {
+  const alerted = [...p.alerted];
+  const hits: LevelHit[] = [];
+  if (!(price > 0)) return { hits, alerted };
+  const s = positionStats(p, price);
+  const detail = `Value ${formatUsd(s.valueUsd)} · avg entry ${formatPrice(s.entry)}${s.pnlPct != null ? ` · ${formatPct(s.pnlPct)} ${sinceWords(p)}` : ""}`;
+  if (p.target != null && price >= p.target && !alerted.includes("target")) {
+    alerted.push("target");
+    hits.push({ key: "target", title: `${p.symbol} reached your target ${formatPrice(p.target)}`, detail, tone: "up" });
+  }
+  if (p.stop != null && price <= p.stop && !alerted.includes("stop")) {
+    alerted.push("stop");
+    hits.push({ key: "stop", title: `${p.symbol} fell to your stop ${formatPrice(p.stop)}`, detail, tone: "down" });
+  }
+  return { hits, alerted };
+}
+
 export function formatMultiple(m: number): string {
   return `${Number.isInteger(m) ? m : m.toFixed(1)}x`;
 }
@@ -369,6 +404,8 @@ export function normalizeBook(raw: Partial<PositionBook> | null | undefined): Po
         alerted: Array.isArray(p.alerted) ? p.alerted.filter((x) => typeof x === "string") : [],
         historyChecked: p.historyChecked === true,
         fromHistory: p.fromHistory === true,
+        ...(num(p.target) > 0 ? { target: num(p.target) } : {}),
+        ...(num(p.stop) > 0 ? { stop: num(p.stop) } : {}),
       };
     }
   }

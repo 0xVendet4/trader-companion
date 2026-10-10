@@ -19,7 +19,8 @@ describe("while you were away", () => {
       ],
     )!;
     expect(s.away).toBe("1h 20m");
-    expect(s.lines).toEqual(["Moves: BONK +18.0%, WIF −7.0%", "Your wallet: +$120 on open positions", "1 alert: BONK +15% in 15 min", "Whale bought WIF"]);
+    expect(s.moves.map((m) => [m.key, m.symbol, Math.round(m.pct)])).toEqual([["BONK", "BONK", 18], ["WIF", "WIF", -7]]);
+    expect(s.lines).toEqual(["Your wallet: +$120 on open positions", "1 alert: BONK +15% in 15 min", "Whale bought WIF"]);
   });
 
   it("says nothing when nothing happened", () => {

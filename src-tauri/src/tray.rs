@@ -1,5 +1,5 @@
-// Notification-area icon: the version, Open, Settings, Pause, Quit; and Candy
-// itself, in its mood and colour (set_icon).
+// Notification-area icon: the version, Open, Wardrobe, Try the demo, Settings,
+// Pause, Quit; and Candy itself, in its mood and colour (set_icon).
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -15,6 +15,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let name = format!("Candy {}", app.package_info().version);
     let version = MenuItem::with_id(app, "version", &name, false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+    let wardrobe = MenuItem::with_id(app, "wardrobe", "Wardrobe…", true, None::<&str>)?;
+    let demo = MenuItem::with_id(app, "demo", "Try the demo", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause", "Pause / resume", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -22,7 +24,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let sep2 = PredefinedMenuItem::separator(app)?;
     let sep0 = PredefinedMenuItem::separator(app)?;
 
-    let menu = Menu::with_items(app, &[&version, &sep0, &open, &sep1, &settings, &pause, &sep2, &quit])?;
+    let menu = Menu::with_items(app, &[&version, &sep0, &open, &wardrobe, &demo, &sep1, &settings, &pause, &sep2, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(&name)

@@ -16,6 +16,8 @@ export interface Chain {
   gmgn: string | null;
   /** Axiom token pages are Solana only. */
   axiom: boolean;
+  /** Based Bot's path segment, when it lists this chain. */
+  basedbot: string | null;
   /** RugCheck only covers Solana. */
   rugcheck: boolean;
 }
@@ -33,6 +35,7 @@ export const CHAINS: Record<ChainId, Chain> = {
     native: { symbol: "SOL", chain: "solana", address: WSOL },
     gmgn: "sol",
     axiom: true,
+    basedbot: "sol",
     rugcheck: true,
   },
   bsc: {
@@ -43,6 +46,7 @@ export const CHAINS: Record<ChainId, Chain> = {
     native: { symbol: "BNB", chain: "bsc", address: WBNB },
     gmgn: "bsc",
     axiom: false,
+    basedbot: "bsc",
     rugcheck: false,
   },
   ethereum: {
@@ -53,6 +57,7 @@ export const CHAINS: Record<ChainId, Chain> = {
     native: { symbol: "ETH", chain: "ethereum", address: WETH },
     gmgn: "eth",
     axiom: false,
+    basedbot: "eth",
     rugcheck: false,
   },
   robinhood: {
@@ -64,6 +69,7 @@ export const CHAINS: Record<ChainId, Chain> = {
     native: { symbol: "ETH", chain: "ethereum", address: WETH },
     gmgn: null,
     axiom: false,
+    basedbot: "robinhood",
     rugcheck: false,
   },
 };

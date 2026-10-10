@@ -26,14 +26,33 @@ import {
 } from "./shared";
 import { Companion } from "../companion";
 import { Bridge } from "../core/bridge";
-import { compact, formatAge, formatUsd, valueCell, valueHead } from "../core/format";
+import { compact, formatAge, formatPct, formatUsd, valueCell, valueHead } from "../core/format";
 import { MAX_ROWS, ROW_H } from "../core/layout";
 import { shareEntry, shareText } from "../core/share";
-import { State, type Quote, type Timeframe, type TrendingItem, type ValueColumn, type WatchToken } from "../core/state";
+import { MAX_NOTE, State, uid, type Quote, type Timeframe, type TrendingItem, type ValueColumn, type WatchToken } from "../core/state";
 import { CHAINS } from "../market/chains";
-import { folderTokens } from "../market/folders";
+import { parseInput } from "../market/dexscreener";
+import { folderMood, folderTokens } from "../market/folders";
 import { terminalLabel } from "../market/links";
 import { rugcheckUrl } from "../market/safety";
+
+/** A tiny Candy (a candle with eyes), coloured by how a folder moved: green, red or grey. */
+function miniCandy(tone: "up" | "down" | "flat"): SVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const el = (tag: string, attrs: Record<string, string>) => {
+    const n = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const s = el("svg", { viewBox: "0 0 12 16", width: "9", height: "12", class: `folder-candy ${tone}`, "aria-hidden": "true" }) as SVGElement;
+  s.append(
+    el("path", { d: "M6 0.5v3M6 12.5v3", stroke: "currentColor", "stroke-width": "1.4", "stroke-linecap": "round" }),
+    el("rect", { x: "1.5", y: "3", width: "9", height: "9.5", rx: "3", fill: "currentColor" }),
+    el("circle", { cx: "4.4", cy: "7.3", r: "0.95", fill: "#0b1f12" }),
+    el("circle", { cx: "7.6", cy: "7.3", r: "0.95", fill: "#0b1f12" }),
+  );
+  return s;
+}
 
 /** A major coin's volume: its own 24 h volume (CoinGecko); nothing for shorter frames. */
 function majorVolume(q: Quote, frame: Timeframe): string {
@@ -97,7 +116,19 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     clear(folders);
     const c = State.companion;
     const chip = (name: string, labelText: string, count: number) => {
-      const b = h("button", { class: `folder ${c.activeFolder === name ? "on" : ""}`, type: "button" }, labelText, h("span", { class: "count", text: String(count) }));
+      // A mini Candy in the folder's mood: its tokens' average move in the hour.
+      const mood = folderMood(name ? c.watchlist.filter((t) => t.folder === name) : c.watchlist, State.quotes);
+      const b = h(
+        "button",
+        {
+          class: `folder ${c.activeFolder === name ? "on" : ""}`,
+          type: "button",
+          title: mood.pct == null ? labelText : `${labelText}: ${formatPct(mood.pct)} in the hour, on average`,
+        },
+        count ? miniCandy(mood.tone) : null,
+        labelText,
+        h("span", { class: "count", text: String(count) }),
+      );
       b.addEventListener("click", () => {
         if (c.activeFolder === name) return;
         Companion.showFolder(name);
@@ -131,6 +162,32 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       bar.append(b);
     }
     bar.closest(".row")?.addEventListener("mouseleave", restore, { once: true });
+  }
+
+  /** The row's note (why you're in, the exit plan), typed in place of its quick actions. */
+  function noteEditor(t: WatchToken, bar: HTMLElement, restore: () => void) {
+    clear(bar);
+    const input = field(actions, { class: "field note-field", placeholder: "Why you're in, the exit plan…", maxlength: String(MAX_NOTE), value: t.note ?? "" });
+    let done = false;
+    const finish = (keep: boolean) => {
+      if (done) return;
+      done = true;
+      if (keep && input.value.trim() !== (t.note ?? "")) {
+        Companion.setNote(t.key, input.value);
+        actions.blip();
+      }
+      restore();
+    };
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") finish(true);
+      if (e.key === "Escape") finish(false);
+    });
+    input.addEventListener("blur", () => finish(true));
+    bar.append(input);
+    bar.classList.add("editing");
+    actions.focusInput(true);
+    window.setTimeout(() => input.focus(), 30);
   }
 
   const rows = h("div", { class: "rows" });
@@ -192,9 +249,13 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     add.disabled = true;
     note.className = "note";
     note.textContent = "Looking it up…";
+    // An address (or a token link) pasted here is swallowed like a dropped one; a search is not.
+    const byAddress = parseInput(text).kind === "address";
+    if (byAddress) actions.mouth("open");
     const res = await Companion.addToken(text);
     busy = false;
     add.disabled = false;
+    if (byAddress) actions.mouth(res.ok ? "gulp" : "shut");
     if (res.searched) {
       note.textContent = "";
       actions.relayout();
@@ -230,6 +291,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       { class: "c-tok" },
       tokenImg(t.imageUrl, t.symbol),
       h("span", { class: "sym", text: t.symbol }),
+      t.note ? h("span", { class: "note-mark", text: "✎", title: `Note: ${t.note}` }) : null,
       tag,
       safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
     );
@@ -244,10 +306,27 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     filledAt.clear();
     for (const t of folderTokens(State.companion.watchlist, State.companion.activeFolder)) {
       const q = State.quotes[t.key];
+      const restoreBar = () => {
+        actionsEl.classList.remove("editing");
+        actionsEl.replaceChildren(...quick());
+      };
       const quick = (): Node[] => [
+        iconBtn(ICONS.pencil, t.note ? `Note: ${t.note}` : "Add a note: why you're in, the exit plan", (e) => {
+          e.stopPropagation();
+          noteEditor(t, actionsEl, restoreBar);
+        }, 2),
+        ...(t.coingecko
+          ? []
+          : [
+              iconBtn(ICONS.shield, "Checklist before an entry", (e) => {
+                e.stopPropagation();
+                actions.blip();
+                Companion.raise({ kind: "checklist", id: uid(), key: t.key });
+              }),
+            ]),
         iconBtn(ICONS.folder, "Move to a folder", (e) => {
           e.stopPropagation();
-          folderPicker(t, actionsEl, () => actionsEl.replaceChildren(...quick()));
+          folderPicker(t, actionsEl, restoreBar);
         }, 2),
         iconBtn(ICONS.copy, "Copy the CA", (e) => {
           e.stopPropagation();
@@ -295,7 +374,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       };
       const row = h(
         "div",
-        { class: "row", title: `Open ${t.symbol} on ${terminalLabel(State.companion.terminal, t)}` },
+        { class: "row", title: `Open ${t.symbol} on ${terminalLabel(State.companion.terminal, t)}${t.note ? `
+Note: ${t.note}` : ""}` },
         tokenCell(t, cells.tag),
         cells.spark,
         cells.mc,
@@ -425,7 +505,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       resultsValueHead.textContent = valueHead(c.valueColumn, State.search?.results.map((r) => r.quote) ?? []);
       const searching = State.search != null;
       folders.style.display = searching ? "none" : "";
-      const foldersKey = `${c.activeFolder}|${c.folders.join(",")}|${c.watchlist.map((t) => t.folder ?? "").join(",")}`;
+      const moods = ["", ...c.folders].map((f) => folderMood(f ? c.watchlist.filter((t) => t.folder === f) : c.watchlist, State.quotes).tone).join("");
+      const foldersKey = `${c.activeFolder}|${c.folders.join(",")}|${c.watchlist.map((t) => t.folder ?? "").join(",")}|${moods}`;
       if (foldersKey !== lastFolders && document.activeElement !== folderField) {
         lastFolders = foldersKey;
         renderFolders();
@@ -460,7 +541,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       // the mouse and the hover actions never flicker.
       const structure =
         c.activeFolder +
-        list.map((t) => t.key).join("|") +
+        list.map((t) => `${t.key}${t.note ?? ""}`).join("|") +
         safety(list.map((t) => t.key)).join(",") +
         State.companion.terminal +
         State.companion.chains.join();

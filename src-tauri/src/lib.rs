@@ -5,10 +5,15 @@
 // mascot shows is computed in the page from public market data; Rust only
 // places windows, stores preferences and opens links.
 
+mod desktop;
+mod identity;
 mod island;
 mod log;
+mod music;
 mod platform;
 mod settings;
+mod shortcuts;
+mod sounds;
 mod tray;
 mod update;
 
@@ -38,6 +43,8 @@ pub struct BootInfo {
     /// False where the cursor can't be read across the screen (Linux): the page
     /// follows the mouse over the island itself, and the island stays on top.
     cursor_poll: bool,
+    /// The OS account's first name, for the greeting; it never leaves the PC.
+    first_name: Option<&'static str>,
 }
 
 #[tauri::command]
@@ -50,11 +57,17 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         os: std::env::consts::OS,
         cursor_poll: platform::CURSOR_POLL,
+        first_name: identity::first_name(),
     }
 }
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
+    // Where Candy sits on the desktop is desktop.rs's to say, not a webview's.
+    let settings = {
+        let current = shared.settings.lock().unwrap();
+        Settings { desktop: current.desktop.clone(), ..settings }
+    };
     let (place_changed, autostart_changed) = {
         let mut current = shared.settings.lock().unwrap();
         let place_changed = current.screen != settings.screen
@@ -187,6 +200,7 @@ pub fn finish_float_drag(app: &AppHandle, moved: bool) {
 const ALLOWED_HOSTS: &[&str] = &[
     "gmgn.ai",
     "axiom.trade",
+    "basedbot.app",
     "dexscreener.com",
     "rugcheck.xyz",
     "solscan.io",
@@ -214,6 +228,46 @@ fn open_url(url: String) -> bool {
     }
     platform::open_url(&url);
     true
+}
+
+/// Whether a fullscreen game, video or presentation is up (Windows): alert
+/// cards wait for it to end (Settings → Quiet in fullscreen).
+#[tauri::command]
+fn fullscreen_busy() -> bool {
+    platform::fullscreen_busy()
+}
+
+/// The clipboard's text for the paste shortcut (src/core/hotkey.ts). Whatever
+/// the user last copied: handed to the page as is, never logged.
+#[tauri::command]
+fn read_clipboard(app: AppHandle) -> Option<String> {
+    platform::clipboard_text(&app)
+}
+
+/// Watches what plays on the PC for the music card and the dance (music.rs):
+/// the island hears "now-playing" (the player in front, or null) as it
+/// changes, and "now-playing-art" once per track with its cover.
+#[tauri::command]
+fn set_media_watch(app: AppHandle, on: bool) {
+    let listener: music::MusicListener = Arc::new(move |update| match update {
+        music::MusicUpdate::Playing(np) => {
+            let _ = app.emit_to(island::WINDOW_LABEL, "now-playing", np);
+        }
+        music::MusicUpdate::Art { key, url } => {
+            let _ = app.emit_to(island::WINDOW_LABEL, "now-playing-art", (key, url));
+        }
+    });
+    // Asking the OS for its media sessions blocks for a moment.
+    std::thread::spawn(move || platform::media_watch(on, listener));
+}
+
+/// A button on the music card (music.rs): play/pause, next, previous, seek,
+/// shuffle, repeat, volume. Off the main thread: the player answers in its time.
+#[tauri::command]
+async fn media_control(action: String, value: Option<f64>) -> bool {
+    tauri::async_runtime::spawn_blocking(move || platform::media_control(&action, value))
+        .await
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -601,7 +655,7 @@ mod rpc_tests {
 /// for the *same* arguments as the island (see `additionalBrowserArgs` in
 /// tauri.conf.json) — a mismatch makes the second window come up blank, with no
 /// error anywhere.
-const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
+pub(crate) const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
 
 /// In a dev build the pages are served by Vite, so the second window needs the
 /// absolute dev URL; a bundled build resolves it inside the app bundle.
@@ -669,7 +723,7 @@ pub fn run() {
             let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
-        // The show/hide shortcut, registered from the page (src/core/hotkey.ts).
+        // The global shortcuts, registered from the page (src/core/hotkey.ts).
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         // Windows notifications for alerts (src/core/notify.ts).
         .plugin(tauri_plugin_notification::init())
@@ -686,6 +740,25 @@ pub fn run() {
             reposition,
             start_float_drag,
             open_url,
+            read_clipboard,
+            fullscreen_busy,
+            set_media_watch,
+            media_control,
+            sounds::custom_sounds,
+            sounds::custom_sound,
+            sounds::reveal_sounds_folder,
+            sounds::reload_sounds,
+            desktop::desktop_info,
+            desktop::desktop_pick_up,
+            desktop::desktop_carry,
+            desktop::desktop_carry_end,
+            desktop::desktop_drag_begin,
+            desktop::desktop_drag_move,
+            desktop::desktop_drag_end,
+            desktop::desktop_fly_out,
+            desktop::desktop_fly_home,
+            desktop::desktop_set_asleep,
+            shortcuts::shortcut_types,
             quit_app,
             set_tray_icon,
             log_line,
@@ -697,8 +770,10 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             tray::build(&handle)?;
-            // Before the island: see create_settings_window.
+            // Before the island: see create_settings_window. Candy's desktop
+            // window too, for the same reason.
             create_settings_window(&handle);
+            desktop::setup(&handle);
 
             if let Some(win) = island::window(&handle) {
                 platform::make_non_activating(&win);
@@ -740,6 +815,7 @@ mod tests {
         assert!(!is_allowed_url("file:///C:/Windows/System32/calc.exe"));
         assert!(!is_allowed_url("not a url"));
         assert!(is_allowed_url("https://dashboard.helius.dev/"));
+        assert!(is_allowed_url("https://basedbot.app/r/GuyFawk3s/token/sol/So11111111111111111111111111111111111111112"));
         assert!(!is_allowed_url("https://evil.helius.dev/"));
     }
 }

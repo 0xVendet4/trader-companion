@@ -5,11 +5,16 @@
 import { h, svg } from "./dom";
 import { ICONS } from "./icons";
 import { formatPct, formatUsd, pctClass } from "../core/format";
-import { State, type IslandViewName, type Quote, type WatchToken } from "../core/state";
+import { State, type Companion, type IslandViewName, type Quote, type WatchToken } from "../core/state";
+import type { CardFormat } from "../share/card";
+import type { WeekRange } from "../share/recap";
+import type { SoundName } from "../core/sound";
+import type { MascotState } from "../mascot/mascot";
+import type { ParticleKind } from "../mascot/particles";
 import { CHAINS, type ChainId } from "../market/chains";
 import { majorFor } from "../market/majors";
 import { SAFETY_LABEL, describeSafety } from "../market/safety";
-import { sparkPath, sparkSeries } from "../market/sparkline";
+import { relativeStrength, sparkPair, sparkPath, sparkSeries } from "../market/sparkline";
 
 export interface ViewActions {
   setView(v: IslandViewName): void;
@@ -23,14 +28,40 @@ export interface ViewActions {
   focusInput(on: boolean): void;
   /** OK / the event card's buttons: next event, or back to the tabs. */
   dismissEvent(): void;
+  /** The event card's ⌃: folded into the ticker, unanswered. */
+  foldEvent(): void;
   /** The content changed size (a row was added): animate the island. */
   relayout(): void;
+  /** Candy's mouth: open while an address pasted in a field is looked up, then it gulps (added) or shuts (not). */
+  mouth(state: "open" | "gulp" | "shut"): void;
   /** Puts on the look just picked (hat, face, colour). */
   applyLook(): void;
+  /** Tries a look on Candy without keeping it (the wardrobe's hover); null: back to the one kept. */
+  previewLook(apply: ((c: Companion) => void) | null): void;
   /** Hides the island until the show/hide shortcut, or Open in the tray, brings it back. */
   minimize(): void;
   /** Draws today's recap card and copies (or downloads) it; resolves to a note. */
   shareDay(): Promise<string>;
+  /** A week's recap card, wide or a 9:16 story, copied (see Island.shareWeek); resolves to what to tell the trader. */
+  shareWeek(range: WeekRange, format: CardFormat): Promise<string>;
+  /** Candy doing his part in a card (going over the checklist). */
+  candy(act: CandyAct): void;
+  /** Keeps the card from folding away while he does (see IslandStateMachine.hold). */
+  holdOpen(on: boolean): void;
+}
+
+export interface CandyAct {
+  /** A short reaction, for `ms`. */
+  react?: MascotState;
+  /** A line in his bubble for `ms`; null hides it. */
+  say?: string | null;
+  ms?: number;
+  /** One of these off his head. */
+  emit?: ParticleKind;
+  hop?: boolean;
+  sound?: SoundName;
+  /** His eyes on an element of the card; null: back to the cursor's way. */
+  look?: HTMLElement | null;
 }
 
 export interface ViewHost {
@@ -62,6 +93,8 @@ export function field(actions: ViewActions, attrs: Record<string, string>): HTML
   input.addEventListener("blur", () => actions.focusInput(false));
   input.addEventListener("keydown", (e) => {
     if (e.key === "Escape") input.blur();
+    // The island's own keys (Ctrl + 1–9 for a tab, Ctrl + , for Settings) still work while typing.
+    if (e.ctrlKey && !e.altKey && (/^Digit[1-9]$/.test(e.code) || e.code === "Comma")) return;
     e.stopPropagation();
   });
   return input;
@@ -162,6 +195,12 @@ export function safetyBadge(token: Pick<WatchToken, "key" | "chainId">, onOpen: 
 }
 
 /** The 24 h mini chart for a watchlist row. */
+/** The quote of a chain's own coin (SOL, BNB, ETH), when the app has it. */
+function chainCoinQuote(chain: ChainId): Quote | null {
+  const sym = CHAINS[chain].native.symbol;
+  return State.natives[sym] ?? (sym === "SOL" ? State.sol : null) ?? null;
+}
+
 export function sparkline(mint: string, w = 56, h0 = 18): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
   const el = document.createElementNS(ns, "svg");
@@ -170,14 +209,31 @@ export function sparkline(mint: string, w = 56, h0 = 18): SVGSVGElement {
   el.setAttribute("height", String(h0));
   el.setAttribute("class", "spark");
   const q = State.quotes[mint];
-  const path = q ? sparkPath(sparkSeries(q, State.history[mint] ?? [], Date.now()), w, h0) : null;
+  const now = Date.now();
+  const series = q ? sparkSeries(q, State.history[mint] ?? [], now) : [];
+  // Relative strength: the chain's coin (SOL, BNB, ETH) as a faint line on the same % scale.
+  const token = State.token(mint);
+  const coin = q && token && !q.major && State.companion.relativeStrength ? chainCoinQuote(token.chainId) : null;
+  const pair = coin && coin.address !== q!.address ? sparkPair(series, sparkSeries(coin, [], now), w, h0) : null;
+  const path = pair ? { d: pair.token, up: pair.up } : sparkPath(series, w, h0);
   if (path) {
+    if (pair) {
+      const base = document.createElementNS(ns, "polyline");
+      base.setAttribute("points", pair.coin);
+      base.setAttribute("class", "coin");
+      el.append(base);
+    }
     const line = document.createElementNS(ns, "polyline");
     line.setAttribute("points", path.d);
     line.setAttribute("class", path.up ? "up" : "down");
     el.append(line);
     const t = document.createElementNS(ns, "title");
-    t.textContent = "Last 24 h (recent hours stretched)";
+    const sym = token ? CHAINS[token.chainId].native.symbol : "";
+    const rel = pair && coin ? relativeStrength(q!.change.h24, coin.change.h24) : null;
+    t.textContent =
+      rel != null
+        ? `Last 24 h: ${formatPct(q!.change.h24)} · ${sym} ${formatPct(coin!.change.h24)} (the faint line) · ${formatPct(rel)} against ${sym}`
+        : "Last 24 h (recent hours stretched)";
     el.append(t);
   }
   return el;

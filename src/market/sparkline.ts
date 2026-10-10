@@ -54,3 +54,28 @@ export function sparkPath(points: SparkPoint[], w: number, h: number): { d: stri
     .join(" ");
   return { d, up: points[points.length - 1].price >= points[0].price };
 }
+
+/** How a token did against its chain's coin over the same stretch, in %: (1 + token) / (1 + coin) − 1. */
+export function relativeStrength(tokenPct: number, coinPct: number): number | null {
+  if (!Number.isFinite(tokenPct) || !Number.isFinite(coinPct) || coinPct <= -100) return null;
+  return ((1 + tokenPct / 100) / (1 + coinPct / 100) - 1) * 100;
+}
+
+/**
+ * The token's line and its chain coin's, both as % from 24 h ago on one shared
+ * scale, so it reads at a glance whether the token rose alone or with the market.
+ */
+export function sparkPair(token: SparkPoint[], coin: SparkPoint[], w: number, h: number): { token: string; coin: string; up: boolean } | null {
+  if (token.length < 2 || coin.length < 2) return null;
+  const pct = (pts: SparkPoint[]) => pts.map((p) => ({ age: p.age, v: (p.price / pts[0].price - 1) * 100 }));
+  const a = pct(token);
+  const b = pct(coin);
+  const all = [...a, ...b].map((p) => p.v);
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const span = hi - lo || 1;
+  const pad = 1.5;
+  const line = (pts: { age: number; v: number }[]) =>
+    pts.map((p) => `${(xOf(p.age) * (w - 2 * pad) + pad).toFixed(1)},${(pad + (1 - (p.v - lo) / span) * (h - 2 * pad)).toFixed(1)}`).join(" ");
+  return { token: line(a), coin: line(b), up: token[token.length - 1].price >= token[0].price };
+}

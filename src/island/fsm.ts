@@ -20,6 +20,18 @@ export class IslandStateMachine {
   greetHoverCollapseDelay = 10;
   /** An alert waiting for an answer stays open, even when the mouse leaves. */
   pinned = false;
+  /** Opens from the ticker as soon as the pointer rests on it (Settings → Open on hover). */
+  openOnHover = false;
+  /** How long the pointer rests on the ticker before it opens, seconds. */
+  hoverOpenDelay = 0.25;
+  /** How soon an island opened by a hover folds once the pointer leaves, seconds. */
+  hoverCloseDelay = 0.6;
+  /** Told when an auto-close starts counting down (its length, seconds) or stops (null). */
+  onCountdown: ((seconds: number | null) => void) | null = null;
+
+  /** Opened by a hover: folds soon after the pointer leaves, unless clicked inside. */
+  private hoverOpened = false;
+  private hoverOpen: number | null = null;
 
   private petitHide: number | null = null;
   private homeCollapse: number | null = null;
@@ -37,9 +49,11 @@ export class IslandStateMachine {
       case "hidden":
         this.cancelTimers();
         this.transition("petit");
+        this.scheduleHoverOpen();
         break;
       case "petit":
         this.clear("petitHide");
+        this.scheduleHoverOpen();
         break;
       case "home":
         this.clear("homeCollapse");
@@ -55,6 +69,7 @@ export class IslandStateMachine {
       case "hidden":
         break;
       case "petit":
+        this.clear("hoverOpen");
         this.schedulePetitHide();
         break;
       case "home":
@@ -70,7 +85,13 @@ export class IslandStateMachine {
   click() {
     if (this.state !== "petit") return;
     this.cancelTimers();
+    this.hoverOpened = false;
     this.transition("home");
+  }
+
+  /** A click inside the open island: one opened by a hover now stays like one opened by a click. */
+  userInteracted() {
+    this.hoverOpened = false;
   }
 
   /** Greeting animation finished (T.end). Doesn't override a running hover timer. */
@@ -90,6 +111,7 @@ export class IslandStateMachine {
   /** Alert or explicit request: open straight to expanded. */
   forceHome() {
     this.cancelTimers();
+    this.hoverOpened = false;
     this.transition("home");
   }
 
@@ -104,6 +126,18 @@ export class IslandStateMachine {
     this.transition("hidden");
   }
 
+  /**
+   * Keeps the open island from folding while something plays out in it (Candy
+   * going over a checklist); let go, its countdown starts over unless the
+   * pointer is in it.
+   */
+  hold(on: boolean, pointerInside: boolean) {
+    if (this.pinned === on) return;
+    this.pinned = on;
+    if (on) this.clear("homeCollapse");
+    else if (this.state === "home" && !pointerInside) this.scheduleHomeCollapse();
+  }
+
   // ── Timers ──────────────────────────────────────────────────────────────────
 
   private schedulePetitHide() {
@@ -115,13 +149,28 @@ export class IslandStateMachine {
     }, this.petitToHiddenDelay * 1000);
   }
 
+  private scheduleHoverOpen() {
+    this.clear("hoverOpen");
+    if (!this.openOnHover) return;
+    this.hoverOpen = window.setTimeout(() => {
+      this.hoverOpen = null;
+      if (this.state !== "petit") return;
+      this.cancelTimers();
+      this.hoverOpened = true;
+      this.transition("home");
+    }, this.hoverOpenDelay * 1000);
+  }
+
   private scheduleHomeCollapse() {
     this.clear("homeCollapse");
     if (this.pinned) return;
+    const delay = this.hoverOpened ? this.hoverCloseDelay : this.homeToPetitDelay;
     this.homeCollapse = window.setTimeout(() => {
       this.homeCollapse = null;
+      this.onCountdown?.(null);
       if (this.state === "home") this.transition("petit");
-    }, this.homeToPetitDelay * 1000);
+    }, delay * 1000);
+    this.onCountdown?.(delay);
   }
 
   private scheduleGreetCollapse(delay: number) {
@@ -132,16 +181,18 @@ export class IslandStateMachine {
     }, delay * 1000);
   }
 
-  private clear(which: "petitHide" | "homeCollapse" | "greetCollapse") {
+  private clear(which: "petitHide" | "homeCollapse" | "greetCollapse" | "hoverOpen") {
     const id = this[which];
     if (id != null) window.clearTimeout(id);
     this[which] = null;
+    if (which === "homeCollapse" && id != null) this.onCountdown?.(null);
   }
 
   cancelTimers() {
     this.clear("petitHide");
     this.clear("homeCollapse");
     this.clear("greetCollapse");
+    this.clear("hoverOpen");
   }
 
   private transition(next: FsmState) {

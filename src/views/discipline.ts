@@ -13,19 +13,31 @@ import { formatClock, formatDuration, formatPnl, parseAmount } from "../core/for
 import { State, type JournalEntry } from "../core/state";
 import {
   currentLog,
+  dayGrid,
   journalCsv,
   lastTypedTrade,
   lossLimitUsed,
   nextBreakIn,
+  positionSize,
   summarize,
+  todayKey,
   weekStats,
 } from "../discipline/discipline";
+import { weekRange } from "../share/recap";
 
-const RECENT = 5;
+const RECENT = 4;
+/** The check-in's answer, next to a trade in the journal. */
+const PLAN_MARK = { yes: "✓", partly: "~", no: "✗" } as const;
+const PLAN_WORDS = { yes: "Followed the plan", partly: "Partly followed the plan", no: "Didn't follow the plan" } as const;
+/** Weeks in the green and red days grid. */
+const GRID_WEEKS = 16;
+
+/** An amount without trailing noise: 12.5, 0.75, 0.125. */
+const trimAmount = (n: number) => (n >= 100 ? n.toFixed(0) : n >= 10 ? String(+n.toFixed(1)) : String(+n.toFixed(3)));
 
 export function buildDiscipline(actions: ViewActions): ViewHost {
   // ── Today ─────────────────────────────────────────────────────────────────
-  const session = h("div", { class: "line" });
+  const session = h("span");
   const today = h("div", { class: "line" });
   const barFill = h("i");
   const bar = h("div", { class: "limit-bar" }, barFill);
@@ -80,19 +92,82 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const endCooldown = btn("End", "ghost", () => Companion.endCooldown());
 
   const logBar = h("div", { class: "log-bar" }, amount, unit, noteIn, win, loss, undo);
+
+  // The session's end, if the trader sets one: an alert when it comes.
+  // Built once: the line repaints every second, and a link redrawn under the
+  // pointer would lose its click.
+  const endLeft = h("span");
+  const endOff = h("a", { text: "✕", title: "No end", onclick: () => Companion.setSessionEnd(null) });
+  const endSet = h("span", {}, endLeft, " ", endOff);
+  const endChoices = h("span", {}, " · end in ");
+  ([[30, "30m"], [60, "1h"], [120, "2h"]] as const).forEach(([min, label], i) => {
+    if (i) endChoices.append(" ");
+    endChoices.append(h("a", { text: label, title: `An alert in ${label}`, onclick: () => (actions.blip(), Companion.setSessionEnd(min)) }));
+  });
+  const sessionEnd = h("span", { class: "session-end" }, endSet, endChoices);
+  function paintSessionEnd() {
+    const on = State.sessionEndAt > 0;
+    endSet.style.display = on ? "" : "none";
+    endChoices.style.display = on ? "none" : "";
+    if (on) endLeft.textContent = ` · ends in ${formatDuration(Math.max(0, State.sessionEndAt - Date.now()))}`;
+  }
+
+  // How much to put in: the bank and the share risked are kept, the stop is per trade.
+  const bankIn = field(actions, { class: "field tiny", placeholder: "bank" });
+  const riskIn = field(actions, { class: "field tiny", placeholder: "1" });
+  const stopIn = field(actions, { class: "field tiny", placeholder: "20" });
+  const sizeOut = h("span", { class: "size-out" });
+  const sizeUnit = h("span", { class: "unit" });
+  const saveSizing = () => {
+    const s = State.companion.sizing;
+    const bank = parseAmount(bankIn.value);
+    const risk = parseAmount(riskIn.value);
+    if (bank != null && bank >= 0) s.bank = bank;
+    if (risk != null && risk > 0 && risk <= 100) s.riskPct = risk;
+    Companion.save();
+    paintSize();
+  };
+  for (const f of [bankIn, riskIn]) f.addEventListener("change", saveSizing);
+  stopIn.addEventListener("input", () => paintSize());
+  function paintSize() {
+    const s = State.companion.sizing;
+    const u = State.companion.discipline.unit;
+    sizeUnit.textContent = u;
+    const r = positionSize(s.bank, s.riskPct, parseAmount(stopIn.value) ?? 0);
+    sizeOut.className = `size-out ${r ? "" : "dim"}`;
+    sizeOut.textContent = r ? `→ ${trimAmount(r.size)} ${u} (risking ${trimAmount(r.risk)})` : s.bank > 0 ? "→ type your stop" : "→ set your bank";
+  }
+  const sizer = h(
+    "div",
+    { class: "line sizer", title: "Bank × risk ÷ stop: what to put in so that the stop loses only the share you risk" },
+    h("span", { class: "lbl", text: "Size:" }),
+    bankIn,
+    sizeUnit,
+    h("span", { class: "lbl", text: "risk" }),
+    riskIn,
+    "%",
+    h("span", { class: "lbl", text: "stop" }),
+    stopIn,
+    "%",
+    sizeOut,
+  );
+
   const todayEl = h(
     "div",
     { class: "pane today" },
-    session,
+    h("div", { class: "line" }, session, sessionEnd),
     today,
     h("div", { class: "line" }, bar, barLabel),
     autoLine,
     logBar,
+    sizer,
     status,
   );
 
   // ── Journal ───────────────────────────────────────────────────────────────
   const chart = h("div", { class: "week-chart" });
+  // Every day of the last weeks, green or red by what it took.
+  const grid = h("div", { class: "day-grid" });
   const stats = h("div", { class: "line week-stats" });
   const recent = h("div", { class: "recent" });
   const exportBtn = btn("Export CSV", "secondary", () => void exportCsv());
@@ -100,7 +175,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const journalEl = h(
     "div",
     { class: "pane journal" },
-    chart,
+    h("div", { class: "journal-top" }, chart, grid),
     stats,
     recent,
     h("div", { class: "journal-foot" }, exportBtn, exportNote),
@@ -166,6 +241,26 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
       );
     }
 
+    // The grid: columns are weeks (Monday on top), the shade is the day's size
+    // next to the biggest day shown.
+    clear(grid);
+    const weeks = dayGrid(c.journal, GRID_WEEKS);
+    const biggest = Math.max(0.0001, ...weeks.flat().map((d) => Math.abs(d.pnl)));
+    for (const week of weeks) {
+      const col = h("div", { class: "wk" });
+      for (const d of week) {
+        const level = d.count === 0 ? 0 : Math.max(1, Math.ceil((Math.abs(d.pnl) / biggest) * 4));
+        const tone = d.future ? "future" : d.count === 0 ? "none" : d.pnl > 0 ? "up" : d.pnl < 0 ? "down" : "even";
+        col.append(
+          h("i", {
+            class: `sq ${tone} l${level}`,
+            title: d.future ? "" : `${d.day}: ${d.count ? `${formatPnl(d.pnl, unitTxt)} · ${d.count} trade${d.count === 1 ? "" : "s"}` : "no trades"}`,
+          }),
+        );
+      }
+      grid.append(col);
+    }
+
     clear(stats);
     stats.append(
       "7 days: ",
@@ -195,6 +290,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
           { class: "j-row" },
           h("span", { class: "j-when", text: when }),
           h("span", { class: `j-pnl ${e.pnl > 0 ? "up" : e.pnl < 0 ? "down" : ""}`, text: formatPnl(e.pnl, unitTxt) }),
+          e.plan ? h("span", { class: `j-plan ${e.plan}`, text: PLAN_MARK[e.plan], title: PLAN_WORDS[e.plan] }) : null,
           noteSpan,
         ),
       );
@@ -236,6 +332,26 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
       }
     },
   });
+  // Share my week: this week so far, as a 9:16 story.
+  const shareWeekLink = h("a", {
+    class: "share",
+    text: "my week",
+    title: "This week so far as a story image (9:16), copied for Instagram, TikTok or Telegram",
+    onclick: async () => {
+      if (sharing) return;
+      sharing = true;
+      shareNote.textContent = "Drawing…";
+      try {
+        shareNote.textContent = await actions.shareWeek(weekRange(new Date(), "this"), "story");
+        actions.blip();
+      } catch (err) {
+        shareNote.textContent = `Couldn't make the image: ${err instanceof Error ? err.message : String(err)}`;
+      } finally {
+        sharing = false;
+        window.setTimeout(() => (shareNote.textContent = ""), 4000);
+      }
+    },
+  });
   const moneyToggle = h("a", {
     class: "money",
     title: "Show or hide amounts on the image (signs and % stay)",
@@ -258,10 +374,22 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
       { class: "foot" },
       shareNote,
       shareLink,
+      " · ",
+      shareWeekLink,
       " ",
       moneyToggle,
       " · Your rules. ",
       h("a", { onclick: () => actions.openSettings(), text: "Edit" }),
+      " · ",
+      h("a", {
+        text: "Turn off",
+        title: "Hides this tab and stops every reminder; Settings → Discipline turns it back on. Trades are still kept.",
+        onclick: () => {
+          actions.blip();
+          Companion.setDiscipline(false);
+          actions.setView("watchlist");
+        },
+      }),
     ),
   );
 
@@ -276,7 +404,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
 
     const c = State.companion;
     if (State.journalOpen) {
-      const k = c.journal.map((e) => `${e.id}${e.note}`).join("|") + c.discipline.unit;
+      const k = c.journal.map((e) => `${e.id}${e.note}`).join("|") + c.discipline.unit + todayKey();
       // Never re-render under an open note editor.
       if (k !== journalKey && !journalEl.querySelector(".note-edit")) {
         journalKey = k;
@@ -291,6 +419,11 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     session.textContent =
       `Session: ${formatDuration(now - State.sessionStart)}` +
       (brk == null ? " · breaks off" : brk > 0 ? ` · next break in ${formatDuration(brk)}` : " · break time");
+    paintSessionEnd();
+    const sizing = c.sizing;
+    if (document.activeElement !== bankIn) bankIn.value = sizing.bank > 0 ? String(sizing.bank) : "";
+    if (document.activeElement !== riskIn) riskIn.value = String(sizing.riskPct);
+    paintSize();
 
     const s = summarize(currentLog(c.log));
     clear(today);

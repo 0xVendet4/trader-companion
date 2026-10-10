@@ -20,8 +20,12 @@ export const ICONS = {
   // chevron.right
   chevronRight: "M9 5.5 15.5 12 9 18.5",
   chevronLeft: "M15 5.5 8.5 12 15 18.5",
+  // chevron.up (stroke)
+  chevronUp: "M5.5 15 12 8.5 18.5 15",
   // checkmark
   check: "M5 12.5 9.5 17 19 7.5",
+  // magnifyingglass (stroke)
+  search: "M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM15 15l5 5",
   // arrow.up (send)
   arrowUp: "M12 4.5 5.5 11l1.5 1.5 4-4V19.5h2V8.5l4 4L18.5 11 12 4.5z",
   // exclamationmark
@@ -81,4 +85,18 @@ export const ICONS = {
   starOutline: "M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z",
   // pencil (stroke)
   pencil: "M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4",
+  // music.note (fill)
+  note: "M9 17.5V6.2l10-2.2v11.3a2.6 2.6 0 1 1-1.8-2.5V7.4L10.8 8.8v8.7a2.6 2.6 0 1 1-1.8-2.5z",
+  // play.fill
+  play: "M7 4.5v15l12.5-7.5L7 4.5z",
+  // pause.fill
+  pause: "M6.5 4.5h4v15h-4zm7 0h4v15h-4z",
+  // forward.end.fill
+  next: "M5 5v14l10-7L5 5zm11 0h2.5v14H16z",
+  // backward.end.fill
+  previous: "M19 5v14L9 12l10-7zM8 5H5.5v14H8z",
+  // shuffle (stroke)
+  shuffle: "M3.5 7h3.6c2 0 3.2 1 4.3 2.7l2.2 3.6c1 1.7 2.3 2.7 4.3 2.7h2.6M3.5 17h3.6c1.5 0 2.6-.6 3.5-1.6M14.6 8.6c.9-1 2-1.6 3.5-1.6h2.4M18 4.5l2.5 2.5L18 9.5M18 14.5l2.5 2.5-2.5 2.5",
+  // repeat (stroke)
+  repeat: "M4.5 11V9.5a3 3 0 0 1 3-3h11.5M16.5 4l2.5 2.5L16.5 9M19.5 13v1.5a3 3 0 0 1-3 3H5M7.5 20 5 17.5 7.5 15",
 } as const;

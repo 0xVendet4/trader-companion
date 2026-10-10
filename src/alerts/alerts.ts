@@ -236,3 +236,71 @@ export function pushSample(list: Sample[], sample: Sample): Sample[] {
   kept.push(sample);
   return kept;
 }
+
+// ── Volume surges ─────────────────────────────────────────────────────────────
+
+/** A token's volume alert stays quiet this long after it fired. */
+export const VOLUME_ALERT_COOLDOWN_MS = 30 * 60_000;
+/** Five minutes with less volume than this never count: dust. */
+export const VOLUME_ALERT_MIN_USD = 10_000;
+
+/**
+ * The last 5 minutes' volume against the other eleven 5-minute slots of the
+ * hour, as a multiple. Null for a major coin (no short-frame volume), for
+ * dust, and when the rest of the hour had nothing to compare with.
+ */
+export function volumeSurge(q: Quote, minUsd = VOLUME_ALERT_MIN_USD): number | null {
+  if (q.major) return null;
+  const rest = q.volume.h1 - q.volume.m5;
+  if (!(rest > 0) || q.volume.m5 < minUsd) return null;
+  return q.volume.m5 / (rest / 11);
+}
+
+export interface VolumeFiring {
+  token: WatchToken;
+  ratio: number;
+  title: string;
+  detail: string;
+  tone: EventTone;
+}
+
+/**
+ * The watchlist tokens whose 5-minute volume runs `times` the hour's pace or
+ * more, each at most once per VOLUME_ALERT_COOLDOWN_MS (`last` remembers when,
+ * by key, and is updated). `times` 0 turns them off.
+ */
+export function volumeAlerts(
+  tokens: WatchToken[],
+  quotes: Record<string, Quote>,
+  times: number,
+  last: Map<string, number>,
+  now: number,
+): VolumeFiring[] {
+  if (!(times > 0)) return [];
+  const out: VolumeFiring[] = [];
+  for (const token of tokens) {
+    const q = quotes[token.key];
+    const ratio = q ? volumeSurge(q) : null;
+    if (!q || ratio == null || ratio < times) continue;
+    if (now - (last.get(token.key) ?? 0) < VOLUME_ALERT_COOLDOWN_MS) continue;
+    last.set(token.key, now);
+    out.push({
+      token,
+      ratio,
+      title: `${token.symbol} volume ${Math.round(ratio)}x the hour's pace`,
+      detail: `${formatUsd(q.volume.m5)} traded in 5 min (${formatUsd(q.volume.h1)} in the hour) · price ${formatPct(q.change.m5)} in 5 min`,
+      tone: q.change.m5 < 0 ? "down" : "up",
+    });
+  }
+  return out;
+}
+
+/** A token's alerts silenced until a time (the alert card's "Mute 1 h"). */
+export function isMuted(muted: Record<string, number>, key: string, now: number): boolean {
+  return (muted[key] ?? 0) > now;
+}
+
+/** The mutes still running: the rest are dropped so the saved list stays short. */
+export function liveMutes(muted: Record<string, number>, now: number): Record<string, number> {
+  return Object.fromEntries(Object.entries(muted).filter(([, until]) => typeof until === "number" && until > now));
+}

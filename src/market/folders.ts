@@ -39,3 +39,20 @@ export function normalizeFolders(
     active: typeof active === "string" && folders.includes(active) ? active : "",
   };
 }
+
+/** How a folder moved: the average 1-hour change of its priced tokens, and the mini Candy's colour for it. */
+export interface FolderMood {
+  pct: number | null;
+  tone: "up" | "down" | "flat";
+  count: number;
+}
+
+/** Within ±1% in the hour, a folder reads flat. */
+const FLAT_PCT = 1;
+
+export function folderMood(tokens: WatchToken[], quotes: Record<string, { change: { h1: number } } | undefined>): FolderMood {
+  const moves = tokens.map((t) => quotes[t.key]?.change.h1).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  if (!moves.length) return { pct: null, tone: "flat", count: 0 };
+  const pct = moves.reduce((s, v) => s + v, 0) / moves.length;
+  return { pct, tone: pct >= FLAT_PCT ? "up" : pct <= -FLAT_PCT ? "down" : "flat", count: moves.length };
+}

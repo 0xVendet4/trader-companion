@@ -7,7 +7,7 @@ import { matches } from "./core/hotkey";
 import { parseShared, shareText } from "./core/share";
 import { journalCsv, weekStats } from "./discipline/discipline";
 import { toSafety } from "./market/safety";
-import { sparkPath, sparkSeries } from "./market/sparkline";
+import { relativeStrength, sparkPair, sparkPath, sparkSeries } from "./market/sparkline";
 import { computeMood } from "./mood/mood";
 import { diffHoldings } from "./wallets/wallets";
 
@@ -110,7 +110,7 @@ describe("journal", () => {
   it("exports CSV that a spreadsheet cannot turn into a formula", () => {
     const csv = journalCsv([at(1, -1, '=HYPERLINK("x")'), at(0, 0.5, "good, clean")], "SOL");
     const lines = csv.trim().split("\n");
-    expect(lines[0]).toBe("date,time,pnl,unit,note");
+    expect(lines[0]).toBe("date,time,pnl,unit,note,plan");
     expect(lines[1]).toContain(`"'=HYPERLINK(""x"")"`);
     expect(lines[2]).toContain(`"good, clean"`);
   });
@@ -186,5 +186,25 @@ describe("following is an option", () => {
     expect(normalizeSettings({ companion: { wallets: [w(false)] } } as never).companion.following).toBe(true);
     expect(normalizeSettings({ companion: { wallets: [w(true)] } } as never).companion.following).toBe(false);
     expect(normalizeSettings({ companion: { wallets: [w(false)], following: false } } as never).companion.following).toBe(false);
+  });
+});
+
+describe("relative strength", () => {
+  it("measures a token against its chain's coin", () => {
+    expect(relativeStrength(10, 10)).toBeCloseTo(0);
+    expect(relativeStrength(32, 10)).toBeCloseTo(20);
+    expect(relativeStrength(-5, 5)).toBeCloseTo(-9.52, 1);
+    expect(relativeStrength(5, -100)).toBeNull();
+  });
+
+  it("draws the token and the coin on one % scale", () => {
+    const pts = (a: number, b: number) => [{ age: 86_400_000, price: a }, { age: 0, price: b }];
+    const pair = sparkPair(pts(1, 2), pts(100, 110), 56, 18)!;
+    expect(pair.up).toBe(true);
+    // Both start at 0%: the same left point.
+    expect(pair.token.split(" ")[0]).toBe(pair.coin.split(" ")[0]);
+    // +100% ends at the top, +10% near the bottom.
+    expect(Number(pair.token.split(" ")[1].split(",")[1])).toBeLessThan(Number(pair.coin.split(" ")[1].split(",")[1]));
+    expect(sparkPair(pts(1, 2).slice(0, 1), pts(1, 2), 56, 18)).toBeNull();
   });
 });

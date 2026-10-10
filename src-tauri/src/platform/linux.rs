@@ -17,14 +17,20 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 
+use dbus::arg::{ArgType, RefArg};
+use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
+use dbus::blocking::Connection;
+use dbus::message::MessageType;
 use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
-use tauri::WebviewWindow;
+use tauri::{AppHandle, WebviewWindow};
 
 use super::{LocalTime, Region};
+use crate::music::{self, MprisValue, MusicListener, MusicUpdate, NowPlaying};
 
 // ── Files ─────────────────────────────────────────────────────────────────────
 
@@ -98,6 +104,264 @@ pub fn open_url(url: &str) {
     let _ = Command::new("xdg-open").arg(url).spawn();
 }
 
+/// Shows a folder of the app's own (the sounds folder) in the file manager.
+pub fn reveal_folder(path: &str) {
+    let _ = Command::new("xdg-open").arg(path).spawn();
+}
+
+// ── Clipboard ─────────────────────────────────────────────────────────────────
+
+/// Longer than any token link: more is not what the paste shortcut is for.
+const CLIPBOARD_MAX: usize = 2048;
+
+/// The clipboard's text for the paste shortcut, asked of GTK on its own thread
+/// (never logged: it is whatever the user last copied). Under native Wayland
+/// an unfocused surface is given nothing, so it is None there; XWayland and
+/// X11 answer.
+pub fn clipboard_text(app: &AppHandle) -> Option<String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let text = gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD)
+            .wait_for_text()
+            .map(|t| t.to_string());
+        let _ = tx.send(text);
+    })
+    .ok()?;
+    rx.recv_timeout(Duration::from_millis(1500))
+        .ok()
+        .flatten()
+        .filter(|t| t.len() <= CLIPBOARD_MAX)
+}
+
+// ── Desktop Candy window ──────────────────────────────────────────────────────
+
+/// On X11 (GNOME through XWayland too) a window can be placed anywhere; on
+/// native Wayland it cannot, so Candy stays in the island there.
+pub fn desktop_mode() -> super::DesktopMode {
+    let x11 = std::env::var("GDK_BACKEND").map(|v| v == "x11").unwrap_or(false)
+        || std::env::var("XDG_SESSION_TYPE").map(|v| v == "x11").unwrap_or(false);
+    if x11 {
+        super::DesktopMode::Window
+    } else {
+        super::DesktopMode::Off
+    }
+}
+
+/// An ordinary always-on-top window that refuses focus (the island's non-layer path).
+pub fn prepare_desktop_window(win: &WebviewWindow) -> bool {
+    let Ok(gw) = win.gtk_window() else { return false };
+    gw.set_accept_focus(false);
+    true
+}
+
+/// Which part of the desktop window takes the mouse: nothing, all of it, or
+/// Candy's body (window-logical px). Runs on the main thread.
+pub fn set_desktop_shape(win: &WebviewWindow, shape: super::MouseShape) {
+    let Ok(gw) = win.gtk_window() else { return };
+    let region: Region = match shape {
+        super::MouseShape::Empty => Some((0.0, 0.0, 0.0, 0.0)),
+        super::MouseShape::Whole => None,
+        super::MouseShape::Rect { x, y, w, h } => Some((x, y, w, h)),
+    };
+    apply_input_region(&gw, region);
+}
+
+// ── Music ─────────────────────────────────────────────────────────────────────
+
+/// Bumped on every start and stop: a listener from an older one quits.
+static MEDIA_GENERATION: AtomicU64 = AtomicU64::new(0);
+static MEDIA_ON: AtomicBool = AtomicBool::new(false);
+/// The player the card shows (its bus name) and what it plays, for the buttons.
+static MEDIA_CURRENT: Mutex<Option<(String, NowPlaying)>> = Mutex::new(None);
+
+const MPRIS_PREFIX: &str = "org.mpris.MediaPlayer2.";
+const MPRIS_PATH: &str = "/org/mpris/MediaPlayer2";
+const MPRIS_PLAYER: &str = "org.mpris.MediaPlayer2.Player";
+/// A call to a player never holds anything up for longer.
+const BUS_CALL: Duration = Duration::from_millis(1500);
+/// The listener sleeps on the bus; it wakes this often only to notice it was turned off.
+const BUS_NAP: Duration = Duration::from_secs(60);
+/// Players coming and going, any player's playback or track changing, and seeks.
+const MPRIS_RULES: [&str; 3] = [
+    "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0namespace='org.mpris.MediaPlayer2'",
+    "type='signal',path='/org/mpris/MediaPlayer2',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.mpris.MediaPlayer2.Player'",
+    "type='signal',path='/org/mpris/MediaPlayer2',interface='org.mpris.MediaPlayer2.Player',member='Seeked'",
+];
+
+/// Starts or stops watching the media players on the session bus (MPRIS: any
+/// player, a browser with a video…) for the music card and the dance. Nothing
+/// polls: one thread sleeps on the bus and wakes for the players' own signals;
+/// `listener` hears only what changed. Adapted from Coucou's spotify.rs (MIT,
+/// © Louis Raillé), for any player instead of Spotify alone.
+pub fn media_watch(on: bool, listener: MusicListener) {
+    let generation = MEDIA_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+    MEDIA_ON.store(on, Ordering::Relaxed);
+    if !on {
+        *MEDIA_CURRENT.lock().unwrap() = None;
+        return;
+    }
+    let spawned = std::thread::Builder::new()
+        .name("candy-music".into())
+        .spawn(move || listen(generation, listener));
+    if let Err(err) = spawned {
+        crate::log::line(format!("music: no listener thread: {err}"));
+    }
+}
+
+fn listen(generation: u64, listener: MusicListener) {
+    let conn = match Connection::new_session() {
+        Ok(c) => c,
+        Err(err) => {
+            crate::log::line(format!("music: no session bus: {err}"));
+            return;
+        }
+    };
+    for rule in MPRIS_RULES {
+        if let Err(err) = conn.add_match_no_cb(rule) {
+            crate::log::line(format!("music: match refused: {err}"));
+        }
+    }
+    let current = || MEDIA_ON.load(Ordering::Relaxed) && MEDIA_GENERATION.load(Ordering::Relaxed) == generation;
+    let mut last: Option<NowPlaying> = None;
+    let mut last_art = String::new();
+    report(&conn, &listener, &mut last, &mut last_art);
+    while current() {
+        match conn.channel().blocking_pop_message(BUS_NAP) {
+            Ok(Some(msg)) => {
+                if msg.msg_type() == MessageType::Signal && current() {
+                    report(&conn, &listener, &mut last, &mut last_art);
+                }
+            }
+            Ok(None) => {}
+            Err(err) => {
+                crate::log::line(format!("music: bus lost: {err}"));
+                break;
+            }
+        }
+    }
+}
+
+/// Reads the player in front and tells the page what changed.
+fn report(conn: &Connection, listener: &MusicListener, last: &mut Option<NowPlaying>, last_art: &mut String) {
+    let found = front_player(conn);
+    *MEDIA_CURRENT.lock().unwrap() = found.as_ref().map(|(bus, np, _)| (bus.clone(), np.clone()));
+    let now = found.as_ref().map(|(_, np, _)| np.clone());
+    if music::differs(last.as_ref(), now.as_ref(), music::now_ms()) {
+        listener(MusicUpdate::Playing(now.clone()));
+    }
+    if let Some((_, np, art)) = &found {
+        if &np.art_key != last_art {
+            *last_art = np.art_key.clone();
+            if let Some(url) = art.as_deref().and_then(read_art) {
+                listener(MusicUpdate::Art { key: np.art_key.clone(), url });
+            }
+        }
+    }
+    *last = now;
+}
+
+/// The player playing, else the first one paused: its bus name, what it
+/// plays, and its cover's file when it has one on disk.
+fn front_player(conn: &Connection) -> Option<(String, NowPlaying, Option<String>)> {
+    let bus = conn.with_proxy("org.freedesktop.DBus", "/org/freedesktop/DBus", BUS_CALL);
+    let (names,): (Vec<String>,) = bus.method_call("org.freedesktop.DBus", "ListNames", ()).ok()?;
+    let now = music::now_ms();
+    let mut paused = None;
+    for name in names.iter().filter(|n| n.starts_with(MPRIS_PREFIX)) {
+        let player = conn.with_proxy(name.as_str(), MPRIS_PATH, BUS_CALL);
+        let Ok(map) = player.get_all(MPRIS_PLAYER) else { continue };
+        let props: Vec<(String, MprisValue)> = map.iter().map(|(k, v)| (k.clone(), mpris_value(&v.0))).collect();
+        let Some(np) = music::from_mpris(name, &props, now) else { continue };
+        let art = music::mpris_art_path(&props);
+        if np.playing {
+            return Some((name.clone(), np, art));
+        }
+        if paused.is_none() {
+            paused = Some((name.clone(), np, art));
+        }
+    }
+    paused
+}
+
+/// A D-Bus value as MPRIS uses it (Coucou's value_of).
+fn mpris_value(arg: &dyn RefArg) -> MprisValue {
+    match arg.arg_type() {
+        ArgType::Variant => arg.as_iter().and_then(|mut it| it.next().map(mpris_value)).unwrap_or(MprisValue::Other),
+        ArgType::String | ArgType::ObjectPath | ArgType::Signature => {
+            arg.as_str().map(|s| MprisValue::Str(s.to_string())).unwrap_or(MprisValue::Other)
+        }
+        ArgType::Boolean => arg.as_i64().map(|n| MprisValue::Bool(n != 0)).unwrap_or(MprisValue::Other),
+        ArgType::Double => arg.as_f64().map(MprisValue::Float).unwrap_or(MprisValue::Other),
+        ArgType::UInt64 => arg.as_u64().map(|n| MprisValue::Int(n.min(i64::MAX as u64) as i64)).unwrap_or(MprisValue::Other),
+        ArgType::Byte | ArgType::Int16 | ArgType::UInt16 | ArgType::Int32 | ArgType::UInt32 | ArgType::Int64 => {
+            arg.as_i64().map(MprisValue::Int).unwrap_or(MprisValue::Other)
+        }
+        ArgType::Array => {
+            let Some(mut items) = arg.as_iter() else { return MprisValue::Other };
+            if arg.signature().starts_with("a{") {
+                let mut map = Vec::new();
+                while let (Some(k), Some(v)) = (items.next(), items.next()) {
+                    if let Some(key) = k.as_str() {
+                        map.push((key.to_string(), mpris_value(v)));
+                    }
+                }
+                MprisValue::Map(map)
+            } else {
+                MprisValue::Strs(
+                    items
+                        .filter_map(|v| match mpris_value(v) {
+                            MprisValue::Str(s) => Some(s),
+                            _ => None,
+                        })
+                        .collect(),
+                )
+            }
+        }
+        _ => MprisValue::Other,
+    }
+}
+
+/// A cover from disk, as a data URL.
+fn read_art(path: &str) -> Option<String> {
+    let mime = music::image_mime(path)?;
+    let meta = std::fs::metadata(path).ok()?;
+    if !meta.is_file() || meta.len() as usize > music::ART_MAX {
+        return None;
+    }
+    music::image_data_url(mime, &std::fs::read(path).ok()?)
+}
+
+/// A button on the music card: play/pause, next, previous, seek (seconds),
+/// shuffle and repeat (1 on, 0 off), volume (0–1).
+pub fn media_control(action: &str, value: Option<f64>) -> bool {
+    let Some((bus, np)) = MEDIA_CURRENT.lock().unwrap().clone() else { return false };
+    let Ok(conn) = Connection::new_session() else { return false };
+    let p = conn.with_proxy(bus.as_str(), MPRIS_PATH, BUS_CALL);
+    let v = value.unwrap_or(0.0);
+    let done: Result<(), dbus::Error> = match action {
+        "playPause" => p.method_call(MPRIS_PLAYER, "PlayPause", ()),
+        "next" => p.method_call(MPRIS_PLAYER, "Next", ()),
+        "previous" => p.method_call(MPRIS_PLAYER, "Previous", ()),
+        "seek" => {
+            let target = (v.max(0.0) * 1_000_000.0) as i64;
+            match dbus::Path::new(np.track_path.clone()) {
+                Ok(path) => p.method_call(MPRIS_PLAYER, "SetPosition", (path, target)),
+                // No track id: seek by the difference from where it is now.
+                Err(_) => {
+                    let ran = if np.playing { (music::now_ms() - np.position_at).max(0.0) / 1000.0 } else { 0.0 };
+                    let from = ((np.position + ran) * 1_000_000.0) as i64;
+                    p.method_call(MPRIS_PLAYER, "Seek", (target - from,))
+                }
+            }
+        }
+        "shuffle" => p.set(MPRIS_PLAYER, "Shuffle", v != 0.0),
+        "repeat" => p.set(MPRIS_PLAYER, "LoopStatus", if v != 0.0 { "Playlist" } else { "None" }),
+        "volume" => p.set(MPRIS_PLAYER, "Volume", v.clamp(0.0, 1.0)),
+        _ => return false,
+    };
+    done.is_ok()
+}
+
 // ── Cursor ────────────────────────────────────────────────────────────────────
 
 /// Nothing polls the cursor here: the page reports it over the island, and the
@@ -114,6 +378,36 @@ pub fn left_button_down() -> bool {
 
 pub fn ctrl_down() -> bool {
     false
+}
+
+// ── Keyboard and account ──────────────────────────────────────────────────────
+
+/// No portable way to ask: alerts never wait for a fullscreen app here.
+pub fn fullscreen_busy() -> bool {
+    false
+}
+
+/// Ctrl+Alt is not AltGr on Linux: a Ctrl+Alt shortcut types nothing.
+pub fn ctrl_alt_types(_vk: u16, _shift: bool) -> Option<String> {
+    None
+}
+
+/// The account's full name: the first field of the passwd GECOS entry
+/// ("Chris Silva,,,"), or nothing when it is unset. From Coucou's
+/// platform/linux.rs.
+pub fn user_full_name() -> Option<String> {
+    unsafe {
+        let mut pwd: libc::passwd = std::mem::zeroed();
+        let mut result: *mut libc::passwd = std::ptr::null_mut();
+        let mut buf = vec![0 as libc::c_char; 16 * 1024];
+        let rc = libc::getpwuid_r(libc::getuid(), &mut pwd, buf.as_mut_ptr(), buf.len(), &mut result);
+        if rc != 0 || result.is_null() || pwd.pw_gecos.is_null() {
+            return None;
+        }
+        let gecos = std::ffi::CStr::from_ptr(pwd.pw_gecos).to_string_lossy().into_owned();
+        let name = gecos.split(',').next().unwrap_or("").trim().to_string();
+        (!name.is_empty()).then_some(name)
+    }
 }
 
 // ── Island window ─────────────────────────────────────────────────────────────

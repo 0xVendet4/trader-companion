@@ -4,9 +4,10 @@
 
 import "./settings.css";
 import { describeRule } from "../alerts/alerts";
-import { Bridge, IS_TAURI, onSettingsChanged } from "../core/bridge";
+import { Bridge, IS_TAURI, emitToWindow, onEvent, onSettingsChanged } from "../core/bridge";
+import { SOUND_NAMES, Sound, soundFile, type SoundName } from "../core/sound";
 import { shortAddress } from "../core/format";
-import { HOTKEY_CHOICES } from "../core/hotkey";
+import { SHORTCUTS, keysLabel, recordPress, shortcutKeys, statusLabel, twice, type ShortcutId, type ShortcutStatus } from "../core/shortcuts";
 import { ISLAND_THEMES } from "../core/themes";
 import { APP_NAME } from "../core/brand";
 import { enableNotifications, notify } from "../core/notify";
@@ -18,6 +19,7 @@ import {
   OFFERED_COSTUMES,
   State,
   THEME_IDS,
+  VOLUME_ALERT_CHOICES,
   normalizeSettings,
   validRpcUrl,
   type Costume,
@@ -218,10 +220,41 @@ function watchlistSection(): HTMLElement {
     list,
     h("div", { class: "add" }, input, add),
     note,
+    row(
+      "Checklist when a token is added",
+      toggle(() => settings.companion.addChecklist, (v) => (settings.companion.addChecklist = v)),
+      "Candy goes over mint and freeze authority, locked liquidity, top holders, age and real liquidity, one by one, with what RugCheck and DexScreener say, and sums it up.",
+    ),
+    row(
+      "Mini charts against the chain's coin",
+      toggle(() => settings.companion.relativeStrength, (v) => (settings.companion.relativeStrength = v)),
+      "SOL (or BNB, ETH) as a faint dashed line under each token's 24 h line: did it rise alone or with the market? Hover for the numbers.",
+    ),
+    row(
+      "Pasted or dropped: open it too",
+      toggle(() => settings.companion.pasteOpens, (v) => (settings.companion.pasteOpens = v)),
+      "A token you paste with the shortcut or drop on Candy also opens on your terminal.",
+    ),
     h("p", { class: "sub", text: "Folders (pick one on the island; move a token with the folder button on its row)" }),
     foldersEditor(),
   );
 }
+
+/** Sounds that make sense for an alert, for a folder's own. */
+const ALERT_SOUND_CHOICES: [string, string][] = (
+  [
+    ["alertUp", "Chime up"],
+    ["alertDown", "Chime down"],
+    ["warn", "Warning"],
+    ["reminder", "Reminder"],
+    ["tada", "Ta-da"],
+    ["pop", "Pop"],
+    ["boing", "Boing"],
+    ["whee", "Whee"],
+    ["eep", "Eep"],
+    ["hmm", "Hmm"],
+  ] as [string, string][]
+).filter(([n]) => (SOUND_NAMES as readonly string[]).includes(n));
 
 /** Rename or delete the watchlist's folders, or add one. */
 function foldersEditor(): HTMLElement {
@@ -314,10 +347,47 @@ function alertsSection(): HTMLElement {
   };
   paintAlerts();
   refreshers.push(() => paintAlerts());
+  // A sound per folder: Runners and Holds don't have to sound the same.
+  const folderSounds = h("div", { class: "folder-sounds" });
+  const soundChoices: [string, string][] = [["", "Usual"], ...ALERT_SOUND_CHOICES];
+  let foldersShown = "";
+  const paintFolderSounds = () => {
+    const folders = settings.companion.folders;
+    if (folders.join("|") === foldersShown) return;
+    foldersShown = folders.join("|");
+    clear(folderSounds);
+    for (const f of folders) {
+      const pick = select<string>(soundChoices, () => settings.companion.folderSounds[f] ?? "", (v) => {
+        if (v) settings.companion.folderSounds[f] = v;
+        else delete settings.companion.folderSounds[f];
+        Sound.setEnabled(true);
+        if (v) Sound.play(v as SoundName);
+      });
+      folderSounds.append(row(`Alert sound: ${f}`, pick));
+    }
+  };
+  paintFolderSounds();
+  refreshers.push(paintFolderSounds);
+
   return section(
     "Alerts",
-    "They fire when the condition becomes true, and re-arm once it stops being true.",
+    "They fire when the condition becomes true, and re-arm once it stops being true. An alert card's Mute 1 h silences that token for an hour.",
     list,
+    row(
+      "Volume surges",
+      select<number>(
+        VOLUME_ALERT_CHOICES.map((x): [number, string] => [x, x ? `At ${x}x the hour's pace` : "Off"]),
+        () => settings.companion.volumeAlertX,
+        (v) => (settings.companion.volumeAlertX = v),
+      ),
+      "An alert when a watched token's 5-minute volume runs that many times the rest of its hour (at least $10K, once per 30 min).",
+    ),
+    row(
+      "Graduations",
+      toggle(() => settings.companion.graduationAlert, (v) => (settings.companion.graduationAlert = v)),
+      "An alert when a watched token leaves pump.fun's curve (or another launchpad's) for a DEX pool.",
+    ),
+    folderSounds,
   );
 }
 
@@ -328,6 +398,11 @@ function disciplineSection(): HTMLElement {
   return section(
     "Discipline",
     "Your rules. The mascot only reminds you. Use 0 to turn any of them off.",
+    row(
+      "Discipline",
+      toggle(() => settings.companion.disciplineOn, (v) => (settings.companion.disciplineOn = v)),
+      "Off: no Discipline tab, no day pill, no breaks, limits, cooldowns, check-ins or Monday recap. Your trades are still kept for when you turn it back on.",
+    ),
     row("Break every", h("span", { class: "with-unit" }, number(() => d().breakEveryMin, (v) => (d().breakEveryMin = v), 0, 600, 5), "min")),
     row(
       "Daily loss limit",
@@ -342,9 +417,20 @@ function disciplineSection(): HTMLElement {
     row("Max trades per day", number(() => d().maxTradesPerDay, (v) => (d().maxTradesPerDay = v), 0, 500)),
     row("Cooldown after a loss", h("span", { class: "with-unit" }, number(() => d().cooldownMin, (v) => (d().cooldownMin = v), 0, 240), "min")),
     row(
+      "Tilt: losses in a row",
+      number(() => d().tiltLosses, (v) => (d().tiltLosses = v), 0, 10),
+      "A streak of losing trades asks for a longer break than a single loss.",
+    ),
+    row("Break after a tilt", h("span", { class: "with-unit" }, number(() => d().tiltBreakMin, (v) => (d().tiltBreakMin = v), 5, 480, 5), "min")),
+    row(
       "Count my wallet's trades",
       toggle(() => settings.companion.autoJournal, (v) => (settings.companion.autoJournal = v)),
       "With your wallet set, today's trades follow it by themselves: a part sold adds its profit, a closed position is a trade (and a journal line), and both count for these rules.",
+    ),
+    row(
+      "Check in after a trade",
+      toggle(() => settings.companion.checkIn, (v) => (settings.companion.checkIn = v)),
+      "When a trade closes: did you follow your plan? Yes, partly or no goes into the journal, and into the Monday recap.",
     ),
   );
 }
@@ -379,7 +465,29 @@ function terminalSection(): HTMLElement {
   };
   paint();
   refreshers.push(paint);
-  return section("Terminal", "Where a token opens when you click it. GMGN links carry the developer's referral code.", group, axiomInvite);
+  return section("Terminal", "Where a token opens when you click it. GMGN and Based Bot links carry the developer's referral code.", group, axiomInvite);
+}
+
+/** The sounds folder: the trader's own recordings, named after Candy's sounds, play instead of them. */
+function ownSoundsRow(): HTMLElement {
+  const count = h("span", { class: "note" });
+  const refresh = async () => {
+    const n = (await Bridge.customSounds(SOUND_NAMES.map(soundFile)))?.length ?? 0;
+    count.textContent = n ? `${n} of yours in use` : "none of yours yet";
+  };
+  const open = h("button", { class: "btn", type: "button", text: "Open sounds folder" });
+  open.addEventListener("click", () => void Bridge.revealSoundsFolder());
+  const reload = h("button", { class: "btn", type: "button", text: "Reload" });
+  reload.addEventListener("click", async () => {
+    await Bridge.reloadSounds();
+    await refresh();
+  });
+  void refresh();
+  return row(
+    "Your own sounds",
+    h("span", { class: "with-unit" }, open, reload, count),
+    `A file named after a sound (${SOUND_NAMES.slice(0, 3).map(soundFile).join(", ")}, alert-up, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.`,
+  );
 }
 
 function generalSection(): HTMLElement {
@@ -412,9 +520,15 @@ function generalSection(): HTMLElement {
     ),
     row("Refresh prices every", select<number>([[10, "10 s"], [15, "15 s"], [20, "20 s"], [30, "30 s"], [60, "1 min"]], () => settings.companion.pollSeconds, (v) => (settings.companion.pollSeconds = v))),
     row("Keep the ticker on screen", toggle(() => settings.companion.keepTickerVisible, (v) => (settings.companion.keepTickerVisible = v)), "When off, the island hides after a minute and comes back when the mouse touches its edge of the screen." + (State.cursorPoll ? " Hold Ctrl over the island to click what is behind it." : "")),
+    row("Open on hover", toggle(() => settings.companion.openOnHover, (v) => (settings.companion.openOnHover = v)), "Resting the pointer on the ticker opens the island, and it folds again soon after the pointer leaves. Click inside to keep it open."),
+    row("Keep alert cards", toggle(() => settings.companion.stickyAlerts, (v) => (settings.companion.stickyAlerts = v)), "An alert card stays open until you look at it (OK), or fold it for later with its ⌃."),
+    !IS_TAURI || State.os !== "windows"
+      ? null
+      : row("Quiet in fullscreen", toggle(() => settings.companion.fullscreenQuiet, (v) => (settings.companion.fullscreenQuiet = v)), "While a game, a video or a presentation fills the screen, alert cards and their sounds wait, and show once it is over."),
     row("Close the island after", select<number>([[8, "8 s"], [15, "15 s"], [30, "30 s"], [60, "1 min"]], () => settings.autoCloseInterval, (v) => (settings.autoCloseInterval = v))),
     row("Sounds", toggle(() => settings.soundEnabled, (v) => (settings.soundEnabled = v))),
     row("Volume", volume),
+    !IS_TAURI ? null : ownSoundsRow(),
     !State.cursorPoll ? null : row("Screen", select<"primary" | "cursor">([["primary", "Main screen"], ["cursor", "Where the mouse is"]], () => settings.screen, (v) => (settings.screen = v))),
     row(State.os === "windows" || !IS_TAURI ? "Start with Windows" : "Start when you log in", toggle(() => settings.autostart, (v) => (settings.autostart = v))),
     rpcRow(),
@@ -884,12 +998,14 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     row("BTC and Fear & Greed", toggle(() => settings.companion.headerMarket, (v) => (settings.companion.headerMarket = v)), "In the island's header, next to your chains' coins."),
     row("Seasonal looks", toggle(() => settings.companion.seasonal, (v) => (settings.companion.seasonal = v)), "A Santa hat in December, a pumpkin at Halloween, a party hat at New Year, heart glasses on Valentine's Day. Your own look comes back after."),
     row("Lively", toggle(() => settings.companion.lively, (v) => (settings.companion.lively = v)), "Candy's eyes follow your mouse, and it fidgets now and then."),
+    row("Music card", toggle(() => settings.companion.musicCard, (v) => (settings.companion.musicCard = v)), IS_TAURI ? "What plays on this PC (Spotify, a browser video…) gets a Music tab in the island: cover, progress, play, pause, next." : "In the app only."),
+    row("Dance when music plays", toggle(() => settings.companion.danceToMusic, (v) => (settings.companion.danceToMusic = v)), IS_TAURI ? "Candy bobs along while the island is on screen, folded or open." : "In the app only."),
     row("Doze off late at night", toggle(() => settings.companion.nightSleep, (v) => (settings.companion.nightSleep = v)), "From 1 to 6 am the mascot sleeps, unless something big moves."),
     row("React to SOL", toggle(() => settings.companion.reactToSol, (v) => (settings.companion.reactToSol = v)), "Happy or worried when SOL moves 3% in an hour."),
   );
 }
 
-// ── Notifications and shortcut ────────────────────────────────────────────────
+// ── Notifications and shortcuts ───────────────────────────────────────────────
 
 function notificationsSection(): HTMLElement {
   const note = h("span", { class: "note" });
@@ -919,7 +1035,7 @@ function notificationsSection(): HTMLElement {
   });
 
   return section(
-    "Notifications and shortcut",
+    "Notifications and shortcuts",
     null,
     row(
       "System notifications for alerts",
@@ -927,12 +1043,119 @@ function notificationsSection(): HTMLElement {
       !IS_TAURI ? "Browser notifications, while this page is open." : State.os === "windows" ? "Windows notifications reach you even over a fullscreen game or video." : "Your desktop's notifications, even while the island is hidden.",
     ),
     note,
-    row(
-      "Show / hide the island",
-      select<string>(HOTKEY_CHOICES, () => settings.companion.hotkey, (v) => (settings.companion.hotkey = v)),
-      !IS_TAURI ? "In the browser it only works while the page has focus." : State.os === "linux" ? "Works from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland)." : "Works from any app.",
-    ),
+    ...shortcutRows(),
   );
+}
+
+/**
+ * One row per global shortcut: its keys (click to record new ones), off, back
+ * to the default, and why it is not working when it is not. While a row
+ * records, the island lets go of every shortcut, so pressing one Candy holds
+ * records it instead of running it.
+ */
+function shortcutRows(): HTMLElement[] {
+  let status: Partial<Record<ShortcutId, ShortcutStatus>> = {};
+  let recording: ShortcutId | null = null;
+  const paints: (() => void)[] = [];
+
+  const keysOf = (id: ShortcutId) => shortcutKeys(settings.companion, id);
+  const setKeys = (id: ShortcutId, accel: string | null) => {
+    const c = settings.companion;
+    const dflt = SHORTCUTS.find((d) => d.id === id)!.dflt;
+    if (id === "toggle") c.hotkey = accel ?? dflt;
+    else if (id === "paste") c.pasteHotkey = accel ?? dflt;
+    else if (accel == null) delete c.shortcuts[id];
+    else c.shortcuts[id] = accel;
+    save();
+  };
+  const paintAll = () => paints.forEach((fn) => fn());
+
+  const stopRecording = () => {
+    if (!recording) return;
+    recording = null;
+    window.removeEventListener("keydown", onKey, true);
+    void emitToWindow("island", "shortcuts-resume");
+    paintAll();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (!recording) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") return stopRecording();
+    const id = recording;
+    if ((e.key === "Backspace" || e.key === "Delete") && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      setKeys(id, "");
+      return stopRecording();
+    }
+    const accel = recordPress(e);
+    if (!accel) return;
+    setKeys(id, accel);
+    stopRecording();
+  };
+  const startRecording = (id: ShortcutId) => {
+    if (recording === id) return stopRecording();
+    if (!recording) {
+      window.addEventListener("keydown", onKey, true);
+      void emitToWindow("island", "shortcuts-suspend");
+    }
+    recording = id;
+    paintAll();
+  };
+  // A click anywhere else, or the window losing focus, stops recording.
+  document.addEventListener("mousedown", (e) => {
+    if (recording && !(e.target as HTMLElement).closest?.(".keys.recording")) stopRecording();
+  });
+  window.addEventListener("blur", stopRecording);
+
+  const rows = SHORTCUTS.map((def) => {
+    const keys = h("button", { class: "keys", type: "button" }) as HTMLButtonElement;
+    keys.addEventListener("click", () => startRecording(def.id));
+    const off = h("button", { class: "chip-btn", type: "button", text: "Off", title: "No shortcut for this" });
+    off.addEventListener("click", () => {
+      stopRecording();
+      setKeys(def.id, "");
+      paintAll();
+    });
+    const reset = h("button", { class: "chip-btn", type: "button", text: "Default", title: keysLabel(def.dflt) });
+    reset.addEventListener("click", () => {
+      stopRecording();
+      setKeys(def.id, null);
+      paintAll();
+    });
+    const why = h("small", { class: "why" });
+    paints.push(() => {
+      const k = keysOf(def.id);
+      const rec = recording === def.id;
+      keys.classList.toggle("recording", rec);
+      keys.textContent = rec ? "Press the keys…" : keysLabel(k);
+      keys.title = rec ? "Esc cancels, Backspace turns it off" : "Click, then press the new keys";
+      off.style.visibility = k ? "" : "hidden";
+      reset.style.visibility = k === def.dflt ? "hidden" : "";
+      const keysNow = Object.fromEntries(SHORTCUTS.map((d) => [d.id, keysOf(d.id)]));
+      const s = twice(keysNow).has(def.id) ? { kind: "twice" as const } : k ? status[def.id] : undefined;
+      why.textContent = rec ? "" : statusLabel(s);
+    });
+    return h("div", { class: "row shortcut" }, h("span", { class: "label" }, def.label, why), h("span", { class: "with-unit" }, off, reset, keys));
+  });
+  refreshers.push(paintAll);
+  paintAll();
+
+  // How each registration went, from the island (another app holding the keys…).
+  void onEvent<Partial<Record<ShortcutId, ShortcutStatus>>>("shortcuts-status", (s) => {
+    status = s;
+    paintAll();
+  }).then(() => emitToWindow("island", "shortcuts-ask"));
+
+  const where = !IS_TAURI
+    ? "In the browser they only work while the page has focus."
+    : State.os === "linux"
+      ? "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland)."
+      : "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.";
+  return [
+    h("p", { class: "sub", text: "Shortcuts" }),
+    h("p", { class: "hint", text: `${where} While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.` }),
+    ...rows,
+  ];
 }
 
 // ── Share and import ──────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 // taken before they left, one taken now, and the alerts raised in between.
 // Lines state what happened in the data, nothing more.
 
-import { formatDuration, formatPct } from "../core/format";
+import { formatDuration } from "../core/format";
 import { formatSignedUsd } from "../positions/positions";
 
 /** No cursor movement for this long, then movement: the trader came back. */
@@ -12,6 +12,8 @@ export const AWAY_MS = 15 * 60_000;
 export const SNAPSHOT_EVERY_MS = 60_000;
 /** Moves smaller than this are not worth a mention. */
 const MOVE_PCT = 5;
+/** The card shows at most this many tokens that moved. */
+const MAX_MOVES = 5;
 
 export interface Snapshot {
   t: number;
@@ -28,9 +30,17 @@ export interface SeenEvent {
   wallet: boolean;
 }
 
+export interface AwayMove {
+  key: string;
+  symbol: string;
+  pct: number;
+}
+
 export interface AwaySummary {
   /** "1h 20m". */
   away: string;
+  /** The tokens that moved most since, biggest first: the card makes each one a link. */
+  moves: AwayMove[];
   lines: string[];
 }
 
@@ -40,12 +50,11 @@ export function awaySummary(before: Snapshot, now: Snapshot, events: SeenEvent[]
   const moves = Object.entries(now.prices)
     .map(([key, q]) => {
       const was = before.prices[key];
-      return was && was.price > 0 ? { symbol: q.symbol, pct: (q.price / was.price - 1) * 100 } : null;
+      return was && was.price > 0 ? { key, symbol: q.symbol, pct: (q.price / was.price - 1) * 100 } : null;
     })
-    .filter((m): m is { symbol: string; pct: number } => m != null && Math.abs(m.pct) >= MOVE_PCT)
+    .filter((m): m is AwayMove => m != null && Math.abs(m.pct) >= MOVE_PCT)
     .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
-    .slice(0, 3);
-  if (moves.length) lines.push(`Moves: ${moves.map((m) => `${m.symbol} ${formatPct(m.pct)}`).join(", ")}`);
+    .slice(0, MAX_MOVES);
 
   if (before.positions && now.positions) {
     const d = now.positions.pnl - before.positions.pnl;
@@ -62,6 +71,6 @@ export function awaySummary(before: Snapshot, now: Snapshot, events: SeenEvent[]
     lines.push(walletMoves.length > 2 ? `${shown} (+${walletMoves.length - 2} more)` : shown);
   }
 
-  if (lines.length === 0) return null;
-  return { away: formatDuration(now.t - before.t), lines: lines.slice(0, 4) };
+  if (lines.length === 0 && moves.length === 0) return null;
+  return { away: formatDuration(now.t - before.t), moves, lines: lines.slice(0, 3) };
 }

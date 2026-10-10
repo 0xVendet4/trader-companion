@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { AlertRule, Quote, Sample, WatchToken } from "../core/state";
 import {
+  VOLUME_ALERT_COOLDOWN_MS,
   changeOverWindow,
   evaluateRules,
+  isMuted,
   liquidityDrop,
+  liveMutes,
   pushSample,
+  volumeAlerts,
+  volumeSurge,
   type RuleMemory,
 } from "./alerts";
 
@@ -157,5 +162,34 @@ describe("primeRule", () => {
     // It still fires on the next real crossing.
     expect(run(r, quote({ priceUsd: 0.0004 }), T0 + 2 * MIN, mem)).toHaveLength(0);
     expect(run(r, quote({ priceUsd: 0.0006 }), T0 + 6 * MIN, mem)).toHaveLength(1);
+  });
+});
+
+describe("volume surges", () => {
+  it("compares the last 5 minutes with the rest of the hour", () => {
+    // 50K in 5 min, 110K in the other 55: 10K a slot, so 5x.
+    expect(volumeSurge(quote({ volume: { m5: 50_000, h1: 160_000, h6: 0, h24: 0 } }))).toBeCloseTo(5);
+    expect(volumeSurge(quote({ volume: { m5: 5_000, h1: 6_000, h6: 0, h24: 0 } }))).toBeNull(); // dust
+    expect(volumeSurge(quote({ volume: { m5: 50_000, h1: 50_000, h6: 0, h24: 0 } }))).toBeNull(); // nothing else in the hour
+    expect(volumeSurge(quote({ major: true, volume: { m5: 50_000, h1: 160_000, h6: 0, h24: 0 } }))).toBeNull();
+  });
+
+  it("fires once per token, then waits", () => {
+    const hot = quote({ volume: { m5: 50_000, h1: 160_000, h6: 0, h24: 0 }, change: { m5: -4, h1: 0, h6: 0, h24: 0 } });
+    const last = new Map<string, number>();
+    const first = volumeAlerts([token], { MINT: hot }, 4, last, T0);
+    expect(first).toHaveLength(1);
+    expect(first[0].title).toBe("PIP volume 5x the hour's pace");
+    expect(first[0].tone).toBe("down");
+    expect(volumeAlerts([token], { MINT: hot }, 4, last, T0 + MIN)).toHaveLength(0);
+    expect(volumeAlerts([token], { MINT: hot }, 4, last, T0 + VOLUME_ALERT_COOLDOWN_MS)).toHaveLength(1);
+    expect(volumeAlerts([token], { MINT: hot }, 6, new Map(), T0)).toHaveLength(0);
+    expect(volumeAlerts([token], { MINT: hot }, 0, new Map(), T0)).toHaveLength(0);
+  });
+
+  it("keeps a token quiet while muted, and forgets old mutes", () => {
+    expect(isMuted({ MINT: T0 + MIN }, "MINT", T0)).toBe(true);
+    expect(isMuted({ MINT: T0 - 1 }, "MINT", T0)).toBe(false);
+    expect(liveMutes({ A: T0 + 1, B: T0 - 1 }, T0)).toEqual({ A: T0 + 1 });
   });
 });

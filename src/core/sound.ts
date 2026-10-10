@@ -1,30 +1,41 @@
 // Sounds, synthesised with WebAudio — no audio files to license or ship.
-// Each sound is a few short notes with an envelope. Volume range 0–0.2 and the
-// suspend-when-idle trick come from Coucou's SoundEngine (MIT, © Louis Raillé).
+// Each sound is a few short notes with an envelope. Volume range 0–0.2, the
+// suspend-when-idle trick and the sounds folder come from Coucou's SoundEngine
+// (MIT, © Louis Raillé).
 //
-// To use recorded sounds instead, decode WAVs into buffers here and play them
-// from `play()`; the rest of the app only knows the names below.
+// The trader's own recordings replace them: a file named after a sound in the
+// sounds folder (src-tauri/src/sounds.rs; "alert-up.mp3" for alertUp) is
+// decoded once and played from `play()`; the rest of the app only knows the
+// names below.
 
-export type SoundName =
-  | "open"
-  | "close"
-  | "blip"
-  | "hover"
-  | "pop"
-  | "alertUp"
-  | "alertDown"
-  | "warn"
-  | "reminder"
-  | "greet"
-  | "boing"
-  | "squeak"
-  | "whee"
-  | "eep"
-  | "dizzy"
-  | "grumble"
-  | "achoo"
-  | "tada"
-  | "hmm";
+import { Bridge, IS_TAURI } from "./bridge";
+
+export const SOUND_NAMES = [
+  "open",
+  "close",
+  "blip",
+  "hover",
+  "pop",
+  "alertUp",
+  "alertDown",
+  "warn",
+  "reminder",
+  "greet",
+  "boing",
+  "squeak",
+  "whee",
+  "eep",
+  "dizzy",
+  "grumble",
+  "achoo",
+  "tada",
+  "hmm",
+] as const;
+
+export type SoundName = (typeof SOUND_NAMES)[number];
+
+/** A sound's file name in the sounds folder: lowercase, a dash before each capital (alertUp → alert-up). */
+export const soundFile = (name: SoundName) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
 type Note = { f: number; at: number; dur: number; type?: OscillatorType; gain?: number };
 
@@ -151,6 +162,10 @@ class SoundEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private idleTimer: number | null = null;
+  /** The trader's own recordings, decoded, by sound name (see reload). */
+  private own = new Map<SoundName, AudioBuffer>();
+  /** When the last recording playing ends (context time): the context stays awake until then. */
+  private busyUntil = 0;
 
   private ensure(): AudioContext | null {
     if (this.ctx) return this.ctx;
@@ -175,10 +190,11 @@ class SoundEngine {
    */
   idle() {
     if (!this.ctx || this.ctx.state !== "running" || this.idleTimer != null) return;
+    const tail = Math.max(0, this.busyUntil - this.ctx.currentTime) * 1000;
     this.idleTimer = window.setTimeout(() => {
       this.idleTimer = null;
       void this.ctx?.suspend();
-    }, 1500);
+    }, 1500 + tail);
   }
 
   setVolume(v: number) {
@@ -188,6 +204,36 @@ class SoundEngine {
 
   setEnabled(on: boolean) {
     this.enabled = on;
+  }
+
+  /**
+   * Reads the sounds folder again (at start, and Settings → Reload): a file
+   * named after a sound replaces it; one this webview can't decode leaves the
+   * built-in sound in place. Resolves to how many are the trader's own.
+   */
+  async reload(): Promise<number> {
+    if (!IS_TAURI) return 0;
+    const ctx = this.ensure();
+    if (!ctx) return 0;
+    const files = new Map(SOUND_NAMES.map((n) => [soundFile(n), n]));
+    const have = (await Bridge.customSounds([...files.keys()])) ?? [];
+    const next = new Map<SoundName, AudioBuffer>();
+    await Promise.all(
+      have.map(async (file) => {
+        const name = files.get(file);
+        if (!name) return;
+        try {
+          const bytes = await Bridge.customSound(file);
+          if (bytes && bytes.byteLength > 0) next.set(name, await ctx.decodeAudioData(bytes));
+        } catch {
+          /* not a format this webview decodes: the built-in sound stays */
+        }
+      }),
+    );
+    this.own = next;
+    // Decoding woke the context for nothing audible: let it sleep.
+    this.idle();
+    return next.size;
   }
 
   play(name: SoundName) {
@@ -200,7 +246,15 @@ class SoundEngine {
       this.idleTimer = null;
     }
     if (ctx.state === "suspended") void ctx.resume();
-    scheduleSound(ctx, master, name, ctx.currentTime + 0.01);
+    const at = ctx.currentTime + 0.01;
+    const recording = this.own.get(name);
+    if (recording) {
+      const src = ctx.createBufferSource();
+      src.buffer = recording;
+      src.connect(master);
+      src.start(at);
+      this.busyUntil = Math.max(this.busyUntil, at + recording.duration);
+    } else scheduleSound(ctx, master, name, at);
     this.idle();
   }
 }

@@ -179,6 +179,8 @@ body[data-placement="float"] #wake-strip {
 }
 
 .tab {
+  flex: none;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -206,6 +208,7 @@ body[data-placement="float"] #wake-strip {
   display: flex;
   align-items: center;
   gap: 2px;
+  min-width: 0;
 }
 
 .status {
@@ -1067,6 +1070,30 @@ body.passing #island {
   animation-delay: 0.4s;
 }
 
+/* The dot pops in with a little overshoot (Coucou's badge); the pulse follows it. */
+.mascot-badge.pop {
+  animation: badge-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.mascot-badge.out {
+  animation: badge-out 0.18s ease-in both;
+}
+
+@keyframes badge-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes badge-out {
+  to {
+    transform: scale(0);
+  }
+}
+
 @keyframes badge-pulse {
   50% {
     transform: scale(1.25);
@@ -1089,26 +1116,21 @@ body.passing #island {
   box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.9), 0 0 24px rgba(52, 211, 153, 0.35);
 }
 
-/* The eyes layer: follows the cursor a few pixels (see Mascot.lookAt). */
-.mascot-eyes {
+/* The live drawing (see Mascot): the frame under the colour filter, and the
+   eyes, face accessory and hat above it. Both reach a quarter past the art on
+   every side, room for a hop, a roll or a squash. */
+.mascot-frame,
+.mascot-top {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  left: -25%;
+  top: -25%;
+  width: 150%;
+  height: 150%;
   pointer-events: none;
-  transition: transform 0.14s ease-out;
-}
-
-.mascot-eyes[hidden] {
-  display: none;
 }
 
 .mascot-frame {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
+  transition: filter 0.45s ease;
 }
 
 .mascot.paused *,
@@ -1831,7 +1853,7 @@ select option {
 .week-chart {
   display: flex;
   gap: 8px;
-  height: 92px;
+  height: 76px;
   /* Room for the Today/Journal switch in the corner. */
   margin-top: 26px;
 }
@@ -1941,21 +1963,6 @@ select option {
   font-size: 11.5px;
 }
 
-/* ── Mascot outfit ──────────────────────────────────────────────────────── */
-
-.mascot-outfit {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-}
-
-.mascot-outfit[hidden] {
-  display: none;
-}
-
 /* ── Multichain ─────────────────────────────────────────────────────────── */
 
 /* A major coin (BTC, ETH…): gold, not its tracking token's chain. */
@@ -1981,6 +1988,10 @@ select option {
   display: flex;
   gap: 8px;
   margin-right: 8px;
+  /* It gives way first when the header is full (see header.ts). */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .natives .sol-chip {
@@ -2699,22 +2710,30 @@ body[data-placement="right"] #content {
   row-gap: 8px;
 }
 
-/* The prices drop to a row of their own; the buttons stay up with the tabs. */
+/* The tabs have the first row to themselves; the day pill and the buttons
+   share the second, held to the right, clear of the mascot's hat below. */
+.sidebar #header .tabs {
+  flex: 1 0 100%;
+}
+
 .sidebar #header .header-actions {
   display: contents;
 }
 
-.sidebar #header .status-dot {
+.sidebar #header .header-actions > :first-child {
   margin-left: auto;
 }
 
+/* The prices move down into the mascot's band, beside him, over his line. */
 .sidebar #header .natives {
-  order: 2;
-  flex: 1 0 100%;
+  position: absolute;
+  top: 80px;
+  left: 88px;
+  right: 44px;
   margin: 0;
-  padding-left: 4px;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .sidebar .view {
@@ -2824,4 +2843,1001 @@ body[data-placement="right"] #content {
   color: var(--accent);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* ── Music card (src/views/music.ts) ─────────────────────────────────────── */
+
+.np-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  height: 100%;
+}
+
+.np-cover {
+  flex: none;
+  width: 92px;
+  height: 92px;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+  background: conic-gradient(from 210deg, #f472b6, #a78bfa, #60a5fa, #34d399, #f472b6);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.np-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.np-cover svg {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.np-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.np-title {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-artist,
+.np-app {
+  color: var(--dim);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-app {
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+
+.np-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+
+.np-time {
+  font-size: 10.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+}
+
+.np-time:last-child {
+  text-align: right;
+}
+
+.np-bar {
+  position: relative;
+  flex: 1;
+  height: 14px;
+}
+
+.np-bar.seekable {
+  cursor: pointer;
+}
+
+.np-track,
+.np-fill {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.np-track {
+  right: 0;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.np-fill {
+  background: #c5c8cd;
+}
+
+.np-bar.seekable:hover .np-fill,
+.np-bar.dragging .np-fill {
+  background: var(--accent, #4ade80);
+}
+
+.np-knob {
+  position: absolute;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.np-bar.seekable:hover .np-knob,
+.np-bar.dragging .np-knob {
+  opacity: 1;
+}
+
+.np-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.np-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.np-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.np-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.np-btn.on {
+  color: var(--accent, #4ade80);
+}
+
+.np-btn.np-play {
+  width: 34px;
+  height: 34px;
+  background: var(--ink);
+  color: #000;
+  opacity: 1;
+}
+
+.np-btn.np-play:hover {
+  background: #fff;
+}
+
+.np-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--dim);
+}
+
+.np-volume {
+  width: 70px;
+}
+
+.np-empty {
+  color: var(--dim);
+  padding-top: 30px;
+}
+
+/* The auto-close counting down (Island: fsm.onCountdown). */
+.countdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent, #4ade80);
+  opacity: 0;
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.countdown.on {
+  opacity: 0.55;
+  animation-name: countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* The event card's ⌃: fold it away for later. */
+.event-fold {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.event-fold:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Event cards: the checklist, the tokens that moved, the alert's buttons ── */
+
+.event-extra:empty {
+  display: none;
+}
+
+.view.event .buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.view.event .done-note {
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--up);
+}
+
+/* What to check before an entry, read out by Candy: the line, its mark, what the data says. */
+.view.event[data-kind="checklist"] .detail {
+  margin: -3px 0 6px;
+  font-size: 12px;
+}
+
+.event-extra.checklist {
+  display: grid;
+  gap: 2px;
+  margin: -2px 0 8px;
+}
+
+.check-line {
+  display: grid;
+  grid-template-columns: 116px 14px 1fr;
+  align-items: center;
+  gap: 6px;
+  min-height: 19px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+.check-label {
+  font-weight: 600;
+}
+
+.check-state {
+  font-weight: 800;
+  text-align: center;
+}
+
+/* Still to come: there, but quiet. */
+.check-line.todo {
+  opacity: 0.38;
+}
+
+/* The one his eyes are on. */
+.check-line.looking {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.check-line.looking .check-state::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+  animation: check-look 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes check-look {
+  from {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* Its mark pops in as he reads it. */
+.check-line.pop .check-state {
+  animation: check-pop 0.36s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.check-line.pop .check-detail {
+  animation: check-in 0.3s ease-out;
+}
+
+@keyframes check-pop {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes check-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+.check-line.ok .check-state {
+  color: var(--up);
+}
+
+.check-line.warn .check-state {
+  color: var(--amber);
+}
+
+.check-line.unknown .check-state {
+  color: var(--dim);
+}
+
+.check-detail {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--dim);
+}
+
+/* While you were away: each token that moved opens its page. */
+.event-extra.moves {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.moves-label {
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.move-chip {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  background: var(--card-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.move-chip.up {
+  color: var(--up);
+}
+
+.move-chip.down {
+  color: var(--down);
+}
+
+.move-chip b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.move-chip:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* The header's pill: the day against the trader's limits (amber close, red on one). */
+.day-pill {
+  height: 18px;
+  margin-right: 8px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--up) 35%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--up) 10%, transparent);
+  color: var(--up);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.day-pill.warn {
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber);
+}
+
+.day-pill.stop {
+  border-color: color-mix(in srgb, var(--down) 50%, transparent);
+  background: color-mix(in srgb, var(--down) 14%, transparent);
+  color: var(--down);
+}
+
+/* Discipline: the session's end, the size calculator, the days grid. */
+.discipline .session-end a {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.discipline .sizer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.discipline .sizer .lbl {
+  color: var(--dim);
+}
+
+.discipline .sizer .lbl:first-child {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.field.tiny {
+  width: 48px;
+  height: 22px;
+  padding: 0 6px;
+  flex: none;
+  font-size: 11.5px;
+}
+
+.discipline .size-out {
+  color: var(--ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.discipline .size-out.dim {
+  color: var(--dim-2);
+  font-weight: 400;
+}
+
+.journal-top {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.journal-top .week-chart {
+  flex: 1;
+}
+
+/* Weeks as columns, Monday on top, like a contributions graph. */
+.day-grid {
+  display: flex;
+  gap: 2px;
+  /* Clear of the Today/Journal switch above it. */
+  margin-top: 36px;
+  flex: none;
+}
+
+.day-grid .wk {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.day-grid .sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--card-2);
+}
+
+.day-grid .sq.future {
+  background: transparent;
+}
+
+.day-grid .sq.even {
+  background: #3a3e45;
+}
+
+.day-grid .sq.up.l1 { background: color-mix(in srgb, var(--up) 30%, var(--card-2)); }
+.day-grid .sq.up.l2 { background: color-mix(in srgb, var(--up) 55%, var(--card-2)); }
+.day-grid .sq.up.l3 { background: color-mix(in srgb, var(--up) 78%, var(--card-2)); }
+.day-grid .sq.up.l4 { background: var(--up); }
+.day-grid .sq.down.l1 { background: color-mix(in srgb, var(--down) 30%, var(--card-2)); }
+.day-grid .sq.down.l2 { background: color-mix(in srgb, var(--down) 55%, var(--card-2)); }
+.day-grid .sq.down.l3 { background: color-mix(in srgb, var(--down) 78%, var(--card-2)); }
+.day-grid .sq.down.l4 { background: var(--down); }
+
+/* A token's note: a mark by its symbol, and the field that takes the row's quick actions' place. */
+.note-mark {
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--amber);
+  cursor: help;
+}
+
+.row-actions.editing {
+  display: flex;
+}
+
+.row-actions .note-field {
+  width: 300px;
+  height: 24px;
+  font-size: 12px;
+}
+
+/* A position with the trader's own target or stop. */
+.goal-mark {
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--accent);
+  cursor: help;
+}
+
+.view.positions .row-actions .field.tiny {
+  width: 72px;
+}
+
+.view.positions .row-actions .btn {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
+/* ── My wallet, redone: cards, the allocation bar, two-line rows ─────────── */
+
+.pos-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 0 0 6px;
+  padding-right: 128px; /* clear of the Holdings / Activity switch */
+}
+
+.pos-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--card-2) 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-card .lbl {
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim-2);
+}
+
+.pos-card b {
+  font-size: 14px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.pos-card .sub {
+  overflow: hidden;
+  font-size: 10.5px;
+  color: var(--dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pos-card .up {
+  color: var(--up);
+}
+
+.pos-card .down {
+  color: var(--down);
+}
+
+.pos-card.hot b {
+  color: var(--up);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--up) 45%, transparent);
+}
+
+/* Each token's share of the wallet. */
+.alloc {
+  margin: 0 6px 4px;
+}
+
+.alloc-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.alloc-bar i {
+  min-width: 3px;
+  border-radius: 2px;
+}
+
+.alloc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.alloc-legend i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: 0;
+}
+
+/* The heads sort the rows. */
+.positions .pos-head .sort {
+  display: block;
+  white-space: nowrap;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.pos-head .sort:hover,
+.pos-head .sort.on {
+  color: var(--ink);
+}
+
+.pos-head .sort.on::after {
+  content: " ▾";
+}
+
+.positions .c-val,
+.positions .c-pnl2 {
+  width: 76px;
+  text-align: right;
+}
+
+.positions .c-pct2 {
+  width: 58px;
+  text-align: right;
+}
+
+.positions .c-val,
+.positions .c-pnl2,
+.positions .c-pct2 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.positions .c-pnl2.up b {
+  color: var(--up);
+}
+
+.positions .c-pnl2.down b {
+  color: var(--down);
+}
+
+.positions .pos-row {
+  position: relative;
+  height: 40px;
+}
+
+.positions .pos-row .tok-img {
+  width: 24px;
+  height: 24px;
+}
+
+.tok-lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.tok-lines .sym-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.positions .sub {
+  overflow: hidden;
+  font-size: 10.5px;
+  color: var(--dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.positions .sub .now {
+  color: var(--ink);
+}
+
+.positions .entry {
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+}
+
+.positions .row:hover .entry {
+  border-bottom-color: var(--dim-2);
+}
+
+/* The way to the target, the stop or the next multiple: a hairline under the row. */
+.positions .prog {
+  position: absolute;
+  left: 6px;
+  bottom: 2px;
+  height: 2px;
+  max-width: calc(100% - 12px);
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--up) 70%, transparent);
+  pointer-events: auto;
+}
+
+.positions .prog.stop {
+  background: color-mix(in srgb, var(--down) 75%, transparent);
+}
+
+.positions .prog.level {
+  background: color-mix(in srgb, var(--accent, var(--up)) 45%, transparent);
+}
+
+.positions .rows {
+  max-height: 200px;
+}
+
+/* Activity: a heading per day, a coloured word for what happened. */
+.positions .day-head {
+  padding: 6px 6px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim-2);
+}
+
+.positions .act-row .c-when {
+  width: 44px;
+}
+
+.positions .act-row .c-side {
+  width: 100px;
+  white-space: nowrap;
+}
+
+.positions .act-row .c-side::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+}
+
+.positions .activity {
+  max-height: 240px;
+}
+
+/* The sidebar is narrow: smaller cards, and the % and multiple go. */
+.sidebar .pos-cards {
+  gap: 4px;
+  padding-right: 0;
+}
+
+.sidebar .pos-card {
+  padding: 4px 6px;
+}
+
+.sidebar .pos-card b {
+  font-size: 12.5px;
+}
+
+.sidebar .pos-head .narrow-off {
+  display: none;
+}
+
+.sidebar .positions .c-pct2,
+.sidebar .positions .pos-head .c-pct2 {
+  display: none;
+}
+
+.sidebar .positions .pos-head .c-x {
+  display: none;
+}
+
+/* The arrival's streaks and ring, behind everything in the island (greet-fx.ts). */
+.arrival-fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+/* A dropped token being looked up: a bar fills along the island's bottom, then
+   goes green and full (added) or red (not found), and fades. */
+.search-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease 0.6s;
+}
+
+.search-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent, var(--up));
+}
+
+.search-bar.on {
+  opacity: 1;
+  transition: none;
+}
+
+.search-bar.on i {
+  animation: search-fill 2.6s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+
+.search-bar.done i {
+  width: 100%;
+  background: var(--up);
+  animation: none;
+  transition: width 0.25s ease;
+}
+
+.search-bar.fail i {
+  background: var(--down);
+}
+
+.search-bar.on.done,
+.search-bar.on.fail {
+  opacity: 0;
+  transition: opacity 0.4s ease 0.5s;
+}
+
+@keyframes search-fill {
+  from { width: 0; }
+  to { width: 88%; }
+}
+
+/* Added: the ticker's green check pops in. */
+.ticker .t-check {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--up);
+  color: #04120a;
+}
+
+/* Only as it comes up: the ticker redraws every second. */
+.ticker .t-check.fresh {
+  animation: check-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes check-pop {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+/* The live feed on the ticker: a dot that pulses once, in the move's colour. */
+.ticker .t-live {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--up);
+  animation: live-pulse 1.2s ease-out 2;
+}
+
+.ticker .t-live.down {
+  background: var(--down);
+}
+
+@keyframes live-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 0%, transparent); transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* The check-in's answer next to a journal trade. */
+.j-plan {
+  width: 14px;
+  flex: none;
+  font-weight: 800;
+  text-align: center;
+}
+
+.j-plan.yes {
+  color: var(--up);
+}
+
+.j-plan.partly {
+  color: var(--amber);
+}
+
+.j-plan.no {
+  color: var(--down);
+}
+
+/* A folder's mini Candy, in the colour of its hour. */
+.folder-candy {
+  flex: none;
+  width: 9px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--dim);
+}
+
+.folder-candy.up {
+  color: var(--up);
+}
+
+.folder-candy.down {
+  color: var(--down);
+}
+
+/* Relative strength: the chain's coin, faint and dashed, under the token's line. */
+.spark polyline.coin {
+  stroke: var(--dim-2, #6b7079);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  opacity: 0.8;
+}
+
+.positions .fine-print {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

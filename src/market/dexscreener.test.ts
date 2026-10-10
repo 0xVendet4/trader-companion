@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { describe, expect, it } from "vitest";
-import { bestPairFor, extractAddress, parseInput, toQuote, type DexPair } from "./dexscreener";
+import { bestPairFor, extractAddress, parseInput, parsePasted, toQuote, type DexPair } from "./dexscreener";
 import { nativeCoins, tokenKey } from "./chains";
 import { AXIOM_REFERRAL_URL, RPC_KEY_SITES, terminalLabel, tokenUrl } from "./links";
 import { sortTrending } from "./trending";
@@ -36,6 +36,30 @@ describe("parseInput", () => {
     expect(parseInput("pump")).toEqual({ kind: "query", query: "pump" });
     expect(parseInput("$BONK")).toEqual({ kind: "query", query: "BONK" });
     expect(extractAddress("WIF")).toBeNull();
+  });
+});
+
+describe("parsePasted (the paste shortcut)", () => {
+  it("takes a bare address or a token link on a known host", () => {
+    expect(parsePasted(` ${BONK}\n`)).toMatchObject({ address: BONK, chainId: "solana" });
+    expect(parsePasted(EVM)).toMatchObject({ address: EVM, chainId: null });
+    expect(parsePasted(`https://gmgn.ai/sol/token/${BONK}`)).toMatchObject({ address: BONK, chainId: "solana" });
+    expect(parsePasted(`https://dexscreener.com/robinhood/${POOL}`)).toMatchObject({ address: POOL, isPool: true });
+    expect(parsePasted(`https://www.solscan.io/token/${BONK}`)).toMatchObject({ address: BONK });
+  });
+
+  it("never turns a search, a key or a stray link into a lookup", () => {
+    expect(parsePasted("BONK")).toBeNull();
+    expect(parsePasted(`${BONK} and more`)).toBeNull();
+    // A bare 64-hex id could be a wallet's private key: only accepted inside a pool link.
+    expect(parsePasted(POOL)).toBeNull();
+    // An 88-character base58 string is a Solana secret key, not an address.
+    expect(parsePasted("5".repeat(88))).toBeNull();
+    expect(parsePasted("word ".repeat(12).trim())).toBeNull();
+    // A link anywhere else may carry a token-looking string of its own (a session, a reset link).
+    expect(parsePasted(`https://example.com/reset?token=${BONK}`)).toBeNull();
+    expect(parsePasted(`ftp://dexscreener.com/solana/${BONK}`)).toBeNull();
+    expect(parsePasted("")).toBeNull();
   });
 });
 
@@ -98,6 +122,16 @@ describe("tokenUrl", () => {
     expect(tokenUrl("axiom", bsc)).toBe("https://dexscreener.com/bsc/0xpair");
     expect(tokenUrl("gmgn", hood)).toBe(`https://dexscreener.com/robinhood/${POOL}`);
     expect(terminalLabel("gmgn", hood)).toBe("DexScreener");
+  });
+
+  it("opens Based Bot through its referral route, on all four chains, and reads its links back", () => {
+    expect(tokenUrl("basedbot", sol)).toBe(`https://basedbot.app/r/GuyFawk3s/token/sol/${BONK}`);
+    expect(tokenUrl("basedbot", bsc)).toBe(`https://basedbot.app/r/GuyFawk3s/token/bsc/${EVM}`);
+    expect(tokenUrl("basedbot", hood)).toBe(`https://basedbot.app/r/GuyFawk3s/token/robinhood/${EVM}`);
+    expect(terminalLabel("basedbot", hood)).toBe("Based Bot");
+    expect(parseInput(tokenUrl("basedbot", sol))).toEqual({ kind: "address", address: BONK, chainId: "solana", isPool: false });
+    expect(parseInput(`https://basedbot.app/token/eth/${EVM}`)).toEqual({ kind: "address", address: EVM, chainId: "ethereum", isPool: false });
+    expect(parsePasted(`https://basedbot.app/token/sol/${BONK}`)?.address).toBe(BONK);
   });
 });
 

@@ -2,11 +2,15 @@
 // lives while the app runs (quotes, price history, queued events).
 
 import type { Manifest, MascotState } from "../mascot/mascot";
+import type { NowPlaying } from "./music";
+import { SHORTCUTS, type ShortcutId } from "./shortcuts";
 import { ALL_CHAINS, isChain, tokenKey, type ChainId } from "../market/chains";
 import { COINGECKO_ID } from "../market/coingecko";
 import { DEFAULT_CUSTOM_SKIN, normalizeCustomSkin } from "../mascot/skins";
 import { normalizeBook, normalizeLevels } from "../positions/positions";
+import { POSITION_SORTS, type PositionSort } from "../positions/board";
 import type { FearGreed } from "../market/sentiment";
+import type { AwayMove } from "../away/away";
 import { DEFAULT_FOLDERS, normalizeFolders } from "../market/folders";
 
 // ── Saved ─────────────────────────────────────────────────────────────────────
@@ -27,6 +31,8 @@ export interface WatchToken {
   folder?: string;
   /** A major coin (src/market/majors.ts): its CoinGecko id; this token only tracks its price. */
   coingecko?: string;
+  /** The trader's own note: why they are in, the exit plan (shown on hover in the list). */
+  note?: string;
 }
 
 export type AlertKind =
@@ -50,7 +56,7 @@ export interface AlertRule {
   enabled: boolean;
 }
 
-export type Terminal = "gmgn" | "axiom" | "dexscreener";
+export type Terminal = "gmgn" | "axiom" | "basedbot" | "dexscreener";
 
 export interface DisciplineRules {
   /** Break reminder every N minutes of screen time; 0 = off. */
@@ -61,6 +67,10 @@ export interface DisciplineRules {
   maxTradesPerDay: number;
   /** Cool-down after logging a loss, minutes; 0 = off. */
   cooldownMin: number;
+  /** This many losing trades in a row asks for a longer break (tilt); 0 = off. */
+  tiltLosses: number;
+  /** That longer break, minutes. */
+  tiltBreakMin: number;
   unit: "SOL" | "USD";
 }
 
@@ -90,7 +100,11 @@ export interface JournalEntry {
   t: number;
   pnl: number;
   note: string;
+  /** The check-in after the trade: did it follow the plan? */
+  plan?: TradePlan;
 }
+
+export type TradePlan = "yes" | "partly" | "no";
 
 /** A wallet followed by its public address. Never a private key. */
 export interface TrackedWallet {
@@ -130,6 +144,9 @@ export interface Position {
   historyChecked?: boolean;
   /** The entry comes from the wallet's own transactions. */
   fromHistory?: boolean;
+  /** The trader's own exit prices for this position (USD): an alert when reached (see crossedTargets). */
+  target?: number;
+  stop?: number;
 }
 
 export interface PositionBook {
@@ -350,6 +367,10 @@ export interface Companion {
   notifications: boolean;
   /** Global shortcut that opens and closes the island. */
   hotkey: string;
+  /** Global shortcut that adds the copied token link or address (Candy swallows it). */
+  pasteHotkey: string;
+  /** The other global shortcuts' keys ("" = off; a missing one has its default, see shortcuts.ts). */
+  shortcuts: Partial<Record<ShortcutId, string>>;
   theme: Theme;
   outfit: Outfit;
   face: Face;
@@ -373,12 +394,51 @@ export interface Companion {
   seasonOff: string;
   /** The mascot's eyes follow the mouse; it fidgets now and then. */
   lively: boolean;
+  /** Candy dances while something plays on the PC (see src/mascot/dance.ts). */
+  danceToMusic: boolean;
+  /** The island shows what plays on the PC, with its controls (src/views/music.ts). */
+  musicCard: boolean;
+  /** The island opens as soon as the pointer rests on its ticker, and folds soon after it leaves. */
+  openOnHover: boolean;
+  /** An alert card stays open until it is looked at (OK, or folded with ⌃). */
+  stickyAlerts: boolean;
   /** The daily recap card shows signs and % only, no amounts. */
   recapHideMoney: boolean;
   /** BTC and the Fear & Greed index in the island's header. */
   headerMarket: boolean;
   /** The mascot reacts to SOL's 1-hour move. */
   reactToSol: boolean;
+  /** An alert when a token's 5-minute volume runs this many times the hour's pace; 0 = off. */
+  volumeAlertX: number;
+  /** Tokens whose alerts are silenced, until when (ms), by key. */
+  muted: Record<string, number>;
+  /** The checklist card comes up when a token is added (src/market/checklist.ts). */
+  addChecklist: boolean;
+  /** A token added by pasting its CA (shortcut or drop) also opens on the terminal. */
+  pasteOpens: boolean;
+  /** An alert sound per watchlist folder, by folder name ("" or missing: the usual ones). */
+  folderSounds: Record<string, string>;
+  /** The size calculator (Discipline tab): the bank, in the journal's unit, and the share risked per trade. */
+  sizing: { bank: number; riskPct: number };
+  /** The order of the My wallet tab's rows (src/positions/board.ts). */
+  walletSort: PositionSort;
+  /** The last week whose Monday recap came up, by its Monday (ms); 0: none yet. */
+  weekRecapSeen: number;
+  /**
+   * Discipline on or off as a whole: off, its tab, the header's day pill and
+   * every card it raises (breaks, loss limit, max trades, cooldown, tilt,
+   * session end, check-in, the Monday recap) go away. Trades are still kept, so
+   * turning it back on finds the journal whole.
+   */
+  disciplineOn: boolean;
+  /** After a trade closes: "did you follow your plan?", into the journal. */
+  checkIn: boolean;
+  /** The mini charts also draw the chain's coin (SOL…) faintly: did the token rise alone? */
+  relativeStrength: boolean;
+  /** An alert when a token leaves its launchpad's bonding curve (pump.fun…) for a DEX pool. */
+  graduationAlert: boolean;
+  /** Windows: while a game, a video or a presentation is fullscreen, alert cards and sounds wait. */
+  fullscreenQuiet: boolean;
 }
 
 /**
@@ -408,8 +468,14 @@ export interface Settings {
 export const MAX_WATCHLIST = 30; // one DexScreener request covers 30 tokens
 export const MAX_WALLETS = 10;
 export const MAX_JOURNAL = 2000;
+/** A token note's length, at most. */
+export const MAX_NOTE = 280;
+
+/** The volume alert's choices: 0 is off. */
+export const VOLUME_ALERT_CHOICES: readonly number[] = [0, 3, 5, 8];
 
 export const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
+export const DEFAULT_PASTE_HOTKEY = "CommandOrControl+Alt+V";
 
 export const DEFAULT_COMPANION: Companion = {
   watchlist: [],
@@ -421,6 +487,8 @@ export const DEFAULT_COMPANION: Companion = {
     dailyLossLimit: 0,
     maxTradesPerDay: 0,
     cooldownMin: 10,
+    tiltLosses: 3,
+    tiltBreakMin: 30,
     unit: "SOL",
   },
   log: { day: "", entries: [] },
@@ -435,6 +503,8 @@ export const DEFAULT_COMPANION: Companion = {
   keepTickerVisible: true,
   notifications: false,
   hotkey: DEFAULT_HOTKEY,
+  pasteHotkey: DEFAULT_PASTE_HOTKEY,
+  shortcuts: {},
   theme: "classic",
   outfit: "none",
   face: "none",
@@ -448,11 +518,28 @@ export const DEFAULT_COMPANION: Companion = {
   valueColumn: "auto",
   nightSleep: true,
   lively: true,
+  danceToMusic: true,
+  musicCard: true,
+  openOnHover: false,
+  stickyAlerts: false,
   seasonal: true,
   seasonOff: "",
   headerMarket: true,
   recapHideMoney: false,
   reactToSol: true,
+  volumeAlertX: 5,
+  muted: {},
+  addChecklist: true,
+  pasteOpens: false,
+  folderSounds: {},
+  sizing: { bank: 0, riskPct: 1 },
+  walletSort: "value",
+  weekRecapSeen: 0,
+  disciplineOn: true,
+  checkIn: true,
+  relativeStrength: true,
+  graduationAlert: true,
+  fullscreenQuiet: true,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -461,7 +548,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCloseInterval: 15,
   screen: "primary",
   autostart: false,
-  placement: "top",
+  // A new install floats near the top; a saved choice stays.
+  placement: "float",
   floatX: 0.5,
   floatY: 0.12,
   floatScreen: "",
@@ -475,7 +563,7 @@ export const DEFAULT_SETTINGS: Settings = {
  */
 export function normalizeSettings(raw: Partial<Settings> | null | undefined): Settings {
   const s = { ...DEFAULT_SETTINGS, ...(raw ?? {}) } as Settings;
-  if (!PLACEMENTS.includes(s.placement)) s.placement = "top";
+  if (!PLACEMENTS.includes(s.placement)) s.placement = DEFAULT_SETTINGS.placement;
   const fraction = (v: unknown, dflt: number) =>
     v != null && v !== "" && Number.isFinite(Number(v)) ? Math.min(1, Math.max(0, Number(v))) : dflt;
   s.floatX = fraction(s.floatX, DEFAULT_SETTINGS.floatX);
@@ -494,15 +582,47 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
           const chainId = isChain(t.chainId) ? t.chainId : "solana";
           // A CoinGecko id goes into its URLs: only the shape it has.
           const coingecko = typeof t.coingecko === "string" && COINGECKO_ID.test(t.coingecko) ? t.coingecko : undefined;
-          return { ...t, chainId, key: tokenKey(chainId, t.address), coingecko };
+          const note = typeof t.note === "string" && t.note.trim() ? t.note.slice(0, MAX_NOTE) : undefined;
+          return { ...t, chainId, key: tokenKey(chainId, t.address), coingecko, note };
         })
       : [],
     chains: Array.isArray(c.chains) && c.chains.filter(isChain).length ? ALL_CHAINS.filter((x) => c.chains!.includes(x)) : ["solana"],
     alerts: Array.isArray(c.alerts) ? c.alerts : [],
-    journal: Array.isArray(c.journal) ? c.journal.slice(-MAX_JOURNAL) : [],
+    journal: Array.isArray(c.journal)
+      ? c.journal.slice(-MAX_JOURNAL).map((e) => (e.plan && !["yes", "partly", "no"].includes(e.plan) ? { ...e, plan: undefined } : e))
+      : [],
     wallets: Array.isArray(c.wallets) ? c.wallets.slice(0, MAX_WALLETS) : [],
   };
   s.companion.pollSeconds = Math.min(120, Math.max(10, Number(s.companion.pollSeconds) || 20));
+  if (typeof s.companion.hotkey !== "string") s.companion.hotkey = DEFAULT_HOTKEY;
+  // Files from before the paste shortcut get it; "" is a chosen Off.
+  if (typeof s.companion.pasteHotkey !== "string") s.companion.pasteHotkey = DEFAULT_PASTE_HOTKEY;
+  const keys = (c.shortcuts && typeof c.shortcuts === "object" ? c.shortcuts : {}) as Record<string, unknown>;
+  s.companion.shortcuts = {};
+  for (const d of SHORTCUTS) {
+    const k = keys[d.id];
+    if (d.id !== "toggle" && d.id !== "paste" && typeof k === "string") s.companion.shortcuts[d.id] = k;
+  }
+  if (typeof s.companion.danceToMusic !== "boolean") s.companion.danceToMusic = true;
+  if (typeof s.companion.musicCard !== "boolean") s.companion.musicCard = true;
+  if (typeof s.companion.openOnHover !== "boolean") s.companion.openOnHover = false;
+  if (typeof s.companion.stickyAlerts !== "boolean") s.companion.stickyAlerts = false;
+  if (!VOLUME_ALERT_CHOICES.includes(s.companion.volumeAlertX)) s.companion.volumeAlertX = DEFAULT_COMPANION.volumeAlertX;
+  const muted = c.muted && typeof c.muted === "object" ? (c.muted as Record<string, unknown>) : {};
+  s.companion.muted = Object.fromEntries(
+    Object.entries(muted).filter((e): e is [string, number] => typeof e[1] === "number" && e[1] > Date.now()),
+  );
+  if (typeof s.companion.addChecklist !== "boolean") s.companion.addChecklist = true;
+  if (typeof s.companion.pasteOpens !== "boolean") s.companion.pasteOpens = false;
+  const sounds = c.folderSounds && typeof c.folderSounds === "object" ? (c.folderSounds as Record<string, unknown>) : {};
+  s.companion.folderSounds = Object.fromEntries(Object.entries(sounds).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""));
+  const sizing = (c.sizing ?? {}) as Partial<Companion["sizing"]>;
+  const positive = (v: unknown, dflt: number) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : dflt);
+  s.companion.sizing = { bank: positive(sizing.bank, 0), riskPct: Math.min(100, positive(sizing.riskPct, 1)) };
+  if (!POSITION_SORTS.includes(s.companion.walletSort)) s.companion.walletSort = "value";
+  if (typeof s.companion.weekRecapSeen !== "number" || !Number.isFinite(s.companion.weekRecapSeen)) s.companion.weekRecapSeen = 0;
+  if (typeof s.companion.checkIn !== "boolean") s.companion.checkIn = true;
+  for (const k of ["relativeStrength", "graduationAlert", "fullscreenQuiet", "disciplineOn"] as const) if (typeof s.companion[k] !== "boolean") s.companion[k] = true;
   // Shades and laser eyes were outfits before the face slot: move them over.
   const oldOutfit = c.outfit as string | undefined;
   if ((oldOutfit === "shades" || oldOutfit === "laser") && c.face == null) s.companion.face = oldOutfit;
@@ -557,6 +677,10 @@ export interface Quote {
   rank?: number | null;
   /** The token's picture as DexScreener has it now (a token can get one after it was added). */
   imageUrl?: string | null;
+  /** When its pair was created (ms), for its age. */
+  pairCreatedAt?: number | null;
+  /** Where its best pair lives (DexScreener's id: "pumpfun", "raydium"…). */
+  dexId?: string;
 }
 
 /** One poll's worth of the numbers alerts look back on. */
@@ -585,8 +709,18 @@ export type CompanionEvent =
   | { kind: "lossLimit"; id: string; total: number; limit: number; unit: string }
   | { kind: "maxTrades"; id: string; count: number }
   | { kind: "cooldown"; id: string; minutes: number }
+  /** Losses in a row (the tilt rule): a longer break. */
+  | { kind: "tilt"; id: string; losses: number; minutes: number }
+  /** Monday: last week's recap (src/share/recap.ts). */
+  | { kind: "weekRecap"; id: string; from: number; to: number; label: string }
+  /** The session the trader set an end for is over. */
+  | { kind: "sessionEnd"; id: string; minutes: number }
+  /** A trade just closed: did it follow the plan? (the journal entry's id) */
+  | { kind: "checkin"; id: string; entryId: string; pnl: number; unit: string; symbol: string }
+  /** A token just added: what to check before an entry (src/market/checklist.ts). */
+  | { kind: "checklist"; id: string; key: string }
   /** Back at the screen after a while: what changed (see src/away). */
-  | { kind: "away"; id: string; away: string; lines: string[] }
+  | { kind: "away"; id: string; away: string; lines: string[]; moves?: AwayMove[] }
   /** A newer Candy on GitHub: update now, with the user's go-ahead (see src/core/update.ts). */
   | { kind: "update"; id: string; version: string };
 
@@ -600,6 +734,7 @@ export type IslandViewName =
   | "positions"
   | "discipline"
   | "wardrobe"
+  | "music"
   | "event"
   | "greeting";
 
@@ -657,6 +792,10 @@ class AppState {
 
   settings: Settings = normalizeSettings(null);
   version = "dev";
+  /** The trader's first name from the OS account, for the greeting; null when it has none (or a browser). */
+  firstName: string | null = null;
+  /** The demo runs (Island.startDemo): fictional tokens, nothing saved. */
+  demo = false;
 
   quotes: Record<string, Quote> = {};
   history: Record<string, Sample[]> = {};
@@ -716,8 +855,20 @@ class AppState {
   sessionStart = Date.now();
   lastBreakAt = Date.now();
   cooldownUntil = 0;
+  /** When the session the trader set an end for is over (ms); 0: none set. */
+  sessionEndAt = 0;
+  /** Buys and sells just seen, the trader's own and followed wallets', newest last (the ticker shows each a moment). */
+  feed: { t: number; text: string; tone: "up" | "down" }[] = [];
 
   paused = false;
+  /** The player in front on the PC (the app's media watch, src/core/music.ts); null: nothing loaded. */
+  nowPlaying: NowPlaying | null = null;
+  /** Music plays right now: Candy may dance (src/mascot/dance.ts). */
+  get music(): boolean {
+    return this.nowPlaying?.playing ?? false;
+  }
+  /** Candy is out on the desktop (src/island/desktop.ts): the island's own hides. */
+  mascotAway = false;
   mouse = { x: 0, y: 0 };
   lastActivity = performance.now();
 

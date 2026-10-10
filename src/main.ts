@@ -2,8 +2,10 @@
 // companion, start polling.
 
 import "./style.css";
-import { Bridge, IS_TAURI, onEvent, onSettingsChanged } from "./core/bridge";
-import { bindHotkey } from "./core/hotkey";
+import { Bridge, IS_TAURI, emitToWindow, onEvent, onSettingsChanged } from "./core/bridge";
+import { bindHotkey, unbindAll } from "./core/hotkey";
+import { SHORTCUTS, planShortcuts, shortcutKeys, type ShortcutId, type ShortcutStatus } from "./core/shortcuts";
+import { Music, type NowPlaying } from "./core/music";
 import { Sound } from "./core/sound";
 import { State } from "./core/state";
 import { Companion } from "./companion";
@@ -22,10 +24,15 @@ async function main() {
   State.version = boot.version;
   State.os = boot.os ?? "browser";
   State.cursorPoll = boot.cursorPoll ?? true;
+  State.firstName = boot.firstName ?? null;
   // No cursor poll (Linux): the page's own mouse events stand in for it.
   if (IS_TAURI && !State.cursorPoll) island.followPage();
   island.useArt(manifest);
   island.applySettings();
+  island.initDesktop();
+  // The trader's own recordings, if any (Settings → Reload reads the folder again).
+  void Sound.reload();
+  await onEvent<null>("sounds-changed", () => void Sound.reload().then(() => Sound.play("pop")));
 
   await onEvent<{ x: number; y: number }>("cursor", ({ x, y }) => island.onCursor(x, y));
 
@@ -38,6 +45,12 @@ async function main() {
       case "pause":
         Companion.setPaused(!State.paused);
         if (!State.paused) island.reveal();
+        break;
+      case "wardrobe":
+        if (!(State.mode === "expanded" && State.view === "wardrobe")) island.toggleWardrobe();
+        break;
+      case "demo":
+        island.toggleDemo();
         break;
     }
   });
@@ -57,17 +70,68 @@ async function main() {
     island.floatDragEnded(e.moved, e.x, e.y),
   );
 
-  // The show/hide shortcut (global in the app, page-only in a browser).
-  let hotkey = State.companion.hotkey;
-  void bindHotkey(hotkey, () => island.toggle());
+  // The global shortcuts (src/core/shortcuts.ts; page-only in a browser).
+  // Settings asks how each one went, and has them all let go while it records
+  // new keys, so a combination Candy holds is recorded instead of run.
+  let shortcutStatus: Partial<Record<ShortcutId, ShortcutStatus>> = {};
+  let shortcutKeysNow = "";
+  let suspended = false;
+  let queue = Promise.resolve();
+  const publishShortcuts = () => void emitToWindow("settings", "shortcuts-status", shortcutStatus);
+  const applyShortcuts = (force = false) => {
+    if (suspended) return;
+    const keys = Object.fromEntries(SHORTCUTS.map((d) => [d.id, shortcutKeys(State.companion, d.id)])) as Record<ShortcutId, string>;
+    const key = JSON.stringify(keys);
+    if (!force && key === shortcutKeysNow) return;
+    shortcutKeysNow = key;
+    queue = queue.then(async () => {
+      await unbindAll();
+      const types = (await Bridge.shortcutTypes(SHORTCUTS.map((d) => keys[d.id]))) ?? [];
+      const status: Partial<Record<ShortcutId, ShortcutStatus>> = {};
+      for (const p of planShortcuts(keys, types)) {
+        if (p.register) status[p.id] = { kind: await bindHotkey(p.register, () => island.shortcut(p.id), p.id) };
+        else if (p.status) status[p.id] = p.status;
+      }
+      shortcutStatus = status;
+      publishShortcuts();
+    });
+  };
+  applyShortcuts();
+  await onEvent<null>("shortcuts-ask", publishShortcuts);
+  await onEvent<null>("shortcuts-suspend", () => {
+    suspended = true;
+    shortcutKeysNow = "";
+    queue = queue.then(() => unbindAll());
+  });
+  await onEvent<null>("shortcuts-resume", () => {
+    suspended = false;
+    applyShortcuts(true);
+  });
+
+  // What plays on the PC: the music card and Candy's dance (Settings → Music).
+  await onEvent<NowPlaying | null>("now-playing", (np) => {
+    State.nowPlaying = np;
+    State.notify();
+  });
+  await onEvent<[string, string]>("now-playing-art", ([key, url]) => {
+    Music.art = { key, url };
+    State.notify();
+  });
+  const wantsMusic = () => State.companion.danceToMusic || State.companion.musicCard;
+  let watching = wantsMusic();
+  if (IS_TAURI) void Bridge.setMediaWatch(watching);
 
   // The settings window writes preferences; apply them here without a restart.
   await onSettingsChanged((s) => {
+    // The real settings changed under the demo: it ends, and they apply.
+    if (State.demo) island.stopDemo();
     Companion.applyExternal(s);
     island.applySettings();
-    if (s.companion.hotkey !== hotkey) {
-      hotkey = s.companion.hotkey;
-      void bindHotkey(hotkey, () => island.toggle());
+    applyShortcuts();
+    if (wantsMusic() !== watching) {
+      watching = wantsMusic();
+      if (IS_TAURI) void Bridge.setMediaWatch(watching);
+      if (!watching) State.nowPlaying = null;
     }
   });
 

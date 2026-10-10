@@ -4356,8 +4356,9 @@ dependencies = [
 
 [[package]]
 name = "trader-companion"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
+ "dbus",
  "gtk",
  "libc",
  "reqwest 0.12.28",

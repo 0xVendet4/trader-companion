@@ -3,13 +3,17 @@
 // out the mascot's mood, and saves every change the user makes. The island
 // only draws what this produces.
 
-import { evaluateRules, primeRule, pushSample, type RuleMemory } from "./alerts/alerts";
+import { evaluateRules, isMuted, liveMutes, primeRule, pushSample, volumeAlerts, type RuleMemory } from "./alerts/alerts";
+import { weekRecapDue } from "./share/recap";
+import { LAUNCHPADS, graduation } from "./market/launchpads";
+import { ownFeedLine } from "./positions/board";
 import { Bridge, IS_TAURI } from "./core/bridge";
 import { UPDATE_CHECK_MS, isNewer } from "./core/update";
 import { formatPrice, formatUsd } from "./core/format";
 import { notify } from "./core/notify";
 import {
   MAX_JOURNAL,
+  MAX_NOTE,
   MAX_WALLETS,
   MAX_WATCHLIST,
   State,
@@ -18,6 +22,7 @@ import {
   type CompanionEvent,
   type Quote,
   type Settings,
+  type TradePlan,
   type TrendingItem,
   type WalletSnapshot,
   type WatchToken,
@@ -73,11 +78,13 @@ import {
   MAX_ACTIVITY,
   applyHistory,
   crossedLevels,
+  crossedTargets,
   formatSignedUsd,
   heldAmount,
   needsHistory,
   positionStats,
   setEntry,
+  setTargets,
   updateBook,
   walletTrades,
   type BookChange,
@@ -89,6 +96,10 @@ import { learn, mintsToPrice, type PricingMemory, type Verdict } from "./wallets
 import { junkReason } from "./market/spam";
 import { fetchNewSwaps, fetchSwaps, gapTrades, mergeActivity, tradesFromSwaps, type Swap } from "./positions/trades";
 
+/** The checklist comes up this long after a token is added: after Candy has swallowed it. */
+const CHECKLIST_DELAY_MS = 1_400;
+/** The cards Discipline raises: none of them while it is off. */
+const DISCIPLINE_EVENTS: ReadonlySet<CompanionEvent["kind"]> = new Set(["break", "lossLimit", "maxTrades", "cooldown", "tilt", "sessionEnd", "checkin", "weekRecap"]);
 /** How long a liquidity alert keeps the mascot on edge. */
 const LIQ_WARNING_MS = 15 * 60_000;
 /** The discipline clock ticks this often; breaks are minutes apart. */
@@ -147,6 +158,28 @@ class CompanionController {
 
   /** Off in the demo, whose scripted watchlist must never overwrite the real one. */
   persist = true;
+  /** The in-app demo runs (src/island/tour.ts): nothing is fetched or saved meanwhile. */
+  private held = false;
+  private persistBeforeHold = true;
+
+  /** Holds the market and wallet reads, and saving, while the in-app demo plays; back on, everything resumes. */
+  hold(on: boolean) {
+    if (this.held === on) return;
+    this.held = on;
+    // Saving goes back to what it was (the presentation demo never saves at all).
+    if (on) this.persistBeforeHold = this.persist;
+    this.persist = on ? false : this.persistBeforeHold;
+    if (on) {
+      this.abort?.abort();
+      return;
+    }
+    // The demo's rules and warnings go with it.
+    const ids = new Set(State.companion.alerts.map((a) => a.id));
+    for (const id of this.memory.keys()) if (!ids.has(id)) this.memory.delete(id);
+    this.liqWarnings.clear();
+    this.recomputeMood();
+    void this.pollNow();
+  }
 
   start() {
     if (this.started) return;
@@ -195,6 +228,7 @@ class CompanionController {
     if (this.pollTimer != null) window.clearTimeout(this.pollTimer);
     this.pollTimer = null;
     const tokens = State.companion.watchlist;
+    if (this.held) return;
     if (State.paused) {
       State.marketStatus = "idle";
       this.recomputeMood();
@@ -292,6 +326,26 @@ class CompanionController {
         token.pairAddress = q.pairAddress;
         State.history[token.key] = [];
         changedTokens = true;
+      }
+      // Off its launchpad's curve and onto a DEX pool: the graduation. Only
+      // one seen on the curve this session counts: a token saved as "pumpfun"
+      // long ago, graduated since, must not fire on the first poll after.
+      if (q.dexId && LAUNCHPADS[q.dexId]) this.onCurve.add(token.key);
+      if (q.dexId && q.dexId !== token.dexId) {
+        const grad = graduation(token.dexId, q.dexId);
+        token.dexId = q.dexId;
+        changedTokens = true;
+        if (grad && this.onCurve.delete(token.key) && State.companion.graduationAlert) {
+          this.raise({
+            kind: "alert",
+            id: uid(),
+            ruleId: `graduation:${token.key}`,
+            address: token.key,
+            title: `${token.symbol} graduated from ${grad.from} to ${grad.to}`,
+            detail: `MC ${formatUsd(q.marketCap)} · ${formatPrice(q.priceUsd)} · liq ${formatUsd(q.liquidityUsd)}`,
+            tone: "up",
+          });
+        }
       }
       // A token without a picture when it was added may have one now.
       if (!q.major && q.imageUrl && token.imageUrl !== q.imageUrl) {
@@ -439,7 +493,11 @@ class CompanionController {
       const q = quotes[key];
       if (!q) continue;
       State.positionQuotes[p.mint] = q;
-      const { hits, alerted } = crossedLevels(p, q.priceUsd, State.companion.positionAlerts);
+      const levels = crossedLevels(p, q.priceUsd, State.companion.positionAlerts);
+      // The position's own target and stop, next to the levels every position shares.
+      const own = crossedTargets({ ...p, alerted: levels.alerted }, q.priceUsd);
+      const hits = [...levels.hits, ...own.hits];
+      const alerted = own.alerted;
       if (alerted.length !== p.alerted.length) {
         p.alerted = alerted;
         changed = true;
@@ -524,7 +582,17 @@ class CompanionController {
         tone: f.tone,
       });
     }
+    // A volume surge on any watched token, without a rule of its own.
+    for (const v of volumeAlerts(State.companion.watchlist, State.quotes, State.companion.volumeAlertX, this.volumeFired, now)) {
+      this.raise({ kind: "alert", id: uid(), ruleId: `volume:${v.token.key}`, address: v.token.key, title: v.title, detail: v.detail, tone: v.tone });
+    }
   }
+
+  /** Tokens seen on a launchpad's bonding curve this session (see graduation). */
+  private onCurve = new Set<string>();
+
+  /** When each token's volume alert last fired (see volumeAlerts). */
+  private volumeFired = new Map<string, number>();
 
   // ── Token safety (RugCheck) ─────────────────────────────────────────────────
 
@@ -623,8 +691,47 @@ class CompanionController {
     this.onFeeling?.("curious", `ooh, ${token.symbol}?`);
     this.save();
     void this.pollNow();
+    // What to check before an entry, once Candy has swallowed it (a major
+    // coin needs none of that).
+    if (State.companion.addChecklist && !token.coingecko && !State.demo) {
+      const key = token.key;
+      window.setTimeout(() => {
+        if (State.token(key)) this.raise({ kind: "checklist", id: uid(), key });
+      }, CHECKLIST_DELAY_MS);
+    }
     return { ok: true, message: `${token.symbol} added.` };
   }
+
+  /** The trader's own note on a token ("" removes it). */
+  setNote(key: string, note: string) {
+    const t = State.token(key);
+    if (!t) return;
+    const text = note.trim().slice(0, MAX_NOTE);
+    if (text) t.note = text;
+    else delete t.note;
+    this.save();
+  }
+
+  /** No alerts for a token for a while (the alert card's "Mute 1 h"). */
+  muteToken(key: string, minutes: number) {
+    const c = State.companion;
+    c.muted = { ...liveMutes(c.muted, Date.now()), [key]: Date.now() + minutes * 60_000 };
+    this.save();
+  }
+
+  /** A position's own target and stop prices (USD; null removes one). */
+  setTargets(mint: string, target: number | null, stop: number | null) {
+    State.companion.book = setTargets(State.companion.book, mint, target, stop);
+    this.save();
+  }
+
+  /** The session ends in `minutes` (an alert then); null: no end. */
+  setSessionEnd(minutes: number | null) {
+    State.sessionEndAt = minutes && minutes > 0 ? Date.now() + minutes * 60_000 : 0;
+    this.sessionMinutes = minutes ?? 0;
+    State.notify();
+  }
+  private sessionMinutes = 0;
 
   // ── Watchlist folders ────────────────────────────────────────────────────────
 
@@ -777,7 +884,7 @@ class CompanionController {
 
   /** Reads balances, prices them, and reports buys and sells since last time. */
   async refreshWallets(only?: string[]) {
-    if (State.paused) return;
+    if (State.paused || this.held) return;
     if (this.walletsLoading) {
       // A wallet just added must not wait for the next minute's poll.
       this.walletsQueued = !only || this.walletsQueued === true ? true : [...new Set([...(this.walletsQueued ?? []), ...only])];
@@ -978,7 +1085,7 @@ class CompanionController {
         const closedToday = new Set(todays.filter((a) => a.side === "closed").map((a) => a.mint));
         for (const a of todays) {
           const opts = { auto: true, id: `hist-${a.id}`, at: a.t, journal: false, quiet: true };
-          if (a.side === "closed") this.recordTrade(conv(a.realizedUsd), "", { ...opts, tradePnl: conv(a.realizedUsd) });
+          if (a.side === "closed") this.recordTrade(conv(a.realizedUsd), "", { ...opts, tradePnl: conv(a.realizedUsd), symbol: a.symbol });
           else if (a.side === "sold" && !closedToday.has(a.mint)) this.recordTrade(conv(a.realizedUsd), "", { ...opts, partial: true });
         }
       }
@@ -1113,6 +1220,7 @@ class CompanionController {
         if (seen.has(trip.id)) continue;
         const pnl = conv(trip.pnlUsd);
         this.recordTrade(pnl, `Auto: ${trip.symbol} bought and sold (${formatSignedUsd(trip.pnlUsd)})`, {
+          symbol: trip.symbol,
           auto: true,
           id: `live-${trip.id}`,
           at: trip.t,
@@ -1137,6 +1245,10 @@ class CompanionController {
     }
     const { book, changes } = updateBook(State.companion.book, mine, reads, prices, Date.now(), todayKey());
     State.companion.book = book;
+    for (const ch of changes) {
+      const line = ownFeedLine(ch, formatUsd);
+      if (line) this.pushFeed(line.text, line.tone);
+    }
     if (State.companion.autoJournal) this.pendingSales.push(...changes.filter((ch) => ch.side === "sold" || ch.side === "closed"));
     this.logWalletSales();
     for (const [mint, info] of Object.entries(prices)) {
@@ -1184,6 +1296,7 @@ class CompanionController {
       State.walletMoves[address] = { side: m.side === "sold" && m.to === 0 ? "sold all" : m.side, symbol: token.symbol, t: now };
       const q = toQuote(m.mint, pair, now);
       const what = m.side === "sold" && m.to === 0 ? "sold all its" : m.side;
+      this.pushFeed(`${label} ${what} ${token.symbol}`, m.side === "bought" ? "up" : "down");
       this.raise({
         kind: "alert",
         id: uid(),
@@ -1211,7 +1324,26 @@ class CompanionController {
 
   get stoppedToday(): boolean {
     const c = State.companion;
-    return lossLimitReached(c.discipline, summarize(currentLog(c.log)));
+    return c.disciplineOn && lossLimitReached(c.discipline, summarize(currentLog(c.log)));
+  }
+
+  /** Turns Discipline on or off as a whole (see Companion.disciplineOn); off, a running cooldown or session end is let go. */
+  setDiscipline(on: boolean) {
+    const c = State.companion;
+    if (c.disciplineOn === on) return;
+    c.disciplineOn = on;
+    if (!on) {
+      State.cooldownUntil = 0;
+      State.sessionEndAt = 0;
+      this.breakPending = false;
+      // Its cards still waiting go too.
+      State.events = State.events.filter((e) => !DISCIPLINE_EVENTS.has(e.kind));
+    } else {
+      State.lastBreakAt = Date.now();
+    }
+    this.save();
+    this.recomputeMood();
+    State.notify();
   }
 
   /**
@@ -1223,7 +1355,7 @@ class CompanionController {
   recordTrade(
     pnl: number,
     note = "",
-    opts: { partial?: boolean; tradePnl?: number; auto?: boolean; id?: string; at?: number; journal?: boolean; quiet?: boolean } = {},
+    opts: { partial?: boolean; tradePnl?: number; auto?: boolean; id?: string; at?: number; journal?: boolean; quiet?: boolean; symbol?: string } = {},
   ) {
     const c = State.companion;
     if (opts.id && currentLog(c.log).entries.some((e) => e.id === opts.id)) return;
@@ -1235,8 +1367,10 @@ class CompanionController {
       ...(opts.id ? { id: opts.id } : {}),
     });
     c.log = out.log;
+    let entryId: string | null = null;
     if (opts.journal !== false && !opts.partial) {
-      c.journal.push({ id: uid(), t: at, pnl: opts.tradePnl ?? pnl, note: note.slice(0, 200) });
+      entryId = uid();
+      c.journal.push({ id: entryId, t: at, pnl: opts.tradePnl ?? pnl, note: note.slice(0, 200) });
       if (c.journal.length > MAX_JOURNAL) c.journal.splice(0, c.journal.length - MAX_JOURNAL);
     }
     this.save();
@@ -1246,8 +1380,20 @@ class CompanionController {
       return;
     }
     const unit = c.discipline.unit;
+    // Discipline off: the trade is kept, nothing else happens but a feeling.
+    if (!c.disciplineOn) {
+      const result = opts.tradePnl ?? pnl;
+      if (!opts.partial && pnl !== 0) this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? "closed in profit 💪" : "closed at a loss. it happens.");
+      this.recomputeMood();
+      State.notify();
+      return;
+    }
     if (out.startCooldown) {
       State.cooldownUntil = Date.now() + c.discipline.cooldownMin * 60_000;
+    }
+    // Losses in a row: a longer break than the one after a single loss.
+    if (out.hitTilt) {
+      State.cooldownUntil = Math.max(State.cooldownUntil, Date.now() + c.discipline.tiltBreakMin * 60_000);
     }
     if (out.hitLossLimit) {
       this.raise({
@@ -1257,16 +1403,22 @@ class CompanionController {
         limit: c.discipline.dailyLossLimit,
         unit,
       });
+    } else if (out.hitTilt) {
+      this.raise({ kind: "tilt", id: uid(), losses: c.discipline.tiltLosses, minutes: c.discipline.tiltBreakMin });
     } else if (out.hitMaxTrades) {
       this.raise({ kind: "maxTrades", id: uid(), count: c.discipline.maxTradesPerDay });
     } else if (out.startCooldown) {
       this.raise({ kind: "cooldown", id: uid(), minutes: c.discipline.cooldownMin });
     }
+    // The check-in: did it follow the plan? (into the journal)
+    if (entryId && c.checkIn && !State.demo) {
+      this.raise({ kind: "checkin", id: uid(), entryId, pnl: opts.tradePnl ?? pnl, unit, symbol: opts.symbol ?? "" });
+    }
     // A feeling for the trade, unless a discipline card has its own to show.
     const max = c.discipline.maxTradesPerDay;
     if (max > 0 && summarize(out.log).count > max) {
       this.onFeeling?.("angry", "that's past your max for today 😤");
-    } else if (!out.hitLossLimit && !out.hitMaxTrades && !out.startCooldown && !opts.partial && pnl !== 0) {
+    } else if (!out.hitLossLimit && !out.hitTilt && !out.hitMaxTrades && !out.startCooldown && !opts.partial && pnl !== 0) {
       const result = opts.tradePnl ?? pnl;
       if (opts.auto) this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? "closed in profit 💪" : "closed at a loss. it happens.");
       else this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? "win logged 💪" : "loss logged. it happens.");
@@ -1283,6 +1435,20 @@ class CompanionController {
     this.save();
     this.recomputeMood();
     State.notify();
+  }
+
+  /** The check-in's answer for a journal entry. */
+  setPlan(id: string, plan: TradePlan) {
+    const e = State.companion.journal.find((x) => x.id === id);
+    if (!e) return;
+    e.plan = plan;
+    this.save();
+  }
+
+  /** A buy or sell for the ticker's live feed. */
+  private pushFeed(text: string, tone: "up" | "down") {
+    State.feed.push({ t: Date.now(), text, tone });
+    if (State.feed.length > 20) State.feed.splice(0, State.feed.length - 20);
   }
 
   setJournalNote(id: string, note: string) {
@@ -1319,6 +1485,13 @@ class CompanionController {
     this.rollDay();
     const c = State.companion;
     const now = Date.now();
+    for (const [addr, until] of this.liqWarnings) if (now >= until) this.liqWarnings.delete(addr);
+    // Discipline off: no reminders of any kind.
+    if (!c.disciplineOn) {
+      this.recomputeMood();
+      State.notify();
+      return;
+    }
     const due = nextBreakIn(c.discipline, State.lastBreakAt, now);
     if (due != null && due <= 0 && !this.breakPending && !State.paused) {
       this.breakPending = true;
@@ -1328,7 +1501,18 @@ class CompanionController {
       State.cooldownUntil = 0;
       this.onFeeling?.("relieved", "cooldown over. fresh start 😮‍💨");
     }
-    for (const [addr, until] of this.liqWarnings) if (now >= until) this.liqWarnings.delete(addr);
+    // Monday: last week's recap, once.
+    const week = State.demo ? null : weekRecapDue(new Date(now), c.weekRecapSeen, c.journal);
+    if (week) {
+      c.weekRecapSeen = week.from;
+      this.save();
+      this.raise({ kind: "weekRecap", id: uid(), from: week.from, to: week.to, label: week.label });
+    }
+    // The session the trader set an end for is over.
+    if (State.sessionEndAt && now >= State.sessionEndAt) {
+      State.sessionEndAt = 0;
+      this.raise({ kind: "sessionEnd", id: uid(), minutes: this.sessionMinutes });
+    }
     this.recomputeMood();
     State.notify();
   }
@@ -1348,7 +1532,7 @@ class CompanionController {
       status: State.marketStatus,
       paused: State.paused,
       stopped: this.stoppedToday,
-      coolingDown: State.cooldownUntil > Date.now(),
+      coolingDown: c.disciplineOn && State.cooldownUntil > Date.now(),
       liquidityWarnings: new Set(this.liqWarnings.keys()),
       hour: new Date().getHours(),
       nightSleep: c.nightSleep,
@@ -1388,6 +1572,10 @@ class CompanionController {
   readonly seenEvents: SeenEvent[] = [];
 
   raise(e: CompanionEvent) {
+    // Discipline off: none of its cards.
+    if (!State.companion.disciplineOn && DISCIPLINE_EVENTS.has(e.kind)) return;
+    // A token muted from its alert card stays quiet, whatever the alert.
+    if (e.kind === "alert" && isMuted(State.companion.muted, e.address, Date.now())) return;
     if (e.kind === "alert") {
       this.seenEvents.push({ t: Date.now(), title: e.title, wallet: e.ruleId.startsWith("wallet:") });
       if (this.seenEvents.length > 50) this.seenEvents.splice(0, this.seenEvents.length - 50);
@@ -1427,7 +1615,12 @@ class CompanionController {
     // The positions book is this window's: the settings window never edits it,
     // and its copy may be a poll behind.
     s.companion.book = State.companion.book;
+    // Discipline switched in the settings window: let go of what it had running.
+    const discipline = s.companion.disciplineOn;
+    const discChanged = discipline !== State.companion.disciplineOn;
+    if (discChanged) s.companion.disciplineOn = !discipline;
     State.settings = s;
+    if (discChanged) this.setDiscipline(discipline);
     if (mineChanged) this.updatePositions([], {});
     this.recomputeMood();
     State.notify();

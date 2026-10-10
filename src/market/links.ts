@@ -22,6 +22,13 @@ export const GMGN_REFERRAL = "KtvxEtPr";
  */
 export const AXIOM_REFERRAL_URL = "https://axiom.trade/@vendett4";
 
+/**
+ * The developer's Based Bot referral code. Its referral route takes a token
+ * page after it: basedbot.app/r/{code}/token/{chain}/{address} keeps the code
+ * and opens the token, as GMGN's prefix does.
+ */
+export const BASEDBOT_REFERRAL = "GuyFawk3s";
+
 export const TERMINALS: Record<Terminal, { label: string; url: (t: Linkable) => string }> = {
   gmgn: {
     label: "GMGN",
@@ -34,6 +41,13 @@ export const TERMINALS: Record<Terminal, { label: string; url: (t: Linkable) => 
     label: "Axiom",
     // Axiom token pages are keyed by the pair (pool) address, not the mint.
     url: (t) => (CHAINS[t.chainId]?.axiom ? `https://axiom.trade/meme/${t.pairAddress}` : dexscreener(t)),
+  },
+  basedbot: {
+    label: "Based Bot",
+    url: (t) => {
+      const slug = CHAINS[t.chainId]?.basedbot;
+      return slug ? `https://basedbot.app/r/${BASEDBOT_REFERRAL}/token/${slug}/${t.address}` : dexscreener(t);
+    },
   },
   dexscreener: {
     label: "DexScreener",

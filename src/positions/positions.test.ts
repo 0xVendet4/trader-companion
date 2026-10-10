@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_BOOK, crossedLevels, normalizeBook, parseLevels, positionStats, setEntry, updateBook, walletTrades } from "./positions";
+import { EMPTY_BOOK, crossedLevels, crossedTargets, normalizeBook, parseLevels, positionStats, setEntry, setTargets, updateBook, walletTrades } from "./positions";
 
 const A = "WalletA";
 const B = "WalletB";
@@ -124,5 +124,26 @@ describe("walletTrades", () => {
     expect(walletTrades(closed, "SOL", null)).toBeNull();
     expect(walletTrades(closed, "USD", null)).toEqual([{ pnl: -3, partial: false, tradePnl: -3, note: "Auto: BONK closed (−$3, since tracking)" }]);
     expect(walletTrades([{ ...closed[0], side: "opened" }], "SOL", null)).toEqual([]);
+  });
+});
+
+describe("targets", () => {
+  it("fires the trader's own target and stop once each, again after a change", () => {
+    const { book } = updateBook(EMPTY_BOOK, [A], [{ address: A, holdings: { [BONK]: 1000 } }], px(0.01), 1, DAY);
+    let withTargets = setTargets(book, BONK, 0.02, 0.008);
+    let p = withTargets.positions[BONK];
+    expect(crossedTargets(p, 0.015).hits).toHaveLength(0);
+    const up = crossedTargets(p, 0.021);
+    expect(up.hits.map((x) => x.key)).toEqual(["target"]);
+    expect(up.hits[0].title).toContain("reached your target");
+    p = { ...p, alerted: up.alerted };
+    expect(crossedTargets(p, 0.025).hits).toHaveLength(0);
+    expect(crossedTargets(p, 0.007).hits.map((x) => x.key)).toEqual(["stop"]);
+    // A new target can fire again; the stop left as it was keeps its state.
+    withTargets = setTargets({ ...withTargets, positions: { [BONK]: { ...p, alerted: ["target", "stop"] } } }, BONK, 0.03, 0.008);
+    expect(withTargets.positions[BONK].alerted).toEqual(["stop"]);
+    expect(setTargets(withTargets, BONK, null, null).positions[BONK].target).toBeUndefined();
+    // Saved and read back.
+    expect(normalizeBook(withTargets).positions[BONK].target).toBe(0.03);
   });
 });

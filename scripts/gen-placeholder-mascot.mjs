@@ -174,18 +174,21 @@ const EXTRAS = {
   },
 };
 
+/** Extras drawn behind the body (the arms); the rest (sweat, a tear…) go on top of it. */
+const BEHIND = new Set(["armsUpA", "armsUpB", "waveA", "waveB"]);
+
 /** A frame. `eyesApart`: leave out what the eyes layer draws. */
 function svg({ palette, eyes, brows = "none", mouth, cheeks = 0.55, extras = [] }, eyesApart = true) {
   const p = PALETTES[palette];
-  const extra = extras.map((e) => EXTRAS[e](p)).join("");
+  const draw = (keep) => extras.filter(keep).map((e) => EXTRAS[e](p)).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="256" height="256">
 <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.top}"/><stop offset="1" stop-color="${p.bottom}"/></linearGradient></defs>
 <rect x="60" y="6" width="8" height="116" rx="4" fill="${p.wick}" stroke="${RIM}" stroke-width="5" paint-order="stroke"/>
-${extra.includes("STOP") ? "" : extra}
+${draw((e) => BEHIND.has(e))}
 <rect x="28" y="24" width="72" height="82" rx="22" fill="url(#g)" stroke="${RIM}" stroke-width="5" paint-order="stroke"/>
 <ellipse cx="42" cy="75" rx="7" ry="4.5" fill="#f9a8d4" opacity="${cheeks}"/><ellipse cx="86" cy="75" rx="7" ry="4.5" fill="#f9a8d4" opacity="${cheeks}"/>
 ${BROWS[brows]}${eyesApart && EYE_LAYERS[eyes] ? EYE_LAYERS[eyes].face : EYES[eyes]}${MOUTHS[mouth]}
-${extra.includes("STOP") ? extra : ""}
+${draw((e) => !BEHIND.has(e))}
 </svg>
 `;
 }

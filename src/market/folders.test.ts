@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WatchToken } from "../core/state";
-import { DEFAULT_FOLDERS, cleanFolderName, folderTokens, normalizeFolders } from "./folders";
+import { DEFAULT_FOLDERS, cleanFolderName, folderMood, folderTokens, normalizeFolders } from "./folders";
 
 const tok = (symbol: string, folder?: string): WatchToken => ({
   key: symbol, chainId: "solana", address: symbol, symbol, name: symbol, pairAddress: "p", dexId: "d", imageUrl: null, folder,
@@ -27,5 +27,17 @@ describe("watchlist folders", () => {
     expect(r.folders).toEqual(["Runners", "Moon"]);
     expect(r.tokens.map((t) => t.folder)).toEqual([undefined, "Moon"]);
     expect(r.active).toBe("");
+  });
+});
+
+describe("folder mood", () => {
+  const t = (key: string) => ({ key }) as WatchToken;
+  const q = (h1: number) => ({ change: { h1 } });
+
+  it("averages the hour's move of the priced tokens", () => {
+    expect(folderMood([t("a"), t("b"), t("c")], { a: q(6), b: q(-2) })).toEqual({ pct: 2, tone: "up", count: 2 });
+    expect(folderMood([t("a")], { a: q(-3) }).tone).toBe("down");
+    expect(folderMood([t("a")], { a: q(0.4) }).tone).toBe("flat");
+    expect(folderMood([t("a")], {})).toEqual({ pct: null, tone: "flat", count: 0 });
   });
 });

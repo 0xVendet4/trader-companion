@@ -34,6 +34,24 @@ pub struct Settings {
     pub rpc_url: String,
     /// Watchlist, alerts, discipline rules and the trade log — see src/core/state.ts.
     pub companion: serde_json::Value,
+    /// Candy on the desktop: whether he lives there, and his spot. Owned by
+    /// the Rust side (desktop.rs) — what a webview sends back is ignored.
+    pub desktop: DesktopPref,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DesktopPref {
+    /// He was on the desktop when the app quit: he flies back out at launch.
+    pub on_desktop: bool,
+    /// Top-left corner of his window where the user last left him, physical pixels.
+    pub spot: Option<DesktopSpot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopSpot {
+    pub x: f64,
+    pub y: f64,
 }
 
 impl Default for Settings {
@@ -44,12 +62,14 @@ impl Default for Settings {
             auto_close_interval: 15.0,
             screen: "primary".into(),
             autostart: false,
-            placement: "top".into(),
+            // A new install floats (the user asked for it); a saved choice stays.
+            placement: "float".into(),
             float_x: 0.5,
             float_y: 0.12,
             float_screen: String::new(),
             rpc_url: String::new(),
             companion: serde_json::Value::Null,
+            desktop: DesktopPref::default(),
         }
     }
 }

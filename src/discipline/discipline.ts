@@ -2,6 +2,7 @@
 // mascot only reminds them. Pure helpers first, then the small runner that
 // checks the clock.
 
+import { formatPnl } from "../core/format";
 import type { DisciplineRules, JournalEntry, TradeEntry, TradeLog } from "../core/state";
 
 /** Local calendar day, YYYY-MM-DD. */
@@ -62,6 +63,8 @@ export interface TradeOutcome {
   hitMaxTrades: boolean;
   /** A cool-down should start now (the trade was a loss). */
   startCooldown: boolean;
+  /** This loss makes the streak the tilt rule watches for (rules.tiltLosses in a row). */
+  hitTilt: boolean;
 }
 
 /** Adds a trade to today's log and reports which rules it trips. */
@@ -83,7 +86,99 @@ export function logTrade(
     hitLossLimit: !lossLimitReached(rules, before) && lossLimitReached(rules, after),
     hitMaxTrades: whole && rules.maxTradesPerDay > 0 && after.count === rules.maxTradesPerDay,
     startCooldown: whole && (extra.tradePnl ?? pnl) < 0 && rules.cooldownMin > 0,
+    hitTilt: whole && rules.tiltLosses > 0 && lossStreak(next) === rules.tiltLosses && lossStreak(today) < rules.tiltLosses,
   };
+}
+
+/** Losing trades in a row at the end of the day so far (whole trades; a part sold neither breaks nor adds to it). */
+export function lossStreak(log: TradeLog): number {
+  let n = 0;
+  for (let i = log.entries.length - 1; i >= 0; i--) {
+    const e = log.entries[i];
+    if (e.partial) continue;
+    if ((e.tradePnl ?? e.pnl) < 0) n++;
+    else break;
+  }
+  return n;
+}
+
+/** The header's pill: the day against the trader's own limits. */
+export interface DayPill {
+  text: string;
+  /** "stop": a limit is reached; "warn": close to one (70% of the loss, or the last trade allowed). */
+  tone: "ok" | "warn" | "stop";
+  title: string;
+}
+
+/** Null when there is nothing to show: no limit set and no trade yet. */
+export function dayPill(rules: DisciplineRules, s: DaySummary): DayPill | null {
+  const lossLimit = rules.dailyLossLimit > 0;
+  const maxTrades = rules.maxTradesPerDay > 0;
+  if (!lossLimit && !maxTrades && s.count === 0 && s.total === 0) return null;
+  // Short: the header is crowded. The tooltip says it in full.
+  const parts = [lossLimit ? `${formatPnl(s.total, "").trim()}/${rules.dailyLossLimit}` : formatPnl(s.total, rules.unit)];
+  const title = [`Today: ${formatPnl(s.total, rules.unit)}, ${s.count} trade${s.count === 1 ? "" : "s"}`];
+  if (lossLimit) title.push(`Loss limit: ${formatPnl(-rules.dailyLossLimit, rules.unit)}`);
+  if (maxTrades) {
+    parts.push(`${s.count}/${rules.maxTradesPerDay}`);
+    title.push(`Max trades: ${rules.maxTradesPerDay}`);
+  } else if (s.count) parts.push(`${s.count}t`);
+  const used = lossLimitUsed(rules, s);
+  const tone: DayPill["tone"] =
+    used >= 1 || (maxTrades && s.count >= rules.maxTradesPerDay)
+      ? "stop"
+      : used >= 0.7 || (maxTrades && s.count === rules.maxTradesPerDay - 1)
+        ? "warn"
+        : "ok";
+  return { text: parts.join(" · "), tone, title: title.join("\n") };
+}
+
+/**
+ * How much to put in so that being stopped out loses `riskPct` of the bank:
+ * bank × risk ÷ stop. Null until all three make sense; never more than the bank.
+ */
+export function positionSize(bank: number, riskPct: number, stopPct: number): { size: number; risk: number } | null {
+  if (!(bank > 0) || !(riskPct > 0) || !(stopPct > 0) || riskPct > 100 || stopPct > 100) return null;
+  const risk = (bank * riskPct) / 100;
+  return { size: Math.min(bank, risk / (stopPct / 100)), risk };
+}
+
+/** One square of the green and red days grid. */
+export interface GridDay {
+  day: string;
+  pnl: number;
+  count: number;
+  /** After today: drawn empty. */
+  future: boolean;
+}
+
+/**
+ * The journal as weeks of days, oldest week first, each Monday to Sunday,
+ * ending with the current week: what each day took and how many trades.
+ */
+export function dayGrid(journal: JournalEntry[], weeks: number, now = new Date()): GridDay[][] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const sinceMonday = (today.getDay() + 6) % 7;
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - sinceMonday - (weeks - 1) * 7);
+  const out: GridDay[][] = [];
+  const byDay = new Map<string, GridDay>();
+  for (let w = 0; w < weeks; w++) {
+    const col: GridDay[] = [];
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + d);
+      const cell = { day: todayKey(date), pnl: 0, count: 0, future: date > today };
+      byDay.set(cell.day, cell);
+      col.push(cell);
+    }
+    out.push(col);
+  }
+  for (const e of journal) {
+    const cell = byDay.get(todayKey(new Date(e.t)));
+    if (!cell) continue;
+    cell.pnl += e.pnl;
+    cell.count++;
+  }
+  return out;
 }
 
 /** The last trade typed in today, if any (wallet entries are not undone). */
@@ -159,7 +254,7 @@ export function journalCsv(journal: JournalEntry[], unit: string): string {
     .sort((a, b) => a.t - b.t)
     .map((e) => {
       const d = new Date(e.t);
-      return [todayKey(d), `${pad(d.getHours())}:${pad(d.getMinutes())}`, String(e.pnl), unit, esc(e.note ?? "")].join(",");
+      return [todayKey(d), `${pad(d.getHours())}:${pad(d.getMinutes())}`, String(e.pnl), unit, esc(e.note ?? ""), e.plan ?? ""].join(",");
     });
-  return ["date,time,pnl,unit,note", ...rows].join("\n") + "\n";
+  return ["date,time,pnl,unit,note,plan", ...rows].join("\n") + "\n";
 }

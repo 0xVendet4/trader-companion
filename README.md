@@ -19,21 +19,32 @@ prebuilt download to trust.
 - **Watchlist ticker** — market cap (the price, for major coins: click the
   column to switch), volume and buys / sells (5m, 1h, 6h or 24h, as GMGN
   shows them) and 5m / 1h / 24h change, always in view; click to
-  open the full list, click a token to open it on GMGN, Axiom or DexScreener.
-  Folders (Runners, Holds, Watching, your own) sort the list. Folded, a dot
-  per token shows how the whole list moved in the last hour, and a dot on
-  Candy flags an alert you haven't looked at yet.
-- **Drag and drop** — drag a token's link (DexScreener, GMGN, Axiom, an
-  explorer) or its address from your browser onto Candy: it swallows it and
-  the token joins your watchlist.
+  open the full list, click a token to open it on GMGN, Axiom, Based Bot or
+  DexScreener.
+  Folders (Runners, Holds, Watching, your own) sort the list, each with a mini
+  Candy in the colour of its hour. Each token's mini 24 h chart has its chain's
+  coin (SOL, BNB, ETH) as a faint dashed line: did it rise alone or with the
+  market? Folded, a dot per token shows how the whole list moved in the last
+  hour, a dot on Candy flags an alert you haven't looked at yet, and the
+  ticker calls out each buy and sell as it happens, yours and the wallets you
+  follow.
+- **Drag and drop** — drag a token's link (DexScreener, GMGN, Axiom, Based Bot, an
+  explorer) or its address from your browser onto Candy: his eyes follow it,
+  his mouth opens, a bar runs along the island while it is looked up, and he
+  swallows it with a green check as the token joins your watchlist.
 - **My wallet** — add your own Solana wallet (public address only): its SOL and
   value show at once, its recent trades are read from its last 50
   transactions (round trips that closed go into your journal), and from then
   on its buys and sells are recorded, with value, average entry (from its own
   transactions), profit and multiple per token. Each check reads its new
   transactions too, so a token bought and sold within the same minute still
-  shows, at the price it really traded at. Alerts at the levels you pick
-  (2x, −30%…). Junk is left out: airdropped scams (a name that advertises a
+  shows, at the price it really traded at. The tab opens on four cards (the
+  wallet's value, open PnL, what today's sales took, the best multiple), a
+  bar of each token's share of the wallet, and one row per token with its
+  logo, how long it has been held, entry → now, value and share, profit, %
+  and multiple, sortable, with a line under it showing the way to your target,
+  stop or next multiple; Activity groups the buys and sells by day. Alerts
+  at the levels you pick (2x, −30%…). Junk is left out: airdropped scams (a name that advertises a
   site) and coins worth more, at their quoted price, than all the real money
   in their pool — a wallet full of them looks rich and can sell none of it.
 - **Solana, BSC, Ethereum and Robinhood Chain** — pick one, several or all for
@@ -50,11 +61,29 @@ prebuilt download to trust.
   CoinGecko. A coin no token tracks on these chains (Stellar, Sui…) can't be
   priced, so it isn't offered.
 - **Alerts** — price or market cap above/below a level, % up/down within 5–60
-  minutes, and liquidity drops (a classic sign of liquidity being pulled). The
-  mascot reacts, a sound plays, the island opens on a card in the alert's
-  colour.
+  minutes, liquidity drops (a classic sign of liquidity being pulled), and
+  volume surges on any watched token (5-minute volume several times the rest
+  of its hour), and a token leaving pump.fun's curve (or another launchpad's)
+  for a DEX pool. The mascot reacts, a sound plays (each folder can have its
+  own), the island opens on a card in the alert's colour: open the token, set a
+  2x alert, or mute that token for an hour. On Windows, while a game, a video
+  or a presentation fills the screen, cards and sounds wait until it is over.
 - **Discipline** — your own rules: a daily loss limit, a max number of trades,
-  a cooldown after a loss, and break reminders.
+  a cooldown after a loss, a longer break after losses in a row (tilt), and
+  break reminders. A pill in the island's header shows the day against your
+  limits, amber when close and red on one. Set a session end (30 min, 1 h,
+  2 h) and Candy tells you when it is over. A size calculator: your bank, the
+  share you risk and your stop give what to put in. When a trade closes, a
+  check-in asks whether it followed your plan (yes, partly, no): the answer
+  goes into the journal. Don't want any of it? Turn Discipline off (Settings → Discipline,
+  or Turn off in its tab): the tab, the pill and every reminder go away, and
+  your trades are still kept.
+- **Before an entry** — when you add a token, Candy goes over a checklist in
+  front of you, one line at a time: mint and freeze authority, locked
+  liquidity, top holders, age and real liquidity, each with what RugCheck and
+  DexScreener say, then sums up what is worth a closer look. A note per token (why you're in, the exit plan) shows
+  when you hover it. Your own target and stop per position, with an alert
+  when the price gets there.
 - **A mascot with moods** — Candy is a candle: it wears your colour (green
   by default) and turns red on a loss, whatever colour you picked. It is
   happy when the watchlist is green, worried when it's red, bored when
@@ -64,29 +93,41 @@ prebuilt download to trust.
   break, sad after a loss, angry past your trade cap, relieved when a cooldown
   ends, curious about a new token, and reacts to SOL and
   to your own positions; a lasting mood settles after a while. Its eyes
-  follow your mouse and it leans toward it, it fidgets, reacts to pokes, and
-  sums up what changed when you come back to the screen. 14 backgrounds for
+  follow your mouse and its face turns toward it, it fidgets, reacts to pokes, and
+  sums up what changed when you come back to the screen (each token that
+  moved is a link). It arrives the way Coucou's Mochi does: it falls into the
+  island through a rush of streaks, lands in a ring of light, slides aside,
+  waves hello with two little hands and settles into the ticker. 14 backgrounds for
   the island; a wardrobe
   in the island with 23 hats, 23 face accessories and 23 colours (or any colour),
   costumes (Gengar, Spiderman, Shadow, V) that redraw the whole mascot in
   every mood, and seasonal looks.
-- **Where it lives** — centred on the top edge, on the left or right edge (a
-  slim tab that opens into a sidebar), or floating: drag it anywhere. On
-  Linux, the top edge.
+- **Where it lives** — floating wherever you drag it (the default), centred
+  on the top edge, or on the left or right edge (a slim tab that opens into a
+  sidebar). On Linux, the top edge.
 - **Token safety** — a RugCheck badge on every token: mint/freeze authority,
   holder concentration, unlocked liquidity.
 - **Trending** — DexScreener's most boosted and newest tokens on your chains,
   sorted by volume, market cap, liquidity or age, over 5m / 1h / 6h / 24h.
 - **Following** — follow other wallets by their public address: an alert when
   they buy or sell. Nothing else is worked out about them.
-- **Journal** — weekly stats, trade notes, CSV export.
-- **Share my day** — a recap image (trades, PnL, positions, discipline) with
-  Candy, ready for X or Telegram; amounts can be hidden.
+- **Journal** — weekly stats, a grid of green and red days over 16 weeks,
+  trade notes, CSV export.
+- **Share my day, and my week** — a recap image (trades, PnL, positions,
+  discipline) with Candy, ready for X or Telegram; amounts can be hidden. Every
+  Monday a card sums up last week (its PnL, trades, green days, best day,
+  plan followed, best trade), to share as a 9:16 story or a wide image; "my
+  week" in the Journal shares the week so far.
 - **Quick actions** — mini 24 h chart per token, copy the CA, one-click 2x
-  alert, share your watchlist as a list of addresses, a show/hide shortcut and a
-  minimize button (the shortcut or the tray icon brings Candy back), system
-  notifications. The tray icon wears Candy's mood and colour, with a dot for
-  an alert you haven't seen.
+  alert, share your watchlist as a list of addresses, global shortcuts (see
+  [Shortcuts](#shortcuts)) and a minimize button (a shortcut or the tray icon
+  brings Candy back), system notifications. The tray icon wears Candy's mood
+  and colour, with a dot for an alert you haven't seen; its menu also opens the
+  wardrobe and plays a 30-second demo with made-up coins (nothing is saved).
+- **Open on hover, alerts that wait** — optional: the island opens as soon as
+  the pointer rests on its ticker, and an alert card stays up until you look at
+  it, or fold it for later with its ⌃. A thin bar shows the island about to
+  fold.
 
 On Windows, hold **Ctrl** over the island to click whatever is behind it (a
 browser tab, a title bar); it fades while the clicks go through.
@@ -202,8 +243,8 @@ little differently there:
   through XWayland, as an always-on-top window at the top of the screen.
 - It stays on the top edge; its eyes follow the mouse over the island only;
   there is no Ctrl pass-through.
-- The show/hide shortcut works where your desktop lets apps have global
-  shortcuts (X11, and GNOME through XWayland).
+- The shortcuts work where your desktop lets apps have global shortcuts
+  (X11, and GNOME through XWayland).
 - A blank island on some graphics drivers: start it with
   `WEBKIT_DISABLE_DMABUF_RENDERER=1 candy`.
 
@@ -221,6 +262,65 @@ What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux:
 `~/.cache/candy/build`); delete that folder to free a few GB.
 
 Candy never asks for a wallet, a seed phrase or a private key.
+
+### Your own sounds
+
+Put a recording named after one of Candy's sounds in
+`%APPDATA%\TraderCompanion\sounds` (Linux: `~/.config/candy/sounds`) and it
+plays instead of the built-in one. The names: `open`, `close`, `blip`, `hover`,
+`pop`, `alert-up`, `alert-down`, `warn`, `reminder`, `greet`, `boing`, `squeak`,
+`whee`, `eep`, `dizzy`, `grumble`, `achoo`, `tada`, `hmm`; as `.wav`, `.mp3`,
+`.ogg`, `.m4a`, `.flac` or `.aiff`, up to 8 MB each. Settings → General → Your
+own sounds opens the folder and reloads it.
+
+### Add the copied token
+
+Copy a token's address (CA) or its DexScreener, GMGN, Axiom, Based Bot or explorer link
+anywhere, press **Ctrl + Alt + V**, and Candy swallows it onto the watchlist.
+Only a whole address or a whole token link counts: anything else on the
+clipboard is ignored and never sent anywhere. Settings → Watchlist → Pasted or
+dropped: open it too also opens it on your terminal.
+
+### Shortcuts
+
+They work from any app, and each can be changed or turned off in Settings →
+Notifications and shortcuts (click the keys, press new ones):
+
+| Keys | What it does |
+| --- | --- |
+| Ctrl + Shift + Space | Show or hide the island |
+| Ctrl + Alt + V | Add the copied token |
+| Ctrl + Alt + A | Open the waiting alert (or the Alerts tab) |
+| Ctrl + Alt + → / ← | Next / previous tab |
+| Ctrl + Alt + S | Mute or unmute |
+| Ctrl + Alt + G | Wardrobe |
+| Ctrl + Alt + D | Candy to the desktop, or home |
+
+Ctrl + Alt is AltGr on many keyboards. The defaults avoid the keys that type a
+character with AltGr on the usual European and Brazilian layouts, and Candy
+asks Windows what each Ctrl + Alt combination types on the layouts you have:
+one that types something is left alone and flagged in Settings, so you never
+lose a character. Other apps lose a shortcut Candy holds while it runs. While
+you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.
+
+### Candy on your desktop
+
+Open the island and drag Candy out of it: he lands on your desktop, in his
+own little window, and stays there, next to your chart, looking at your mouse
+and reacting to the market. Click him to poke him, drag him to move him,
+double-click him (or drop him back on the island) to send him home. An alert
+card brings him back to the island to show it, and he flies out again once it
+is dismissed. Left alone for two minutes with the mouse away, he dozes off,
+and then costs nothing. He remembers his spot between launches. On Linux this
+works on X11 (GNOME runs Candy through XWayland); on native Wayland he stays
+in the island.
+
+### Dance when music plays
+
+Whatever plays on the PC (Spotify, a browser video, any player the system
+knows about), Candy bobs along while the island is on screen, unless its mood
+is in no state for it. Nothing is polled: the system says when playback
+changes. Settings → Candy → Dance when music plays turns it off.
 
 ## Safety
 
@@ -326,5 +426,5 @@ repository (`raw.githubusercontent.com`), and only when you say *Update now*
 does it download the code (`codeload.github.com`).
 
 Each of these services sees your IP address, as with any website. Links you
-click open in your browser (GMGN, Axiom, DexScreener, RugCheck, Solscan,
+click open in your browser (GMGN, Axiom, Based Bot, DexScreener, RugCheck, Solscan,
 GitHub, and Helius or Alchemy for a free RPC key).

@@ -57,6 +57,8 @@ export const SIDE_W = 138;
 export const MASCOT_CAPTION_H = 34;
 
 export const ROW_H = 30;
+/** A My wallet row: two lines, and the bar under them. */
+export const POS_ROW_H = 40;
 /** The watchlist's folder chips. */
 export const FOLDERS_H = 24;
 export const MAX_ROWS = 6;
@@ -84,8 +86,10 @@ export function viewHeight(view: IslandViewName, rows: number, maxRows = MAX_ROW
     case "positions": {
       // No wallet yet (0): the setup text and field. Otherwise the wallet line,
       // a summary, the column heads, the rows and a line of fine print.
+      // The cards, the allocation bar and two-line rows (Activity rows are
+      // shorter, but have a heading per day).
       if (rows === 0) return HEADER_H + minBody;
-      return HEADER_H + Math.max(minBody, Math.min(rows, 5) * ROW_H + 130);
+      return HEADER_H + Math.max(minBody, Math.min(rows, 5) * POS_ROW_H + 218);
     }
     case "wallets": {
       const list = rows === 0 ? 52 : Math.min(rows, 4) * WALLET_ROW_H + 6;
@@ -94,9 +98,13 @@ export function viewHeight(view: IslandViewName, rows: number, maxRows = MAX_ROW
     case "wardrobe":
       // The Hat / Face / Colour switch and two rows of looks.
       return HEADER_H + 158;
+    case "music":
+      // The cover beside the title and artist, the progress bar, the buttons.
+      return HEADER_H + 132;
     case "discipline":
       // `rows` is 1 when the journal (week chart and recent trades) is open.
-      return HEADER_H + (rows > 0 ? 270 : 168);
+      // The journal fills the tallest island the window allows (PANEL_H − 20).
+      return HEADER_H + (rows > 0 ? 280 : 196);
     case "event":
       // `rows`: lines of a "while you were away" card past the first two.
       return 168 + Math.max(0, rows - 2) * 19;

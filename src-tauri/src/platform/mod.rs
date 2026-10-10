@@ -25,3 +25,41 @@ pub struct LocalTime {
 /// The island's input region, window-logical px (x, y, width, height); `None`:
 /// the whole window takes the mouse.
 pub type Region = Option<(f64, f64, f64, f64)>;
+
+/// How the desktop Candy's window can be placed and clicked on this system
+/// (see desktop.rs).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DesktopMode {
+    /// Windows: placed anywhere, and a cursor poll drives click-through, the
+    /// eyes and the drag, exactly like the island.
+    Poll,
+    /// Linux on X11 (GNOME through XWayland): an ordinary window the window
+    /// manager lets us place; the input region is the click-through and the
+    /// page drives the drag.
+    Window,
+    /// Native Wayland: no way to put a window where the user dropped it, so
+    /// Candy stays in the island.
+    Off,
+}
+
+impl DesktopMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DesktopMode::Poll => "poll",
+            DesktopMode::Window => "window",
+            DesktopMode::Off => "off",
+        }
+    }
+}
+
+/// Which part of the desktop Candy's window takes the mouse.
+#[derive(Clone, Copy, PartialEq, Debug)]
+#[cfg_attr(windows, allow(dead_code))]
+pub enum MouseShape {
+    /// Nothing: every click goes to what is underneath (during a flight).
+    Empty,
+    /// The whole window (while he is being dragged across the screen).
+    Whole,
+    /// A box, in window-logical pixels: Candy's body.
+    Rect { x: f64, y: f64, w: f64, h: f64 },
+}

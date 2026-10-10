@@ -11,8 +11,17 @@ import { compact, formatCoin, formatDuration, formatPct, formatUsd, pctClass } f
 import { State, type IslandViewName, type Placement, type Quote } from "../core/state";
 import { nativeCoins } from "../market/chains";
 import { fngTone } from "../market/sentiment";
+import { currentLog, dayPill, summarize } from "../discipline/discipline";
 
-const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline"];
+const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music"];
+
+/** The tabs the header shows right now, in order: Following is an option, Music needs a player on the PC. */
+export function shownTabs(): IslandViewName[] {
+  const c = State.companion;
+  return TAB_VIEWS.filter(
+    (v) => (v !== "wallets" || c.following) && (v !== "music" || (c.musicCard && !!State.nowPlaying)) && (v !== "discipline" || c.disciplineOn),
+  );
+}
 
 export function buildHeader(actions: ViewActions): ViewHost {
   const tab = (view: IslandViewName, icon: string, label: string, stroke?: number) => {
@@ -38,8 +47,18 @@ export function buildHeader(actions: ViewActions): ViewHost {
     positions: tab("positions", ICONS.wallet, "My wallet"),
     wallets: tab("wallets", ICONS.eye, "Following", 2),
     discipline: tab("discipline", ICONS.shield, "Discipline"),
+    music: tab("music", ICONS.note, "Music"),
   };
 
+  // The day against the trader's own limits; a click opens Discipline.
+  const dayPillEl = h("button", {
+    class: "day-pill",
+    type: "button",
+    onclick: () => {
+      actions.blip();
+      actions.setView("discipline");
+    },
+  });
   // One price per native coin of the chosen chains (SOL, BNB, ETH).
   const natives = h("span", { class: "natives" });
   const status = h("span", { class: "status-dot" });
@@ -115,18 +134,29 @@ export function buildHeader(actions: ViewActions): ViewHost {
     "div",
     { id: "header" },
     h("div", { class: "tabs" }, ...TAB_VIEWS.map((v) => tabs[v])),
-    h("div", { class: "header-actions" }, natives, status, refresh, dockWrap, gear, sound, minimize),
+    h("div", { class: "header-actions" }, dayPillEl, natives, status, refresh, dockWrap, gear, sound, minimize),
   );
 
   return {
     el,
     sync() {
-      for (const [name, t] of Object.entries(tabs)) t.classList.toggle("on", State.view === name);
-      // Following is an option, off by default.
-      tabs.wallets.style.display = State.companion.following ? "" : "none";
+      const shown = shownTabs();
+      for (const [name, t] of Object.entries(tabs)) {
+        t.classList.toggle("on", State.view === name);
+        t.style.display = shown.includes(name as IslandViewName) ? "" : "none";
+      }
       const show = TAB_VIEWS.includes(State.view) || State.view === "wardrobe";
       el.style.opacity = show ? "1" : "0";
       el.style.pointerEvents = show ? "auto" : "none";
+
+      const pill = State.companion.disciplineOn ? dayPill(State.companion.discipline, summarize(currentLog(State.companion.log))) : null;
+      dayPillEl.style.display = pill ? "" : "none";
+      if (pill) {
+        dayPillEl.textContent = pill.text;
+        dayPillEl.className = `day-pill ${pill.tone}`;
+        dayPillEl.title = `${pill.title}
+Click for Discipline`;
+      }
 
       clear(natives);
       // One chip per coin, then BTC and the Fear & Greed index. When they would
@@ -140,7 +170,8 @@ export function buildHeader(actions: ViewActions): ViewHost {
       const market = State.companion.headerMarket;
       if (market && State.btc) coins.push({ symbol: "BTC", q: State.btc, title: "BTC price (wrapped BTC on Ethereum)" });
       const fg = market ? State.fearGreed : null;
-      const crowded = coins.length + (fg ? 1 : 0) > 3;
+      // The day pill takes room too.
+      const crowded = coins.length + (fg ? 1 : 0) + (pill ? 1 : 0) > 3;
       natives.classList.toggle("crowded", crowded);
       for (const { symbol, q, title } of coins) {
         // Crowded: short numbers, no "$" (SOL 150, BTC 67.2K).
@@ -167,6 +198,14 @@ export function buildHeader(actions: ViewActions): ViewHost {
             h("span", { class: "fng-value", text: ` ${fg.value}` }),
           ),
         );
+      }
+      // No room for every chip (many chains, the day pill): the extra chains'
+      // coins go first, then BTC, then the index; SOL stays.
+      const chips = [...natives.children] as HTMLElement[];
+      const dropOrder = [...chips.slice(1, coins.length).filter((c) => !c.textContent?.startsWith("BTC")), ...chips.filter((c) => c.textContent?.startsWith("BTC")), ...chips.filter((c) => c.classList.contains("fng"))];
+      for (const chip of dropOrder) {
+        if (natives.scrollWidth <= natives.clientWidth + 1) break;
+        chip.remove();
       }
 
       status.className = `status-dot ${State.paused ? "paused" : State.marketStatus}`;

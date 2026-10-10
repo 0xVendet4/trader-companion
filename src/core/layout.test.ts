@@ -71,10 +71,12 @@ describe("placement", () => {
 
 describe("placement settings", () => {
   it("repairs a saved placement: unknown values, missing or empty fractions, the floating display", () => {
+    // None saved, or one this build doesn't know: the default, floating near the top.
     const old = normalizeSettings({ screen: "primary" } as Partial<Settings>);
-    expect(old).toMatchObject({ placement: "top", floatX: 0.5, floatY: 0.12, floatScreen: "" });
+    expect(old).toMatchObject({ placement: "float", floatX: 0.5, floatY: 0.12, floatScreen: "" });
     const odd = normalizeSettings({ placement: "middle", floatX: null, floatY: "", floatScreen: 3 } as unknown as Partial<Settings>);
-    expect(odd).toMatchObject({ placement: "top", floatX: 0.5, floatY: 0.12, floatScreen: "" });
+    expect(odd).toMatchObject({ placement: "float", floatX: 0.5, floatY: 0.12, floatScreen: "" });
+    expect(normalizeSettings({ placement: "top" } as Partial<Settings>).placement).toBe("top");
     const kept = normalizeSettings({ placement: "float", floatX: 1.4, floatY: 0, floatScreen: "\\\\.\\DISPLAY2" } as Partial<Settings>);
     expect(kept).toMatchObject({ placement: "float", floatX: 1, floatY: 0, floatScreen: "\\\\.\\DISPLAY2" });
   });

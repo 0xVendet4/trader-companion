@@ -172,6 +172,11 @@ export function buildWardrobe(actions: ViewActions): ViewHost {
         named ? h("span", { class: "look-name", text: it.name }) : null,
       );
       b.addEventListener("click", () => pick(it.apply));
+      // Resting the pointer on a look tries it on Candy (not the backgrounds).
+      if (shelf !== "island") {
+        b.addEventListener("mouseenter", () => actions.previewLook(it.apply));
+        b.addEventListener("mouseleave", () => actions.previewLook(null));
+      }
       grid.append(b);
     }
   }

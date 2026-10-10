@@ -119,6 +119,8 @@ export function toQuote(key: string, p: DexPair, now = Date.now()): Quote {
     },
     updatedAt: now,
     imageUrl: p.info?.imageUrl ?? null,
+    pairCreatedAt: typeof p.pairCreatedAt === "number" ? p.pairCreatedAt : null,
+    dexId: p.dexId,
   };
 }
 
@@ -184,6 +186,8 @@ export type ParsedInput =
 
 /** GMGN's chain segments. */
 const GMGN_CHAINS: Record<string, ChainId> = { sol: "solana", bsc: "bsc", eth: "ethereum" };
+/** Based Bot's chain segments. */
+const BASEDBOT_CHAINS: Record<string, ChainId> = { sol: "solana", bsc: "bsc", eth: "ethereum", robinhood: "robinhood" };
 
 /** Explorers whose token pages name the chain by their host. */
 const EXPLORERS: Record<string, ChainId> = {
@@ -215,6 +219,12 @@ export function parseInput(input: string): ParsedInput {
     if (host === "dexscreener.com" && isChain(seg[0]) && seg[1]) return classify(seg[1], seg[0], true);
     if (host === "gmgn.ai" && GMGN_CHAINS[seg[0]] && seg[2]) return classify(seg[2].replace(/^.*_/, ""), GMGN_CHAINS[seg[0]]);
     if (host === "axiom.trade" && seg[0] === "meme" && seg[1]) return classify(seg[1], "solana", true);
+    // basedbot.app/token/{chain}/{address}, or the same after a referral: /r/{code}/token/…
+    if (host === "basedbot.app") {
+      const at = seg.indexOf("token");
+      const chain = at >= 0 ? BASEDBOT_CHAINS[seg[at + 1]] : undefined;
+      if (chain && seg[at + 2]) return classify(seg[at + 2], chain);
+    }
     if (EXPLORERS[host]) {
       const found = url.pathname.match(ANY_ADDRESS);
       if (found) return classify(found[found.length - 1], EXPLORERS[host]);
@@ -225,6 +235,36 @@ export function parseInput(input: string): ParsedInput {
   const found = text.match(ANY_ADDRESS);
   if (found) return classify(found[found.length - 1], null);
   return { kind: "query", query: text.replace(/^\$/, "") };
+}
+
+/** The link hosts the paste shortcut trusts: the ones parseInput reads a chain from. */
+const PASTE_HOSTS = new Set(["dexscreener.com", "gmgn.ai", "axiom.trade", "basedbot.app", ...Object.keys(EXPLORERS)]);
+
+/**
+ * What the paste shortcut took from the clipboard, accepted only when the
+ * whole of it is one token address or one token link on a known host. The
+ * clipboard holds anything: a key or a seed phrase must never be searched for
+ * or sent anywhere, so a bare 64-hex id (a pool to a link, a private key to a
+ * wallet), an 88-character Solana key, words, or an unknown link all give null.
+ */
+export function parsePasted(text: string): Extract<ParsedInput, { kind: "address" }> | null {
+  const t = text.trim();
+  if (!t || t.length > 2048 || /\s/.test(t)) return null;
+  if (SOLANA_ADDRESS.test(t) || EVM_ADDRESS.test(t)) {
+    const p = parseInput(t);
+    return p.kind === "address" ? p : null;
+  }
+  let host: string;
+  try {
+    const url = new URL(t);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    host = url.hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  if (!PASTE_HOSTS.has(host)) return null;
+  const p = parseInput(t);
+  return p.kind === "address" ? p : null;
 }
 
 /** The address in pasted text, or null when it is a name to search for. */
