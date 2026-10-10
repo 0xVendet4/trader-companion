@@ -557,7 +557,7 @@ const words: Dict = {
   "Click, then press the new keys": "クリックして新しいキーを押してください",
   "In the browser they only work while the page has focus.": "ブラウザでは、ページにフォーカスがあるときだけ動作します。",
   "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).": "デスクトップがグローバルショートカットを許可していれば、どのアプリからでも動作します（X11、およびXWayland経由のGNOME）。",
-  "They work from any app. Ctrl here is the Control key (⌃), not Command.": "どのアプリからでも動作します。ここでのCtrlはControlキー（⌃）で、Commandではありません。",
+  "They work from any app.": "どのアプリからでも動作します。",
   "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.": "どのアプリからでも動作します。多くのキーボードではCtrl + AltがAltGrになります：お使いのキーボードで文字が入力される組み合わせは使わずに、警告を表示します。",
   "Shortcuts": "ショートカット",
   "While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.": "アイランドで入力中は、Ctrl + 1–9でタブを選択、Ctrl + ,で設定を開きます。",

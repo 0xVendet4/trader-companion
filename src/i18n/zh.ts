@@ -557,7 +557,7 @@ const words: Dict = {
   "Click, then press the new keys": "点击后按下新的按键",
   "In the browser they only work while the page has focus.": "在浏览器中，仅当页面获得焦点时有效。",
   "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).": "在桌面环境允许全局快捷键的任何应用中都可用（X11，以及通过 XWayland 的 GNOME）。",
-  "They work from any app. Ctrl here is the Control key (⌃), not Command.": "在任何应用中都可用。这里的 Ctrl 是 Control 键（⌃），不是 Command。",
+  "They work from any app.": "在任何应用中都可用。",
   "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.": "在任何应用中都可用。很多键盘上 Ctrl + Alt 就是 AltGr：在你的键盘上会打出字符的组合会被跳过并标记出来。",
   "Shortcuts": "快捷键",
   "While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.": "在灵动岛中输入时，Ctrl + 1–9 切换标签页，Ctrl + , 打开设置。",

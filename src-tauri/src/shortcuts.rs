@@ -80,10 +80,13 @@ mod tests {
     #[test]
     fn only_ctrl_alt_without_the_windows_key_reads_as_altgr() {
         let p = |s: &str| Shortcut::from_str(s).unwrap();
-        assert!(is_altgr_like(&p("CommandOrControl+Alt+E")));
+        assert!(is_altgr_like(&p("Ctrl+Alt+E")));
         assert!(is_altgr_like(&p("Ctrl+Alt+Shift+E")));
-        assert!(!is_altgr_like(&p("CommandOrControl+Shift+Space")));
+        assert!(!is_altgr_like(&p("Ctrl+Shift+Space")));
         assert!(!is_altgr_like(&p("Ctrl+Alt+Super+E")));
+        // The page's spelling is Ctrl on Windows and Linux, ⌘ Command on a Mac:
+        // never AltGr there.
+        assert_eq!(is_altgr_like(&p("CommandOrControl+Alt+E")), !cfg!(target_os = "macos"));
     }
 
     #[test]
@@ -99,11 +102,13 @@ mod tests {
     #[test]
     fn only_a_ctrl_alt_key_that_types_is_flagged() {
         let polish = |vk: u16, _shift: bool| (vk == 0x41).then(|| "ą".to_string());
-        assert_eq!(types_with("CommandOrControl+Alt+A", polish).as_deref(), Some("ą"));
-        assert_eq!(types_with("CommandOrControl+Alt+V", polish), None);
-        assert_eq!(types_with("CommandOrControl+Shift+A", polish), None);
-        assert_eq!(types_with("CommandOrControl+Alt+Right", |_, _| Some("x".into())), None);
+        assert_eq!(types_with("Ctrl+Alt+A", polish).as_deref(), Some("ą"));
+        assert_eq!(types_with("Ctrl+Alt+V", polish), None);
+        assert_eq!(types_with("Ctrl+Shift+A", polish), None);
+        assert_eq!(types_with("Ctrl+Alt+Right", |_, _| Some("x".into())), None);
         assert_eq!(types_with("not a shortcut", polish), None);
+        // ⌘ Command on a Mac types nothing.
+        assert_eq!(types_with("CommandOrControl+Alt+A", polish).is_some(), !cfg!(target_os = "macos"));
     }
 
     #[test]

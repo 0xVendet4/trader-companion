@@ -1098,6 +1098,8 @@ function notificationsSection(): HTMLElement {
 function shortcutRows(): HTMLElement[] {
   let status: Partial<Record<ShortcutId, ShortcutStatus>> = {};
   let recording: ShortcutId | null = null;
+  // A Mac's ⌘ is what Windows' Ctrl is here (CommandOrControl); its keys read ⌘ ⌥ ⇧ ⌃.
+  const mac = State.os === "macos";
   const paints: (() => void)[] = [];
 
   const keysOf = (id: ShortcutId) => shortcutKeys(settings.companion, id);
@@ -1129,7 +1131,7 @@ function shortcutRows(): HTMLElement[] {
       setKeys(id, "");
       return stopRecording();
     }
-    const accel = recordPress(e);
+    const accel = recordPress(e, mac);
     if (!accel) return;
     setKeys(id, accel);
     stopRecording();
@@ -1158,7 +1160,7 @@ function shortcutRows(): HTMLElement[] {
       setKeys(def.id, "");
       paintAll();
     });
-    const reset = h("button", { class: "chip-btn", type: "button", text: t("Default"), title: keysLabel(def.dflt) });
+    const reset = h("button", { class: "chip-btn", type: "button", text: t("Default"), title: keysLabel(def.dflt, mac) });
     reset.addEventListener("click", () => {
       stopRecording();
       setKeys(def.id, null);
@@ -1169,7 +1171,7 @@ function shortcutRows(): HTMLElement[] {
       const k = keysOf(def.id);
       const rec = recording === def.id;
       keys.classList.toggle("recording", rec);
-      keys.textContent = rec ? t("Press the keys…") : keysLabel(k);
+      keys.textContent = rec ? t("Press the keys…") : keysLabel(k, mac);
       keys.title = rec ? t("Esc cancels, Backspace turns it off") : t("Click, then press the new keys");
       off.style.visibility = k ? "" : "hidden";
       reset.style.visibility = k === def.dflt ? "hidden" : "";
@@ -1193,7 +1195,7 @@ function shortcutRows(): HTMLElement[] {
     : State.os === "linux"
       ? t("They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).")
       : State.os === "macos"
-        ? t("They work from any app. Ctrl here is the Control key (⌃), not Command.")
+        ? t("They work from any app.")
         : t("They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.");
   return [
     h("p", { class: "sub", text: t("Shortcuts") }),

@@ -277,9 +277,9 @@ GitHub's macOS machines, and that is all that is known. Tell us how it goes.
    icon.
 
 On a Mac there is no music card or dance yet (no public way to know what
-plays), no buttons on notifications and no quiet mode for fullscreen apps;
-Ctrl is the Control key (⌃), for the shortcuts and to click through the
-island.
+plays), no buttons on notifications and no quiet mode for fullscreen apps.
+The shortcuts use ⌘ where Windows has Ctrl (⌘ ⌥ V adds the copied token),
+and holding ⌃ Control over the island clicks through it.
 
 What `npm run setup` does is in [`scripts/setup.mjs`](scripts/setup.mjs), a
 short file you can read before running it: it checks the tools, builds, and

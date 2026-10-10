@@ -74,25 +74,32 @@ export function keyName(code: string): string | null {
  * has no Ctrl, Alt or Win: a global shortcut on a bare letter would steal it
  * from every program. F-keys may go alone.
  */
-export function recordPress(e: { ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean; code: string }): string | null {
+export function recordPress(e: { ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean; code: string }, mac = false): string | null {
   const key = keyName(e.code);
   if (!key) return null;
   const mods: string[] = [];
-  if (e.ctrlKey) mods.push("CommandOrControl");
+  // On a Mac, CommandOrControl is ⌘ Command, and Control is a key of its own.
+  if (mac ? e.metaKey : e.ctrlKey) mods.push("CommandOrControl");
+  if (mac && e.ctrlKey) mods.push("Control");
   if (e.altKey) mods.push("Alt");
   if (e.shiftKey) mods.push("Shift");
-  if (e.metaKey) mods.push("Super");
+  if (!mac && e.metaKey) mods.push("Super");
   const fkey = /^F\d+$/.test(key);
   if (!e.ctrlKey && !e.altKey && !e.metaKey && !fkey) return null;
   return [...mods, key].join("+");
 }
 
-/** How keys read in Settings: "Ctrl + Alt + V". */
-export function keysLabel(accel: string): string {
+const KEY_WORDS: Record<string, string> = { Left: "←", Right: "→", Up: "↑", Down: "↓", Comma: ",", Period: ".", Slash: "/", Minus: "-", Equal: "=" };
+const PC_KEYS: Record<string, string> = { CommandOrControl: "Ctrl", Control: "Ctrl", Super: "Win" };
+const MAC_KEYS: Record<string, string> = { CommandOrControl: "⌘", Super: "⌘", Control: "⌃", Alt: "⌥", Shift: "⇧" };
+
+/** How keys read in Settings: "Ctrl + Alt + V", on a Mac "⌘ + ⌥ + V". */
+export function keysLabel(accel: string, mac = false): string {
   if (!accel) return t("Off");
+  const mods = mac ? MAC_KEYS : PC_KEYS;
   return accel
     .split("+")
-    .map((p) => ({ CommandOrControl: "Ctrl", Super: "Win", Left: "←", Right: "→", Up: "↑", Down: "↓", Comma: ",", Period: ".", Slash: "/", Minus: "-", Equal: "=" })[p] ?? p)
+    .map((p) => mods[p] ?? KEY_WORDS[p] ?? p)
     .join(" + ");
 }
 

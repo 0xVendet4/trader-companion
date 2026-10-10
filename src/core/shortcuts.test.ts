@@ -21,6 +21,13 @@ describe("shortcuts", () => {
     expect(recordPress(press({ code: "F9" }))).toBe("F9");
   });
 
+  it("records ⌘ as CommandOrControl on a Mac, and Control as itself", () => {
+    expect(recordPress(press({ metaKey: true, altKey: true, code: "KeyV" }), true)).toBe("CommandOrControl+Alt+V");
+    expect(recordPress(press({ ctrlKey: true, altKey: true, code: "KeyV" }), true)).toBe("Control+Alt+V");
+    expect(keysLabel("CommandOrControl+Alt+Shift+V", true)).toBe("⌘ + ⌥ + ⇧ + V");
+    expect(keysLabel("Control+Alt+Right", true)).toBe("⌃ + ⌥ + →");
+  });
+
   it("names keys the way the accelerators do", () => {
     expect(keyName("KeyQ")).toBe("Q");
     expect(keyName("Digit7")).toBe("7");

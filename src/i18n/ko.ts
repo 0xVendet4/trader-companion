@@ -557,7 +557,7 @@ const words: Dict = {
   "Click, then press the new keys": "클릭한 뒤 새 키를 누르세요",
   "In the browser they only work while the page has focus.": "브라우저에서는 페이지에 포커스가 있을 때만 작동해요.",
   "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).": "데스크톱이 전역 단축키를 허용한다면 어떤 앱에서든 작동해요 (X11, XWayland를 통한 GNOME).",
-  "They work from any app. Ctrl here is the Control key (⌃), not Command.": "어떤 앱에서든 작동해요. 여기서 Ctrl은 Command가 아니라 Control 키(⌃)예요.",
+  "They work from any app.": "어떤 앱에서든 작동해요.",
   "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.": "어떤 앱에서든 작동해요. 많은 키보드에서 Ctrl + Alt는 AltGr이에요: 내 키보드에서 문자를 입력하는 조합은 건드리지 않고 표시만 해 둬요.",
   "Shortcuts": "단축키",
   "While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.": "아일랜드에서 입력하는 동안 Ctrl + 1–9는 탭 선택, Ctrl + , 는 설정 열기예요.",

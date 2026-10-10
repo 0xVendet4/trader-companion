@@ -557,7 +557,7 @@ const words: Dict = {
   "Click, then press the new keys": "Haz clic y presiona las nuevas teclas",
   "In the browser they only work while the page has focus.": "En el navegador solo funcionan mientras la página tiene el foco.",
   "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).": "Funcionan desde cualquier app si tu escritorio permite atajos globales (X11, y GNOME a través de XWayland).",
-  "They work from any app. Ctrl here is the Control key (⌃), not Command.": "Funcionan desde cualquier app. Ctrl aquí es la tecla Control (⌃), no Command.",
+  "They work from any app.": "Funcionan desde cualquier app.",
   "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.": "Funcionan desde cualquier app. Ctrl + Alt es AltGr en muchos teclados: una combinación que escribe un carácter en el tuyo no se usa y queda marcada.",
   "Shortcuts": "Atajos",
   "While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.": "Mientras escribes en la isla, Ctrl + 1–9 elige una pestaña y Ctrl + , abre Ajustes.",

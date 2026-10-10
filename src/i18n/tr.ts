@@ -557,7 +557,7 @@ const words: Dict = {
   "Click, then press the new keys": "Tıkla, sonra yeni tuşlara bas",
   "In the browser they only work while the page has focus.": "Tarayıcıda yalnızca sayfa odaktayken çalışırlar.",
   "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).": "Masaüstünün uygulamalara genel kısayol izni verdiği her uygulamadan çalışırlar (X11 ve XWayland üzerinden GNOME).",
-  "They work from any app. Ctrl here is the Control key (⌃), not Command.": "Her uygulamadan çalışırlar. Buradaki Ctrl, Command değil Control tuşudur (⌃).",
+  "They work from any app.": "Her uygulamadan çalışırlar.",
   "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.": "Her uygulamadan çalışırlar. Ctrl + Alt birçok klavyede AltGr'dir: seninkinde karakter yazan bir kombinasyon kullanılmaz ve işaretlenir.",
   "Shortcuts": "Kısayollar",
   "While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.": "Adada yazarken Ctrl + 1–9 bir sekme seçer, Ctrl + , Ayarlar'ı açar.",
