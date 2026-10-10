@@ -10,6 +10,8 @@ import { DEFAULT_CUSTOM_SKIN, normalizeCustomSkin } from "../mascot/skins";
 import { normalizeBook, normalizeLevels } from "../positions/positions";
 import { POSITION_SORTS, type PositionSort } from "../positions/board";
 import type { FearGreed } from "../market/sentiment";
+import { CALENDAR_LEADS, type Calendar } from "../market/calendar";
+import { LANG_SETTINGS, type LangSetting } from "./i18n";
 import type { AwayMove } from "../away/away";
 import { DEFAULT_FOLDERS, normalizeFolders } from "../market/folders";
 
@@ -33,6 +35,8 @@ export interface WatchToken {
   coingecko?: string;
   /** The trader's own note: why they are in, the exit plan (shown on hover in the list). */
   note?: string;
+  /** Kept at the top of the list, whatever the sort. */
+  pinned?: boolean;
 }
 
 export type AlertKind =
@@ -263,12 +267,13 @@ export type Face =
   | "bubblegum"
   | "warpaint"
   | "dollareyes"
-  | "facemask";
+  | "facemask"
+  | "scarf";
 export const FACE_IDS: readonly Face[] = [
   "none", "shades", "laser", "glasses", "monocle", "mustache", "starglasses",
   "threed", "eyepatch", "heartglasses", "clownnose", "beard", "domino", "vr",
   "pixel", "goggles", "whiskers", "freckles", "bandaid", "lollipop", "bubblegum",
-  "warpaint", "dollareyes", "facemask",
+  "warpaint", "dollareyes", "facemask", "scarf",
 ];
 /** A colour treatment over the whole sprite (see src/mascot/skins.ts). */
 export type Skin =
@@ -437,8 +442,28 @@ export interface Companion {
   relativeStrength: boolean;
   /** An alert when a token leaves its launchpad's bonding curve (pump.fun…) for a DEX pool. */
   graduationAlert: boolean;
+  /** An alert when a watched token's market cap crosses $1M, $5M, $10M… either way. */
+  milestoneAlert: boolean;
+  /** An alert when a watched token's sells far outnumber its buys over 5 minutes. */
+  sellPressureAlert: boolean;
+  /** The economic calendar's heads-up, minutes before a US release (CPI, the Fed…); 0: off (src/market/calendar.ts). */
+  calendarLeadMin: number;
+  /** Candy's language (src/core/i18n.ts); "auto": the system's, when Candy has it. */
+  language: LangSetting;
   /** Windows: while a game, a video or a presentation is fullscreen, alert cards and sounds wait. */
   fullscreenQuiet: boolean;
+  /** The watchlist sorted by a column (pinned tokens stay on top); null: the trader's own order. */
+  watchlistSort: WatchSort | null;
+  /** The last month whose recap came up, by its first day (ms); 0: none yet. */
+  monthRecapSeen: number;
+}
+
+/** A column the watchlist can be sorted by (src/market/watchsort.ts). */
+export type WatchSortKey = "token" | "value" | "volume" | "txns" | "m5" | "h1" | "h24";
+export const WATCH_SORT_KEYS: readonly WatchSortKey[] = ["token", "value", "volume", "txns", "m5", "h1", "h24"];
+export interface WatchSort {
+  by: WatchSortKey;
+  desc: boolean;
 }
 
 /**
@@ -539,7 +564,13 @@ export const DEFAULT_COMPANION: Companion = {
   checkIn: true,
   relativeStrength: true,
   graduationAlert: true,
+  milestoneAlert: true,
+  sellPressureAlert: true,
+  calendarLeadMin: 30,
+  language: "auto",
   fullscreenQuiet: true,
+  watchlistSort: null,
+  monthRecapSeen: 0,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -583,7 +614,8 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
           // A CoinGecko id goes into its URLs: only the shape it has.
           const coingecko = typeof t.coingecko === "string" && COINGECKO_ID.test(t.coingecko) ? t.coingecko : undefined;
           const note = typeof t.note === "string" && t.note.trim() ? t.note.slice(0, MAX_NOTE) : undefined;
-          return { ...t, chainId, key: tokenKey(chainId, t.address), coingecko, note };
+          const pinned = t.pinned === true ? true : undefined;
+          return { ...t, chainId, key: tokenKey(chainId, t.address), coingecko, note, pinned };
         })
       : [],
     chains: Array.isArray(c.chains) && c.chains.filter(isChain).length ? ALL_CHAINS.filter((x) => c.chains!.includes(x)) : ["solana"],
@@ -622,7 +654,13 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (!POSITION_SORTS.includes(s.companion.walletSort)) s.companion.walletSort = "value";
   if (typeof s.companion.weekRecapSeen !== "number" || !Number.isFinite(s.companion.weekRecapSeen)) s.companion.weekRecapSeen = 0;
   if (typeof s.companion.checkIn !== "boolean") s.companion.checkIn = true;
-  for (const k of ["relativeStrength", "graduationAlert", "fullscreenQuiet", "disciplineOn"] as const) if (typeof s.companion[k] !== "boolean") s.companion[k] = true;
+  for (const k of ["relativeStrength", "graduationAlert", "milestoneAlert", "sellPressureAlert", "fullscreenQuiet", "disciplineOn"] as const)
+    if (typeof s.companion[k] !== "boolean") s.companion[k] = true;
+  if (!(CALENDAR_LEADS as readonly number[]).includes(s.companion.calendarLeadMin)) s.companion.calendarLeadMin = DEFAULT_COMPANION.calendarLeadMin;
+  if (!LANG_SETTINGS.includes(s.companion.language)) s.companion.language = "auto";
+  const sort = c.watchlistSort as Partial<WatchSort> | null | undefined;
+  s.companion.watchlistSort = sort && WATCH_SORT_KEYS.includes(sort.by as WatchSortKey) ? { by: sort.by as WatchSortKey, desc: !!sort.desc } : null;
+  if (typeof s.companion.monthRecapSeen !== "number" || !Number.isFinite(s.companion.monthRecapSeen)) s.companion.monthRecapSeen = 0;
   // Shades and laser eyes were outfits before the face slot: move them over.
   const oldOutfit = c.outfit as string | undefined;
   if ((oldOutfit === "shades" || oldOutfit === "laser") && c.face == null) s.companion.face = oldOutfit;
@@ -711,8 +749,8 @@ export type CompanionEvent =
   | { kind: "cooldown"; id: string; minutes: number }
   /** Losses in a row (the tilt rule): a longer break. */
   | { kind: "tilt"; id: string; losses: number; minutes: number }
-  /** Monday: last week's recap (src/share/recap.ts). */
-  | { kind: "weekRecap"; id: string; from: number; to: number; label: string }
+  /** Monday: last week's recap; the 1st, last month's (`period`; src/share/recap.ts). */
+  | { kind: "weekRecap"; id: string; from: number; to: number; label: string; period?: "week" | "month" }
   /** The session the trader set an end for is over. */
   | { kind: "sessionEnd"; id: string; minutes: number }
   /** A trade just closed: did it follow the plan? (the journal entry's id) */
@@ -722,7 +760,9 @@ export type CompanionEvent =
   /** Back at the screen after a while: what changed (see src/away). */
   | { kind: "away"; id: string; away: string; lines: string[]; moves?: AwayMove[] }
   /** A newer Candy on GitHub: update now, with the user's go-ahead (see src/core/update.ts). */
-  | { kind: "update"; id: string; version: string };
+  | { kind: "update"; id: string; version: string }
+  /** A US release the whole market watches is near (src/market/calendar.ts): its label, when, and its lines. */
+  | { kind: "macro"; id: string; label: string; at: number; lines: string[] };
 
 export type MarketStatus = "idle" | "loading" | "ok" | "error";
 
@@ -833,6 +873,8 @@ class AppState {
   natives: Partial<Record<"SOL" | "BNB" | "ETH", Quote>> = {};
   btc: Quote | null = null;
   fearGreed: FearGreed | null = null;
+  /** This week's economic calendar, when read (see Companion.calendarTick). */
+  calendar: Calendar | null = null;
   /** A followed wallet's last buy or sell seen, by address. */
   walletMoves: Record<string, { side: string; symbol: string; t: number }> = {};
   /** The last tab shown, for the wardrobe's way back. */

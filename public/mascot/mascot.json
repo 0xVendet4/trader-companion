@@ -48,7 +48,112 @@
     "bubblegum": "faces/bubblegum.svg",
     "warpaint": "faces/warpaint.svg",
     "dollareyes": "faces/dollareyes.svg",
-    "facemask": "faces/facemask.svg"
+    "facemask": "faces/facemask.svg",
+    "scarf": "faces/scarf.svg"
+  },
+  "pieces": {
+    "outfits/party.svg": {
+      "base": "outfits/party/base.svg",
+      "parts": [
+        {
+          "src": "outfits/party/pompom.svg",
+          "pivot": [
+            72,
+            7
+          ],
+          "swing": 1.3,
+          "bob": 1.2
+        }
+      ]
+    },
+    "outfits/beanie.svg": {
+      "base": "outfits/beanie/base.svg",
+      "parts": [
+        {
+          "src": "outfits/beanie/pompom.svg",
+          "pivot": [
+            64,
+            12
+          ],
+          "bob": 1.5
+        }
+      ]
+    },
+    "outfits/santa.svg": {
+      "base": "outfits/santa/base.svg",
+      "parts": [
+        {
+          "src": "outfits/santa/pompom.svg",
+          "pivot": [
+            107,
+            16
+          ],
+          "swing": 1.5,
+          "bob": 1
+        }
+      ]
+    },
+    "outfits/grad.svg": {
+      "base": "outfits/grad/base.svg",
+      "parts": [
+        {
+          "src": "outfits/grad/tassel.svg",
+          "pivot": [
+            100,
+            22
+          ],
+          "swing": 1.6,
+          "spread": 0.4
+        }
+      ]
+    },
+    "outfits/bunny.svg": {
+      "parts": [
+        {
+          "src": "outfits/bunny/left.svg",
+          "pivot": [
+            50,
+            30
+          ],
+          "swing": 0.9,
+          "spread": -0.7
+        },
+        {
+          "src": "outfits/bunny/right.svg",
+          "pivot": [
+            78,
+            30
+          ],
+          "swing": 1.15,
+          "spread": 0.7
+        }
+      ]
+    },
+    "faces/scarf.svg": {
+      "base": "faces/scarf/base.svg",
+      "parts": [
+        {
+          "src": "faces/scarf/left.svg",
+          "pivot": [
+            83,
+            104
+          ],
+          "swing": 1.3,
+          "spread": -0.35,
+          "under": true
+        },
+        {
+          "src": "faces/scarf/right.svg",
+          "pivot": [
+            91,
+            104
+          ],
+          "swing": 1.1,
+          "spread": 0.35,
+          "under": true
+        }
+      ]
+    }
   },
   "states": {
     "idle": {

@@ -5,6 +5,7 @@
 import { Tracked, Spring } from "../core/anim";
 import { Bridge, IS_TAURI, copyImage } from "../core/bridge";
 import { FULL_NAME } from "../core/brand";
+import { t, tn } from "../core/i18n";
 import { applyTheme } from "../core/themes";
 import { currentLog, summarize, todayKey } from "../discipline/discipline";
 import { AWAY_MS, SNAPSHOT_EVERY_MS, awaySummary, type Snapshot } from "../away/away";
@@ -54,7 +55,8 @@ import {
 } from "../mascot/reactions";
 import { tokenKey } from "../market/chains";
 import { parseInput, parsePasted } from "../market/dexscreener";
-import { folderTokens } from "../market/folders";
+import { folderMood, folderTokens } from "../market/folders";
+import { flameSize, flourishesFor, shouldFlourish, type Flourish } from "../mascot/flourish";
 import { tokenUrl } from "../market/links";
 import { formatSignedUsd } from "../positions/positions";
 import { h, svg } from "../views/dom";
@@ -126,6 +128,8 @@ function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: SoundName
       return { mascot: "wave", sound: "greet" };
     case "update":
       return { mascot: "excited", sound: "greet" };
+    case "macro":
+      return { mascot: "focused", sound: "reminder" };
   }
 }
 
@@ -230,7 +234,7 @@ export class Island {
     react: (state, ms) => this.mascot.react(state, ms),
   });
   /** A press on the mascot that may become a drag out to the desktop: where it started. */
-  private mascotPress: { x: number; y: number } | null = null;
+  private mascotPress: { x: number; y: number; folded?: boolean } | null = null;
   private dropNote: { text: string; tone: "up" | "warn"; until: number } | null = null;
 
   /**
@@ -335,7 +339,7 @@ export class Island {
       openSettings: () => (IS_TAURI ? void Bridge.openSettingsWindow() : openSettingsPanel()),
       openToken: (address, fallback) => {
         // The demo's coins are made up: no site has them.
-        if (State.demo) return this.mascot.say("A made-up coin: nowhere to open it", 2200);
+        if (State.demo) return this.mascot.say(t("A made-up coin: nowhere to open it"), 2200);
         const token = State.token(address) ?? fallback;
         if (token) void Bridge.openUrl(tokenUrl(State.companion.terminal, token));
       },
@@ -383,6 +387,7 @@ export class Island {
       minimize: () => this.minimize(),
     };
 
+    this.actions = actions;
     this.wakeStrip = h("div", { id: "wake-strip" });
     this.header = buildHeader(actions);
     this.views = buildViews(actions);
@@ -391,7 +396,7 @@ export class Island {
     this.contentEl = h("div", { id: "content" }, this.header.el, viewsEl);
 
     this.tickerEl = h("div", { class: "ticker" });
-    this.compactEl = h("div", { id: "compact", title: "Click to open · hold Ctrl to click what is behind" }, this.tickerEl);
+    this.compactEl = h("div", { id: "compact" }, this.tickerEl);
     this.captionEl = h("div", { id: "caption" });
     // The wardrobe, one click from Candy: hat, face and colour in the island.
     this.wardrobeBtn = h(
@@ -399,7 +404,6 @@ export class Island {
       {
         class: "wardrobe-btn",
         type: "button",
-        title: "Wardrobe: hat, face, colour",
         onclick: () => {
           Sound.play("blip");
           this.setView(State.view === "wardrobe" ? State.lastTab : "wardrobe");
@@ -423,7 +427,37 @@ export class Island {
     const clip = h("div", { id: "island-clip" }, this.fxCanvas, this.contentEl, this.compactEl, this.countdownEl, this.searchEl);
     this.islandEl = h("div", { id: "island" }, clip, this.captionEl, this.wardrobeBtn, this.mascot.el);
     this.root.append(this.wakeStrip, this.islandEl);
+    this.labelChrome();
     this.applyGeometry();
+  }
+
+  private actions!: ViewActions;
+
+  /** The few words on the island itself, outside the views. */
+  private labelChrome() {
+    this.compactEl.title = t("Click to open · hold Ctrl to click what is behind");
+    this.wardrobeBtn.title = t("Wardrobe: hat, face, colour");
+  }
+
+  /**
+   * The language changed (src/core/i18n.ts): the header and every view are
+   * built again in its words, in place; the mascot, the ticker and what the
+   * companion knows carry on.
+   */
+  relabel() {
+    const header = buildHeader(this.actions);
+    const views = buildViews(this.actions);
+    const viewsEl = h("div", { id: "views" });
+    for (const v of views.values()) viewsEl.append(v.el);
+    this.contentEl.replaceChildren(header.el, viewsEl);
+    this.header = header;
+    this.views = views;
+    this.labelChrome();
+    this.lastRowsKey = "";
+    this.dirty = true;
+    // His caption is the mood's own line: worked out again, in the new words.
+    Companion.recomputeMood();
+    State.notify();
   }
 
   /** Today's recap as an image: copied to the clipboard (and saved, in a browser). */
@@ -436,14 +470,13 @@ export class Island {
     const c = State.companion;
     const recap = buildWeekRecap({ range, hideMoney: c.recapHideMoney, unit: c.discipline.unit, trades: c.journal }, FULL_NAME);
     const png = await drawRecapCard(recap, this.cardLook(), FULL_NAME, format);
-    return this.deliver(png, `my-week-${todayKey(new Date(range.from))}${format === "story" ? "-story" : ""}.png`, format);
+    return this.deliver(png, `my-${range.period === "month" ? "month" : "week"}-${todayKey(new Date(range.from))}${format === "story" ? "-story" : ""}.png`, format);
   }
 
   /** Copies a card to the clipboard (and saves it, in a browser), and says how that went. */
   private async deliver(png: Blob, file: string, format: CardFormat = "wide"): Promise<string> {
     const copied = await copyImage(png);
-    this.feel("cool", "looking good 😎");
-    const where = format === "story" ? "your story (Instagram, TikTok, Telegram)" : "X or Telegram";
+    this.feel("cool", t("looking good 😎"));
     if (!IS_TAURI) {
       const url = URL.createObjectURL(png);
       const a = h("a", { href: url, download: file });
@@ -451,9 +484,10 @@ export class Island {
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      return copied ? "Image copied and downloaded." : "Image downloaded.";
+      return copied ? t("Image copied and downloaded.") : t("Image downloaded.");
     }
-    return copied ? `Image copied. Paste it on ${where}.` : "Couldn't copy the image.";
+    if (!copied) return t("Couldn't copy the image.");
+    return format === "story" ? t("Image copied. Paste it on your story (Instagram, TikTok, Telegram).") : t("Image copied. Paste it on X or Telegram.");
   }
 
   /** How Candy looks on a card: the costume, colour, hat and face of now. */
@@ -625,6 +659,87 @@ export class Island {
     this.mascot.say(line, 2800);
   }
 
+  // ── Flourishes: now and then, never every time (src/mascot/flourish.ts) ──────
+
+  private flourished = new Map<Flourish, number>();
+
+  /** Plays a flourish if its moment's dice say so and it hasn't played lately. Only on screen, and only with Lively on. */
+  private tryFlourish(kind: Flourish, size?: number): boolean {
+    if (State.mode === "hidden" || State.minimized || !State.companion.lively || State.mascotAway) return false;
+    if (!shouldFlourish(kind, this.flourished, Date.now(), Math.random())) return false;
+    const m = this.mascot;
+    switch (kind) {
+      case "confetti":
+        m.emit("confetti", 18);
+        break;
+      case "fireworks":
+        m.emit("firework", 36);
+        m.emit("confetti", 10);
+        break;
+      case "cloud":
+        m.emit("cloud", 1);
+        m.emit("rain", 8);
+        break;
+      case "coins":
+        m.emit("coin", 5);
+        break;
+      case "tear":
+        m.emit("tear", 1);
+        break;
+      case "smoke":
+        m.emit("smoke", 5);
+        break;
+      case "flame":
+        m.emit("flame", 1, size ?? 1);
+        break;
+      case "joyJump":
+        m.joyJump();
+        break;
+      case "shrink":
+        m.shrinkTremble();
+        break;
+      case "yawn":
+        m.yawn();
+        break;
+      case "boing":
+        m.squash(0.7);
+        break;
+      case "glance":
+        // The ticker's numbers sit to the right of the folded Candy.
+        m.glance({ x: 1, y: 0.1 });
+        break;
+    }
+    return true;
+  }
+
+  /** One flourish for an event, at most: one of those it could bring, picked at random, then its own dice. */
+  private flourishFor(e: CompanionEvent) {
+    const c = State.companion;
+    const week = e.kind === "weekRecap" ? buildWeekRecap({ range: e, hideMoney: false, unit: c.discipline.unit, trades: c.journal }, "").total : undefined;
+    const kinds = flourishesFor(e, week);
+    if (!kinds.length) return;
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    this.tryFlourish(kind, kind === "flame" ? 1.2 : undefined);
+  }
+
+  /** A whole trade closed: coins for a profit, now and then; a tear for a loss, rarer. */
+  tradeClosed(pnl: number) {
+    this.tryFlourish(pnl > 0 ? "coins" : "tear");
+  }
+
+  /** The mood changed: a little boing now and then; a tear when sad; the wick lit when the hour rises. */
+  private moodChanged(next: MascotState) {
+    if (next === "sad") this.tryFlourish("tear");
+    else if (next === "celebrate" || next === "excited") {
+      const size = flameSize(folderMood(State.companion.watchlist, State.quotes).pct);
+      if (size == null || !this.tryFlourish("flame", size)) this.tryFlourish("boing");
+    } else if (next === "stop") this.tryFlourish("smoke");
+    else this.tryFlourish("boing");
+  }
+  private lastMood: MascotState | null = null;
+  /** The token the ticker showed last, and its price then (see the glance). */
+  private tickerSeen: { key: string; price: number } | null = null;
+
   /** A fired alert or a reminder: open on the event card. */
   showEvent(e: CompanionEvent) {
     // Something fullscreen (a game, a video, a presentation): the card and its
@@ -661,6 +776,7 @@ export class Island {
     // Minimized: it waits in the queue, and shows when Candy comes back (and
     // as a Windows notification, when those are on).
     if (State.minimized) return;
+    this.flourishFor(e);
     // A card already up just counts one more in its queue.
     if (State.mode === "expanded" && State.view === "event") {
       Sound.play("blip");
@@ -778,6 +894,30 @@ export class Island {
     if (!this.wasInIsland) this.fsm.mouseLeft();
   }
 
+  /**
+   * An alert's Windows notification was answered (src/core/notify.ts): Open
+   * opens the token on the terminal, Mute 1 h silences it, a click on the
+   * notification itself shows the waiting card. The first two take its card away.
+   */
+  toastAction(action: string, key: string) {
+    const card = State.events.find((e) => e.kind === "alert" && e.address === key);
+    if (action === "open" || action === "mute") {
+      if (action === "mute") Companion.muteToken(key, 60);
+      else {
+        const token = State.token(key) ?? (card?.kind === "alert" ? card.token : undefined);
+        if (token && !State.demo) void Bridge.openUrl(tokenUrl(State.companion.terminal, token));
+      }
+      if (!card) return;
+      if (State.events[0] === card && State.mode === "expanded" && State.view === "event") return this.dismissEvent();
+      State.events.splice(State.events.indexOf(card), 1);
+      if (State.unseen === card) State.unseen = null;
+      State.notify();
+      return;
+    }
+    State.minimized = false;
+    this.openAlert();
+  }
+
   /** The waiting alert's card, or the Alerts tab when none waits. */
   private openAlert() {
     if (State.events.length) {
@@ -786,7 +926,7 @@ export class Island {
       return;
     }
     this.openFromKeys("alerts");
-    this.mascot.say("No alert waiting", 1800);
+    this.mascot.say(t("No alert waiting"), 1800);
   }
 
   /** The next or previous tab; a folded island opens on the last one. */
@@ -808,14 +948,14 @@ export class Island {
     Companion.save();
     if (State.mode === "hidden") this.reveal();
     if (State.settings.soundEnabled) Sound.play("blip");
-    this.mascot.say(State.settings.soundEnabled ? "Sound on" : "Muted", 1600);
+    this.mascot.say(State.settings.soundEnabled ? t("Sound on") : t("Muted"), 1600);
   }
 
   /** Candy out to his spot on the desktop, or home again. */
   private toggleDesktop() {
     if (!this.desktop.supported) {
       if (State.mode === "hidden") this.reveal();
-      this.mascot.say("I can't leave the island here", 2200);
+      this.mascot.say(t("I can't leave the island here"), 2200);
       return;
     }
     void this.desktop.controller.flyOutOrHome();
@@ -1058,6 +1198,14 @@ export class Island {
       Sound.resume();
       State.lastActivity = performance.now();
       if (State.mode !== "expanded") {
+        // Candy himself in the ticker: a drag pulls him out to the desktop, a
+        // click opens the island (on release). Anywhere else on a floating
+        // ticker, a drag moves it.
+        const p = this.pagePoint(e);
+        if (e.button === 0 && State.mode === "compact" && this.isMascotHit(p.x, p.y) && this.desktop.canPickUp()) {
+          this.mascotPress = { x: e.clientX, y: e.clientY, folded: true };
+          return;
+        }
         if (this.placement() === "float" && e.button === 0) this.pressFloat(e);
         else this.fsm.click();
         return;
@@ -1068,7 +1216,12 @@ export class Island {
       if (e.button === 0 && this.isMascotHit(p.x, p.y)) {
         this.pressMascot();
         this.mascotPress = { x: e.clientX, y: e.clientY };
+        return;
       }
+      // Open, a floating island moves by any bare spot of it too (the
+      // header's empty space, the edges, behind a card's words); buttons,
+      // rows and fields keep their clicks.
+      if (e.button === 0 && this.placement() === "float" && this.isBareSpot(e.target)) this.pressFloat(e);
     });
 
     // Dragging Candy out of the island puts him on the desktop; from then on
@@ -1086,7 +1239,7 @@ export class Island {
       }
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) <= DRAG_THRESHOLD) return;
       this.mascotPress = null;
-      if (State.mode !== "expanded" || State.view === "greeting" || !this.desktop.canPickUp()) return;
+      if (State.mode === "hidden" || State.view === "greeting" || !this.desktop.canPickUp()) return;
       // Not a poke after all.
       this.pressing = false;
       if (this.pressTimer != null) window.clearTimeout(this.pressTimer);
@@ -1105,7 +1258,10 @@ export class Island {
 
     // The release can land anywhere, so listen on the whole window.
     window.addEventListener("mouseup", (e) => {
+      // A press on Candy in the ticker that never became a drag: a click, it opens.
+      const press = this.mascotPress;
       this.mascotPress = null;
+      if (press?.folded && State.mode === "compact") this.fsm.click();
       if (this.desktop.carrying) this.desktop.carryEnd(e.clientX, e.clientY);
       this.releaseMascot();
     });
@@ -1225,8 +1381,8 @@ export class Island {
     State.minimized = false;
     if (this.fsm.state === "hidden") this.reveal();
     if (!parsed) {
-      this.cue({ kind: "puzzled", say: "copy a token's link or address first" });
-      this.noteDrop("Nothing copied that looks like a token link or address", "warn");
+      this.cue({ kind: "puzzled", say: t("copy a token's link or address first") });
+      this.noteDrop(t("Nothing copied that looks like a token link or address"), "warn");
       return;
     }
     await this.dropped(text!);
@@ -1242,12 +1398,12 @@ export class Island {
   async dropped(text: string) {
     Sound.resume();
     if (parseInput(text).kind !== "address") {
-      this.cue({ kind: "puzzled", say: "hm? drop a token's link or address" });
-      this.noteDrop("Not a token link or address", "warn");
+      this.cue({ kind: "puzzled", say: t("hm? drop a token's link or address") });
+      this.noteDrop(t("Not a token link or address"), "warn");
       return;
     }
     if (this.dropBusy) {
-      this.noteDrop("One at a time: still adding the last one.", "warn");
+      this.noteDrop(t("One at a time: still adding the last one."), "warn");
       return;
     }
     // The mouth stays open while the token is looked up; then he swallows it.
@@ -1276,7 +1432,7 @@ export class Island {
       // EVM addresses ignore case; Solana's don't.
       const evm = parsed.address.startsWith("0x");
       const same = (a: string) => (evm ? a.toLowerCase() === parsed.address.toLowerCase() : a === parsed.address);
-      const token = State.companion.watchlist.find((t) => same(t.address) || same(t.pairAddress));
+      const token = State.companion.watchlist.find((tok) => same(tok.address) || same(tok.pairAddress));
       if (token) void Bridge.openUrl(tokenUrl(State.companion.terminal, token));
     }
   }
@@ -1319,6 +1475,18 @@ export class Island {
   }
 
   /** A page point in window-logical coordinates (identity inside Tauri). */
+  /** Part of the island itself rather than something to click: where a drag can take hold of it. */
+  private isBareSpot(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false;
+    if (target.closest("button, a, input, select, textarea, label, canvas, svg, [contenteditable], .row, .move-chip, .folder, .check-line, .seg-btn")) return false;
+    return (
+      target === this.islandEl ||
+      target === this.contentEl ||
+      target === this.header.el ||
+      target.matches("#views, .view, .tabs, .header-actions, .folders, .eyebrow, .title, .detail, .event-foot, .buttons, .fine")
+    );
+  }
+
   private pagePoint(e: MouseEvent): { x: number; y: number } {
     if (IS_TAURI) return { x: e.clientX, y: e.clientY };
     const r = this.root.getBoundingClientRect();
@@ -1374,7 +1542,7 @@ export class Island {
       const summary = awaySummary(this.snapshot, fresh, Companion.seenEvents);
       this.snapshot = fresh;
       if (summary) Companion.raise({ kind: "away", id: `away-${now}`, away: summary.away, lines: summary.lines, moves: summary.moves });
-      else this.mascot.say("welcome back!", 1800);
+      else this.mascot.say(t("welcome back!"), 1800);
     }
     this.lastSeenAt = now;
     if (!this.snapshot || now - this.snapshot.t >= SNAPSHOT_EVERY_MS) this.snapshot = this.takeSnapshot(now);
@@ -1428,6 +1596,11 @@ export class Island {
     this.fidgetTimer = window.setTimeout(() => {
       this.fidgetTimer = null;
       if (State.mode === "hidden") return;
+      // Bored (or worn out): now and then a real yawn instead of a fidget.
+      if (!this.mascot.reacting && !this.pressing && (State.mood.state === "bored" || State.mood.state === "tired") && this.tryFlourish("yawn")) {
+        this.scheduleFidget();
+        return;
+      }
       if (!this.mascot.reacting && !this.pressing && State.moodFace && Math.random() < 0.4) {
         // A settled mood peeks back for a moment.
         this.mascot.react(State.moodFace, 2500);
@@ -1435,7 +1608,7 @@ export class Island {
         const f = pickFidget(State.mood.state, Math.random());
         if (f) {
           this.mascot.react(State.mood.state, f.ms, f.motion);
-          if (f.say) this.mascot.say(f.say, f.ms);
+          if (f.say) this.mascot.say(t(f.say), f.ms);
           if (f.wink) this.mascot.wink();
         }
       }
@@ -1548,7 +1721,7 @@ export class Island {
     // anything else squashes it, and the hat is knocked askew either way.
     const roll = CANVAS_ROLLS[r.motion];
     this.mascot.react(r.state, r.ms, roll ? "none" : r.motion);
-    this.mascot.say(r.say, r.ms);
+    this.mascot.say(t(r.say), r.ms);
     if (roll) this.mascot.rollOnce(roll.turns, roll.seconds);
     else this.mascot.squash(0.7);
     this.mascot.nudgeHat(Math.random() < 0.5 ? 0.8 : -0.8);
@@ -1688,6 +1861,11 @@ export class Island {
     // Two lines at most (see #caption); the whole sentence on hover.
     this.captionEl.title = State.mood.text;
 
+    if (this.lastMood !== State.mood.state) {
+      // The first mood is no change; later ones may bring a flourish.
+      if (this.lastMood != null) this.moodChanged(State.mood.state);
+      this.lastMood = State.mood.state;
+    }
     this.mascot.setMood(State.mood.state);
     this.mascot.setBadge(this.badge());
     if (todayKey() !== this.lookDay && this.costumeTimer == null) this.wearChosen();
@@ -1714,11 +1892,11 @@ export class Island {
 
     if (this.dragDepth > 0) {
       el.classList.add("tone-up");
-      el.append(h("span", { class: "t-text", text: "Drop to add to your watchlist" }));
+      el.append(h("span", { class: "t-text", text: t("Drop to add to your watchlist") }));
       return;
     }
     if (this.dropBusy) {
-      el.append(svg(ICONS.search, 11, { stroke: 2.2 }), h("span", { class: "t-text dim", text: "Looking it up on DexScreener…" }));
+      el.append(svg(ICONS.search, 11, { stroke: 2.2 }), h("span", { class: "t-text dim", text: t("Looking it up on DexScreener…") }));
       return;
     }
     const note = this.dropNote;
@@ -1747,25 +1925,25 @@ export class Island {
     }
     if (Companion.stoppedToday) {
       el.classList.add("tone-down");
-      el.append(h("span", { class: "t-text", text: "Daily loss limit hit" }));
+      el.append(h("span", { class: "t-text", text: t("Daily loss limit hit") }));
       return;
     }
     if (State.companion.disciplineOn && State.cooldownUntil > Date.now()) {
       el.classList.add("tone-calm");
-      el.append(h("span", { class: "t-text", text: `Cooldown ${formatClock(State.cooldownUntil - Date.now())}` }));
+      el.append(h("span", { class: "t-text", text: t("Cooldown {time}", { time: formatClock(State.cooldownUntil - Date.now()) }) }));
       return;
     }
     if (State.paused) {
-      el.append(h("span", { class: "t-text dim", text: "Paused" }));
+      el.append(h("span", { class: "t-text dim", text: t("Paused") }));
       return;
     }
     // Your positions first (with their profit), then the watchlist's other tokens.
     const held = Companion.positions();
     const heldKeys = new Set(held.map((x) => tokenKey("solana", x.p.mint)));
-    const tokens = State.companion.watchlist.filter((t) => State.quotes[t.key] && !heldKeys.has(t.key));
+    const tokens = State.companion.watchlist.filter((tok) => State.quotes[tok.key] && !heldKeys.has(tok.key));
     const count = held.length + tokens.length;
     if (count === 0) {
-      const text = State.companion.watchlist.length ? "Fetching prices…" : "Hover here to add tokens";
+      const text = State.companion.watchlist.length ? t("Fetching prices…") : t("Hover here to add tokens");
       el.append(h("span", { class: "t-text dim", text }));
       return;
     }
@@ -1777,17 +1955,21 @@ export class Island {
     if (i < held.length) {
       const { p, s } = held[i];
       el.append(
-        h("span", { class: "t-own", text: "★", title: "Your position" }),
+        h("span", { class: "t-own", text: "★", title: t("Your position") }),
         h("span", { class: "t-sym", text: p.symbol }),
         h("span", { class: "t-mc", text: formatUsd(s.valueUsd) }),
         h("span", { class: `t-pct ${pctClass(s.pnlUsd)}`, text: formatSignedUsd(s.pnlUsd) }),
         h("span", { class: `t-pct ${pctClass(s.pnlPct)}`, text: formatPct(s.pnlPct) }),
       );
     } else {
-      const t = tokens[i - held.length];
-      const q = State.quotes[t.key];
+      const tok = tokens[i - held.length];
+      const q = State.quotes[tok.key];
+      // The price on show just moved: now and then his eyes go to it.
+      const seen = this.tickerSeen;
+      if (seen && seen.key === tok.key && seen.price !== q.priceUsd && !isSide(this.placement())) this.tryFlourish("glance");
+      this.tickerSeen = { key: tok.key, price: q.priceUsd };
       el.append(
-        h("span", { class: "t-sym", text: t.symbol }),
+        h("span", { class: "t-sym", text: tok.symbol }),
         h("span", { class: "t-mc", text: valueCell(State.companion.valueColumn, q).text }),
         h("span", { class: `t-pct ${pctClass(q.change.m5)}`, text: `5m ${formatPct(q.change.m5)}` }),
         h("span", { class: `t-pct ${pctClass(q.change.h1)}`, text: `1h ${formatPct(q.change.h1)}` }),
@@ -1816,7 +1998,7 @@ export class Island {
     });
     const rest = items.length - shown.length;
     const box = h("span", { class: "t-dotbox" }, dots);
-    if (rest > 0) box.append(h("span", { class: "t-more", text: `+${rest}`, title: `${rest} more, in turn` }));
+    if (rest > 0) box.append(h("span", { class: "t-more", text: `+${rest}`, title: tn(rest, "{n} more, in turn", "{n} more, in turn") }));
     return box;
   }
 

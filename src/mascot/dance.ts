@@ -20,19 +20,19 @@ export interface DanceStep {
 const STILL: DanceStep = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1 };
 
 /**
- * One beat is a hop with a sway and a lean the same way; the landing squashes
- * the body a little. `level` (0–1) scales it all, so the dance can fade in and out.
+ * One beat is a hop straight up; the landing squashes the body a little. No
+ * sway or lean to the sides: Candy stays upright (the user's call). `level`
+ * (0–1) scales it all, so the dance can fade in and out.
  */
 export function danceStep(t: number, level: number): DanceStep {
   if (level <= 0) return STILL;
   const beat = (t * DANCE_BPM) / 60;
-  const sway = Math.sin(Math.PI * beat);
-  const hop = Math.abs(sway);
+  const hop = Math.abs(Math.sin(Math.PI * beat));
   const land = Math.pow(1 - hop, 6);
   return {
-    dx: 3.5 * sway * level,
+    dx: 0,
     dy: -9 * hop * level,
-    rot: 0.07 * sway * level,
+    rot: 0,
     sx: 1 + 0.05 * land * level,
     sy: 1 - 0.07 * land * level,
   };

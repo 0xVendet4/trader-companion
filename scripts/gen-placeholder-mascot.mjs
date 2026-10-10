@@ -233,6 +233,16 @@ const wrap = (body) =>
 ${body}
 </svg>
 `;
+// Accessories with loose bits (src/mascot/pieces.ts): each bit is a picture of
+// its own that turns about where it is attached, so a pompom, a bunny's ears,
+// a tassel or a scarf's ends trail the hat's swing and the hops. The whole
+// accessory stays one picture too, for the wardrobe.
+const CUTS = {};
+function cut(src, base, parts) {
+  CUTS[src] = { base, parts };
+  const art = (under) => parts.filter((p) => !!p.under === under).map((p) => p.art).join("");
+  return wrap(art(true) + (base ?? "") + art(false));
+}
 const OUTFITS = {
   "outfits/cap.svg": wrap(
     `<path d="M34 34 Q36 12 64 12 Q92 12 94 34 Z" fill="#3b82f6" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
@@ -249,10 +259,11 @@ const OUTFITS = {
     `<path d="M40 30 L42 10 L53 20 L64 6 L75 20 L86 10 L88 30 Z" fill="#facc15" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
       `<circle cx="64" cy="22" r="3.5" fill="#ef4444"/><circle cx="50" cy="25" r="2.5" fill="#3b82f6"/><circle cx="78" cy="25" r="2.5" fill="#22c55e"/>`,
   ),
-  "outfits/party.svg": wrap(
+  "outfits/party.svg": cut(
+    "outfits/party.svg",
     `<path d="M46 30 L72 2 L88 26 Z" fill="#f472b6" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
-      `<path d="M56 19 L78 12 M63 26 L84 20" stroke="#fde047" stroke-width="4" stroke-linecap="round"/>` +
-      `<circle cx="72" cy="3" r="5" fill="#fde047" stroke="${RIM}" stroke-width="2.5"/>`,
+      `<path d="M56 19 L78 12 M63 26 L84 20" stroke="#fde047" stroke-width="4" stroke-linecap="round"/>`,
+    [{ name: "pompom", art: `<circle cx="72" cy="3" r="5" fill="#fde047" stroke="${RIM}" stroke-width="2.5"/>`, pivot: [72, 7], swing: 1.3, bob: 1.2 }],
   ),
   "outfits/headphones.svg": wrap(
     `<path d="M28 58 Q28 14 64 14 Q100 14 100 58" fill="none" stroke="${RIM}" stroke-width="10" stroke-linecap="round"/>` +
@@ -273,11 +284,12 @@ Object.assign(OUTFITS, {
       `<path d="M18 26 Q30 36 64 34 Q98 36 110 26 Q100 22 84 27 L44 27 Q28 22 18 26 Z" fill="#ca8a04" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
       `<path d="M45 24 L83 24" stroke="#78350f" stroke-width="4"/>`,
   ),
-  "outfits/beanie.svg": wrap(
+  "outfits/beanie.svg": cut(
+    "outfits/beanie.svg",
     `<path d="M33 34 Q34 8 64 8 Q94 8 95 34 Z" fill="#ef4444" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
       `<rect x="31" y="28" width="66" height="10" rx="4" fill="#b91c1c" stroke="${RIM}" stroke-width="4"/>` +
-      `<path d="M46 14 L46 28 M56 10 L56 28 M64 9 L64 28 M72 10 L72 28 M82 14 L82 28" stroke="#fca5a5" stroke-opacity="0.5" stroke-width="2"/>` +
-      `<circle cx="64" cy="7" r="6" fill="#f8fafc" stroke="${RIM}" stroke-width="3"/>`,
+      `<path d="M46 14 L46 28 M56 10 L56 28 M64 9 L64 28 M72 10 L72 28 M82 14 L82 28" stroke="#fca5a5" stroke-opacity="0.5" stroke-width="2"/>`,
+    [{ name: "pompom", art: `<circle cx="64" cy="7" r="6" fill="#f8fafc" stroke="${RIM}" stroke-width="3"/>`, pivot: [64, 12], bob: 1.5 }],
   ),
   "outfits/halo.svg": wrap(
     `<ellipse cx="64" cy="9" rx="24" ry="6" fill="none" stroke="#fde68a" stroke-opacity="0.45" stroke-width="9"/>` +
@@ -338,17 +350,30 @@ const flower = (cx, cy, petal) =>
     })
     .join("") + `<circle cx="${cx}" cy="${cy}" r="2.8" fill="#fde047" stroke="${RIM}" stroke-width="1.2"/>`;
 Object.assign(OUTFITS, {
-  "outfits/santa.svg": wrap(
+  "outfits/santa.svg": cut(
+    "outfits/santa.svg",
     `<path d="M36 30 Q44 4 72 4 Q96 4 108 20 Q96 20 92 30 Z" fill="#dc2626" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
-      `<rect x="31" y="25" width="66" height="11" rx="5.5" fill="#f8fafc" stroke="${RIM}" stroke-width="4"/>` +
-      `<circle cx="108" cy="21" r="6.5" fill="#f8fafc" stroke="${RIM}" stroke-width="3"/>`,
+      `<rect x="31" y="25" width="66" height="11" rx="5.5" fill="#f8fafc" stroke="${RIM}" stroke-width="4"/>`,
+    // It hangs off the tip: it swings like a bell.
+    [{ name: "pompom", art: `<circle cx="108" cy="21" r="6.5" fill="#f8fafc" stroke="${RIM}" stroke-width="3"/>`, pivot: [107, 16], swing: 1.5, bob: 1 }],
   ),
-  "outfits/grad.svg": wrap(
+  "outfits/grad.svg": cut(
+    "outfits/grad.svg",
     `<path d="M42 20 L42 34 Q64 40 86 34 L86 20 Z" fill="#1f2937" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
       `<path d="M64 4 L110 16 L64 28 L18 16 Z" fill="#111827" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
-      `<path d="M64 16 L100 22 L100 36" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round"/>` +
-      `<rect x="97" y="34" width="6" height="9" rx="2" fill="#facc15" stroke="${RIM}" stroke-width="1.5"/>` +
+      `<path d="M64 16 L100 22" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round"/>` +
       `<circle cx="64" cy="16" r="3" fill="#facc15"/>`,
+    [
+      {
+        name: "tassel",
+        art:
+          `<path d="M100 22 L100 36" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round"/>` +
+          `<rect x="97" y="34" width="6" height="9" rx="2" fill="#facc15" stroke="${RIM}" stroke-width="1.5"/>`,
+        pivot: [100, 22],
+        swing: 1.6,
+        spread: 0.4,
+      },
+    ],
   ),
   "outfits/beret.svg": wrap(
     `<path d="M26 30 Q22 12 58 9 Q98 8 102 22 Q98 32 66 32 Q40 34 26 30 Z" fill="#be123c" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
@@ -369,12 +394,27 @@ Object.assign(OUTFITS, {
     `<path d="M28 30 Q64 12 100 30" fill="none" stroke="#15803d" stroke-width="4" stroke-linecap="round"/>` +
       flower(32, 29, "#f9a8d4") + flower(47, 22, "#fde68a") + flower(64, 19, "#c4b5fd") + flower(81, 22, "#fda4af") + flower(96, 29, "#a5f3fc"),
   ),
-  "outfits/bunny.svg": wrap(
-    `<ellipse cx="46" cy="16" rx="9" ry="16" transform="rotate(-14 46 16)" fill="#f8fafc" stroke="${RIM}" stroke-width="4"/>` +
-      `<ellipse cx="46" cy="17" rx="4" ry="10" transform="rotate(-14 46 17)" fill="#f9a8d4"/>` +
-      `<ellipse cx="82" cy="16" rx="9" ry="16" transform="rotate(14 82 16)" fill="#f8fafc" stroke="${RIM}" stroke-width="4"/>` +
-      `<ellipse cx="82" cy="17" rx="4" ry="10" transform="rotate(14 82 17)" fill="#f9a8d4"/>`,
-  ),
+  // All ears: they flop out as he lands, one a little after the other.
+  "outfits/bunny.svg": cut("outfits/bunny.svg", null, [
+    {
+      name: "left",
+      art:
+        `<ellipse cx="46" cy="16" rx="9" ry="16" transform="rotate(-14 46 16)" fill="#f8fafc" stroke="${RIM}" stroke-width="4"/>` +
+        `<ellipse cx="46" cy="17" rx="4" ry="10" transform="rotate(-14 46 17)" fill="#f9a8d4"/>`,
+      pivot: [50, 30],
+      swing: 0.9,
+      spread: -0.7,
+    },
+    {
+      name: "right",
+      art:
+        `<ellipse cx="82" cy="16" rx="9" ry="16" transform="rotate(14 82 16)" fill="#f8fafc" stroke="${RIM}" stroke-width="4"/>` +
+        `<ellipse cx="82" cy="17" rx="4" ry="10" transform="rotate(14 82 17)" fill="#f9a8d4"/>`,
+      pivot: [78, 30],
+      swing: 1.15,
+      spread: 0.7,
+    },
+  ]),
 });
 
 // For the seasons (see src/mascot/seasons.ts), and anyone's wardrobe.
@@ -538,6 +578,35 @@ Object.assign(FACES, {
       `<path d="M34 69 Q64 62 94 69 L92 90 Q64 101 36 90 Z" fill="#bae6fd" stroke="#0369a1" stroke-width="2.5" stroke-linejoin="round"/>` +
       `<path d="M40 76 Q64 71 88 76 M40 83 Q64 79 88 83" fill="none" stroke="#7dd3fc" stroke-width="2"/>`,
   ),
+  // Under the mouth, its two ends hanging from the knot.
+  "faces/scarf.svg": cut(
+    "faces/scarf.svg",
+    `<path d="M28 92 Q64 101 100 92 L97 103 Q64 112 31 103 Z" fill="#14b8a6" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M32 97.5 Q64 106.5 97 97.5" fill="none" stroke="#f0fdfa" stroke-width="2.5"/>` +
+      `<ellipse cx="86" cy="104" rx="6" ry="5.5" fill="#0d9488" stroke="${RIM}" stroke-width="3"/>`,
+    [
+      {
+        name: "left",
+        art:
+          `<path d="M80 103 L87 103 L85 120 L76 118 Z" fill="#0d9488" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>` +
+          `<path d="M78.4 112.5 L86 113" stroke="#f0fdfa" stroke-width="2.5"/>`,
+        pivot: [83, 104],
+        swing: 1.3,
+        spread: -0.35,
+        under: true,
+      },
+      {
+        name: "right",
+        art:
+          `<path d="M88 103 L94 102 L99 117 L91 119 Z" fill="#14b8a6" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>` +
+          `<path d="M90 111 L96.5 110" stroke="#f0fdfa" stroke-width="2.5"/>`,
+        pivot: [91, 104],
+        swing: 1.1,
+        spread: 0.35,
+        under: true,
+      },
+    ],
+  ),
 });
 delete OUTFITS["outfits/shades.svg"];
 delete OUTFITS["outfits/laser.svg"];
@@ -593,7 +662,21 @@ const MANIFEST = {
     warpaint: "faces/warpaint.svg",
     dollareyes: "faces/dollareyes.svg",
     facemask: "faces/facemask.svg",
+    scarf: "faces/scarf.svg",
   },
+  // The loose bits of an accessory, by the accessory's path (see CUTS).
+  pieces: Object.fromEntries(
+    Object.entries(CUTS).map(([src, { base, parts }]) => {
+      const dir = src.replace(/\.svg$/, "");
+      return [
+        src,
+        {
+          ...(base ? { base: `${dir}/base.svg` } : {}),
+          parts: parts.map(({ name, art, ...how }) => ({ src: `${dir}/${name}.svg`, ...how })),
+        },
+      ];
+    }),
+  ),
   states: {
     idle: { frames: ["idle.svg"], eyes: "eyes/open.svg", eyesBlink: "eyes/blink.svg", motion: "breathe" },
     happy: { frames: ["happy.svg"], eyes: "eyes/happy.svg", motion: "breathe" },
@@ -1491,6 +1574,12 @@ for (const name of STILLS) writeFileSync(join(OUT, "still", name), svg(FRAMES[na
 for (const [name, art] of Object.entries(EYE_FILES)) writeFileSync(join(OUT, name), wrap(art));
 for (const [name, art] of Object.entries({ ...OUTFITS, ...FACES })) {
   writeFileSync(join(OUT, name), art);
+}
+for (const [src, { base, parts }] of Object.entries(CUTS)) {
+  const dir = src.replace(/\.svg$/, "");
+  mkdirSync(join(OUT, dir), { recursive: true });
+  if (base) writeFileSync(join(OUT, dir, "base.svg"), wrap(base));
+  for (const p of parts) writeFileSync(join(OUT, dir, `${p.name}.svg`), wrap(p.art));
 }
 writeFileSync(join(OUT, "mascot.json"), JSON.stringify(MANIFEST, null, 2) + "\n");
 console.log(`${Object.keys(FRAMES).length} frames + mascot.json → ${OUT}`);

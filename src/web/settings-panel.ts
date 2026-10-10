@@ -2,6 +2,7 @@
 // settings page in a frame, in a panel. Both pages share localStorage, so a
 // change there reaches the island through the usual `storage` event.
 
+import { t } from "../core/i18n";
 import { h } from "../views/dom";
 
 let panel: HTMLElement | null = null;
@@ -16,8 +17,8 @@ export function openSettingsPanel() {
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") close();
   };
-  const frame = h("iframe", { class: "settings-frame", src: "settings.html", title: "Settings" });
-  const closeBtn = h("button", { class: "settings-close", type: "button", title: "Close (Esc)", text: "×", onclick: close });
+  const frame = h("iframe", { class: "settings-frame", src: "settings.html", title: t("Settings") });
+  const closeBtn = h("button", { class: "settings-close", type: "button", title: t("Close (Esc)"), text: "×", onclick: close });
   const box = h("div", { class: "settings-box" }, closeBtn, frame);
   panel = h("div", { id: "settings-panel" }, box);
   // A press on the dimmed backdrop closes it; one inside the box doesn't.

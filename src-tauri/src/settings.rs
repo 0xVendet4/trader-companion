@@ -87,11 +87,32 @@ pub fn load() -> Settings {
     }
 }
 
+/// Twice a day at most, the file as it stood before a save is kept beside it as
+/// settings.daily.json: a way back if an empty config ever lands over the
+/// trader's (on 2026-10-10 a page that saved before reading its settings did).
+fn snapshot(dir: &std::path::Path) {
+    let daily = dir.join("settings.daily.json");
+    let fresh = std::fs::metadata(&daily)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|age| age < std::time::Duration::from_secs(12 * 3600));
+    if fresh {
+        return;
+    }
+    // Read and written, not copied: a copy keeps the old file's date, and the
+    // snapshot's own date is what says when it was taken.
+    if let Ok(bytes) = std::fs::read(settings_path()) {
+        let _ = std::fs::write(&daily, bytes);
+    }
+}
+
 /// Written to a temporary file first, then renamed over the old one, so a crash
 /// mid-write can never leave a half-written watchlist behind.
 pub fn save(settings: &Settings) -> std::io::Result<()> {
     let dir = config_dir();
     crate::platform::ensure_private_dir(&dir)?;
+    snapshot(&dir);
     let json = serde_json::to_vec_pretty(settings)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     let tmp = dir.join("settings.json.tmp");

@@ -1,7 +1,8 @@
 // System notifications for alerts: Windows toasts in the app (so an alert still
 // reaches you over a fullscreen game or video), the browser's in the preview.
 
-import { IS_TAURI } from "./bridge";
+import { Bridge, IS_TAURI } from "./bridge";
+import { t } from "./i18n";
 
 /** Asks for permission. Resolves to whether notifications can be shown. */
 export async function enableNotifications(): Promise<boolean> {
@@ -13,6 +14,16 @@ export async function enableNotifications(): Promise<boolean> {
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
   return (await Notification.requestPermission()) === "granted";
+}
+
+/**
+ * An alert's notification: on Windows with its own Open and Mute 1 h buttons
+ * (they come back to the island as "toast-action", with `key`); the plain one
+ * elsewhere.
+ */
+export async function notifyAlert(title: string, body: string, key: string): Promise<void> {
+  if (IS_TAURI && (await Bridge.notifyAlert(title, body, key, [t("Open"), t("Mute 1 h")]))) return;
+  await notify(title, body);
 }
 
 export async function notify(title: string, body: string): Promise<void> {

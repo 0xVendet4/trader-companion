@@ -6,21 +6,22 @@ import { borrowKeyboard, btn, field, iconBtn, type ViewActions, type ViewHost } 
 import { Companion } from "../companion";
 import { KIND_LABELS, WINDOW_CHOICES, describeRule, usesPercent, usesWindow } from "../alerts/alerts";
 import { formatPct, formatPrice, formatUsd, parseAmount } from "../core/format";
+import { t } from "../core/i18n";
 import { State, type AlertKind } from "../core/state";
 
 const KIND_ORDER: AlertKind[] = ["mcapAbove", "mcapBelow", "priceAbove", "priceBelow", "pctUp", "pctDown", "liqDrop"];
 
 export function buildAlerts(actions: ViewActions): ViewHost {
   const list = h("div", { class: "alert-list" });
-  const empty = h("div", { class: "empty", text: "No alerts yet. Create one below, or with the bell on a token." });
+  const empty = h("div", { class: "empty", text: t("No alerts yet. Create one below, or with the bell on a token.") });
 
   const tokenSel = h("select", { class: "field sel" }) as HTMLSelectElement;
   const kindSel = h("select", { class: "field sel" }) as HTMLSelectElement;
-  for (const k of KIND_ORDER) kindSel.append(h("option", { value: k, text: KIND_LABELS[k] }));
+  for (const k of KIND_ORDER) kindSel.append(h("option", { value: k, text: t(KIND_LABELS[k]) }));
   const value = field(actions, { placeholder: "1.5M", class: "field small" });
   const winSel = h("select", { class: "field sel small" }) as HTMLSelectElement;
-  for (const w of WINDOW_CHOICES) winSel.append(h("option", { value: String(w), text: `in ${w} min` }));
-  const create = btn("Create", "secondary", () => submit());
+  for (const w of WINDOW_CHOICES) winSel.append(h("option", { value: String(w), text: t("in {minutes} min", { minutes: w }) }));
+  const create = btn(t("Create"), "secondary", () => submit());
   const note = h("span", { class: "note" });
   const now = h("div", { class: "now" });
 
@@ -42,7 +43,12 @@ export function buildAlerts(actions: ViewActions): ViewHost {
   function updateNow() {
     const q = State.quotes[tokenSel.value];
     now.textContent = q
-      ? `now: MC ${formatUsd(q.marketCap)} · ${formatPrice(q.priceUsd)} · liq ${formatUsd(q.liquidityUsd)} · 5m ${formatPct(q.change.m5)}`
+      ? t("now: MC {mc} · {price} · liq {liq} · 5m {change}", {
+          mc: formatUsd(q.marketCap),
+          price: formatPrice(q.priceUsd),
+          liq: formatUsd(q.liquidityUsd),
+          change: formatPct(q.change.m5),
+        })
       : "";
   }
 
@@ -52,21 +58,21 @@ export function buildAlerts(actions: ViewActions): ViewHost {
     const v = parseAmount(value.value);
     note.className = "note err";
     if (!address) {
-      note.textContent = "Add a token to the watchlist first.";
+      note.textContent = t("Add a token to the watchlist first.");
       return;
     }
     if (v == null || v <= 0) {
-      note.textContent = usesPercent(kind) ? "Enter a percentage, e.g. 20" : "Enter a value, e.g. 1.5M or 0.0012";
+      note.textContent = usesPercent(kind) ? t("Enter a percentage, e.g. 20") : t("Enter a value, e.g. 1.5M or 0.0012");
       return;
     }
     if (usesPercent(kind) && v > 1000) {
-      note.textContent = "That percentage is too high.";
+      note.textContent = t("That percentage is too high.");
       return;
     }
     Companion.addAlert({ address, kind, value: v, windowMin: Number(winSel.value) });
     value.value = "";
     note.className = "note ok";
-    note.textContent = "Alert created.";
+    note.textContent = t("Alert created.");
     actions.blip();
     actions.relayout();
     window.setTimeout(() => (note.textContent = ""), 3000);
@@ -86,7 +92,7 @@ export function buildAlerts(actions: ViewActions): ViewHost {
           "button",
           {
             class: `toggle ${rule.enabled ? "on" : ""}`,
-            title: rule.enabled ? "Turn off" : "Turn on",
+            title: rule.enabled ? t("Turn off") : t("Turn on"),
             onclick: () => {
               Companion.toggleAlert(rule.id);
               actions.blip();
@@ -94,7 +100,7 @@ export function buildAlerts(actions: ViewActions): ViewHost {
           },
           h("i"),
         ),
-        iconBtn(ICONS.trash, "Delete", () => {
+        iconBtn(ICONS.trash, t("Delete"), () => {
           Companion.removeAlert(rule.id);
           actions.relayout();
         }, 2),
@@ -125,11 +131,11 @@ export function buildAlerts(actions: ViewActions): ViewHost {
       }
       // Token options follow the watchlist; keep the selection when possible.
       const want = State.alertDraftAddress ?? tokenSel.value;
-      const opts = State.companion.watchlist.map((t) => t.key).join("|");
+      const opts = State.companion.watchlist.map((tok) => tok.key).join("|");
       if (tokenSel.dataset.opts !== opts) {
         tokenSel.dataset.opts = opts;
         clear(tokenSel);
-        for (const t of State.companion.watchlist) tokenSel.append(h("option", { value: t.key, text: t.symbol }));
+        for (const tok of State.companion.watchlist) tokenSel.append(h("option", { value: tok.key, text: tok.symbol }));
       }
       if (want && State.token(want)) tokenSel.value = want;
       State.alertDraftAddress = null;

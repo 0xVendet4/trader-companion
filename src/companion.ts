@@ -3,14 +3,15 @@
 // out the mascot's mood, and saves every change the user makes. The island
 // only draws what this produces.
 
-import { evaluateRules, isMuted, liveMutes, primeRule, pushSample, volumeAlerts, type RuleMemory } from "./alerts/alerts";
-import { weekRecapDue } from "./share/recap";
+import { evaluateRules, isMuted, liveMutes, milestoneAlert, primeRule, pushSample, sellPressureAlerts, volumeAlerts, type RuleMemory } from "./alerts/alerts";
+import { monthRecapDue, weekRecapDue } from "./share/recap";
 import { LAUNCHPADS, graduation } from "./market/launchpads";
 import { ownFeedLine } from "./positions/board";
 import { Bridge, IS_TAURI } from "./core/bridge";
 import { UPDATE_CHECK_MS, isNewer } from "./core/update";
 import { formatPrice, formatUsd } from "./core/format";
-import { notify } from "./core/notify";
+import { t, tn } from "./core/i18n";
+import { notify, notifyAlert } from "./core/notify";
 import {
   MAX_JOURNAL,
   MAX_NOTE,
@@ -25,6 +26,7 @@ import {
   type TradePlan,
   type TrendingItem,
   type WalletSnapshot,
+  type WatchSort,
   type WatchToken,
 } from "./core/state";
 import {
@@ -52,6 +54,7 @@ import {
   type DexPair,
 } from "./market/dexscreener";
 import { MAX_FOLDERS, cleanFolderName } from "./market/folders";
+import { CALENDAR_RETRY_MS, CALENDAR_TTL_MS, dueHeadsUps, headsUpTitle, parseCalendar, releaseLabel, releaseLines, releases } from "./market/calendar";
 import { COINGECKO_TTL_MS, TOP_TTL_MS, fetchCoins, fetchContracts, fetchTop } from "./market/coingecko";
 import {
   KNOWN,
@@ -126,6 +129,8 @@ class CompanionController {
   onEvent: ((e: CompanionEvent) => void) | null = null;
   /** A short feeling for something the trader did (a trade, a break); set by the island. */
   onFeeling: ((state: MascotState, line: string) => void) | null = null;
+  /** A whole trade closed, with what it took (in the journal's unit); set by the island. */
+  onTrade: ((pnl: number) => void) | null = null;
 
   private memory = new Map<string, RuleMemory>();
   /** Rules saved before this launch, not yet checked against a quote. */
@@ -235,6 +240,8 @@ class CompanionController {
       this.schedule();
       return;
     }
+    // The economic calendar's heads-ups don't wait on DexScreener.
+    this.calendarTick(Date.now());
 
     this.abort?.abort();
     const abort = new AbortController();
@@ -247,14 +254,14 @@ class CompanionController {
       // along: they share each chain's request, so they cost nothing extra.
       const natives = nativeCoins(State.companion.chains);
       const refs = [
-        ...tokens.map((t) => ({ chainId: t.chainId, address: t.address })),
+        ...tokens.map((tok) => ({ chainId: tok.chainId, address: tok.address })),
         ...natives.map((n) => ({ chainId: n.chain, address: n.address })),
         { chainId: "solana" as const, address: SOL_MINT },
         ...(State.companion.headerMarket ? [WBTC] : []),
         // Held tokens ride along too, so positions move with the market.
         ...Object.keys(State.companion.book.positions).map((address) => ({ chainId: "solana" as const, address })),
       ];
-      const majorIds = tokens.map((t) => majorFor(t)).filter((id): id is string => !!id);
+      const majorIds = tokens.map((tok) => majorFor(tok)).filter((id): id is string => !!id);
       const [quotes, markets] = await Promise.all([fetchQuotes(refs, abort.signal), this.marketsFor(majorIds)]);
       if (abort.signal.aborted) return;
       this.failures = 0;
@@ -274,14 +281,14 @@ class CompanionController {
       // the header and positions keep the raw quotes.
       const watched = { ...quotes };
       let newLogos = false;
-      for (const t of tokens) {
-        const id = majorFor(t);
+      for (const tok of tokens) {
+        const id = majorFor(tok);
         if (!id) continue;
-        if (watched[t.key]) watched[t.key] = asMajor(watched[t.key], markets[id]);
+        if (watched[tok.key]) watched[tok.key] = asMajor(watched[tok.key], markets[id]);
         // A major wears its coin's logo: its tracking token (WBTC…) rarely has one.
         const logo = markets[id]?.image;
-        if (logo && t.imageUrl !== logo) {
-          t.imageUrl = logo;
+        if (logo && tok.imageUrl !== logo) {
+          tok.imageUrl = logo;
           newLogos = true;
         }
       }
@@ -341,8 +348,8 @@ class CompanionController {
             id: uid(),
             ruleId: `graduation:${token.key}`,
             address: token.key,
-            title: `${token.symbol} graduated from ${grad.from} to ${grad.to}`,
-            detail: `MC ${formatUsd(q.marketCap)} · ${formatPrice(q.priceUsd)} · liq ${formatUsd(q.liquidityUsd)}`,
+            title: t("{symbol} graduated from {from} to {to}", { symbol: token.symbol, from: grad.from, to: grad.to }),
+            detail: t("MC {mcap} · {price} · liq {liq}", { mcap: formatUsd(q.marketCap), price: formatPrice(q.priceUsd), liq: formatUsd(q.liquidityUsd) }),
             tone: "up",
           });
         }
@@ -351,6 +358,11 @@ class CompanionController {
       if (!q.major && q.imageUrl && token.imageUrl !== q.imageUrl) {
         token.imageUrl = q.imageUrl;
         changedTokens = true;
+      }
+      // Its market cap crossed a round milestone since the last poll.
+      const milestone = State.companion.milestoneAlert ? milestoneAlert(token, State.quotes[token.key], q, this.milestoneFired, now) : null;
+      if (milestone) {
+        this.raise({ kind: "alert", id: uid(), ruleId: `milestone:${token.key}`, address: token.key, title: milestone.title, detail: milestone.detail, tone: milestone.tone });
       }
       State.quotes[token.key] = q;
       State.history[token.key] = pushSample(State.history[token.key] ?? [], {
@@ -484,6 +496,43 @@ class CompanionController {
     }
   }
 
+  // ── The economic calendar (src/market/calendar.ts) ──────────────────────────
+
+  private calendarLoading = false;
+  private calendarTriedAt = 0;
+  /** The releases whose heads-up has come up, by key. */
+  private headsUps = new Set<string>();
+
+  /** Reads the week's calendar every few hours, and gives each release's heads-up once. */
+  private calendarTick(now: number) {
+    const lead = State.companion.calendarLeadMin;
+    if (!lead) return;
+    void this.refreshCalendar(now);
+    if (!State.calendar) return;
+    for (const r of dueHeadsUps(releases(State.calendar.events), now, lead, this.headsUps)) {
+      this.headsUps.add(r.key);
+      this.raise({ kind: "macro", id: uid(), label: releaseLabel(r), at: r.at, lines: releaseLines(r) });
+    }
+  }
+
+  private async refreshCalendar(now: number) {
+    if (this.calendarLoading) return;
+    if (State.calendar && now - State.calendar.fetchedAt < CALENDAR_TTL_MS) return;
+    if (now - this.calendarTriedAt < CALENDAR_RETRY_MS) return;
+    this.calendarTriedAt = now;
+    this.calendarLoading = true;
+    try {
+      const events = parseCalendar(await Bridge.economicCalendar());
+      if (!events.length) throw new Error("nothing in this week's calendar");
+      State.calendar = { events, fetchedAt: Date.now() };
+      State.notify();
+    } catch (err) {
+      void Bridge.log(`calendar failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      this.calendarLoading = false;
+    }
+  }
+
   /** Prices the positions and reports the levels the trader asked about. */
   private applyPositionQuotes(quotes: Record<string, Quote>) {
     const book = State.companion.book;
@@ -586,6 +635,10 @@ class CompanionController {
     for (const v of volumeAlerts(State.companion.watchlist, State.quotes, State.companion.volumeAlertX, this.volumeFired, now)) {
       this.raise({ kind: "alert", id: uid(), ruleId: `volume:${v.token.key}`, address: v.token.key, title: v.title, detail: v.detail, tone: v.tone });
     }
+    // Sells far outnumbering buys over 5 minutes, on any watched token.
+    for (const v of sellPressureAlerts(State.companion.watchlist, State.quotes, State.companion.sellPressureAlert, this.pressureFired, now)) {
+      this.raise({ kind: "alert", id: uid(), ruleId: `pressure:${v.token.key}`, address: v.token.key, title: v.title, detail: v.detail, tone: v.tone });
+    }
   }
 
   /** Tokens seen on a launchpad's bonding curve this session (see graduation). */
@@ -593,6 +646,9 @@ class CompanionController {
 
   /** When each token's volume alert last fired (see volumeAlerts). */
   private volumeFired = new Map<string, number>();
+  /** When each token's sell-pressure alert last fired, and each token's milestone, by key and level. */
+  private pressureFired = new Map<string, number>();
+  private milestoneFired = new Map<string, number>();
 
   // ── Token safety (RugCheck) ─────────────────────────────────────────────────
 
@@ -602,7 +658,7 @@ class CompanionController {
    */
   ensureSafety(tokens: WatchToken[]) {
     const now = Date.now();
-    for (const mint of tokens.filter((t) => CHAINS[t.chainId].rugcheck && !majorFor(t)).map((t) => t.key)) {
+    for (const mint of tokens.filter((tok) => CHAINS[tok.chainId].rugcheck && !majorFor(tok)).map((tok) => tok.key)) {
       const r = State.safety[mint];
       if (r === "loading" || this.safetyQueue.includes(mint)) continue;
       if (r === "error" && now - (this.safetyErrorAt.get(mint) ?? 0) < 5 * 60_000) continue;
@@ -659,7 +715,7 @@ class CompanionController {
   async addToken(input: string): Promise<{ ok: boolean; message: string; searched?: boolean }> {
     const parsed = parseInput(input);
     if (parsed.kind === "query") {
-      if (parsed.query.length < 2) return { ok: false, message: "Type at least 2 letters, or paste an address." };
+      if (parsed.query.length < 2) return { ok: false, message: t("Type at least 2 letters, or paste an address.") };
       await this.search(parsed.query);
       return { ok: true, message: "", searched: true };
     }
@@ -669,7 +725,7 @@ class CompanionController {
     } catch (err) {
       return { ok: false, message: String(err instanceof Error ? err.message : err) };
     }
-    if (!token) return { ok: false, message: "DexScreener doesn't list it: inactive, too new, or not on Solana, BSC, Ethereum or Robinhood Chain." };
+    if (!token) return { ok: false, message: t("DexScreener doesn't list it: inactive, too new, or not on Solana, BSC, Ethereum or Robinhood Chain.") };
     return this.addWatchToken(token);
   }
 
@@ -683,12 +739,12 @@ class CompanionController {
       token = majorToken(live ? (knownTracker(live) ?? known) : known, token);
     }
     const list = State.companion.watchlist;
-    if (list.length >= MAX_WATCHLIST) return { ok: false, message: `${MAX_WATCHLIST} tokens max.` };
-    if (list.some((t) => t.key === token.key)) return { ok: false, message: `${token.symbol} is already on the list.` };
+    if (list.length >= MAX_WATCHLIST) return { ok: false, message: tn(MAX_WATCHLIST, "{n} token max.", "{n} tokens max.") };
+    if (list.some((tok) => tok.key === token.key)) return { ok: false, message: t("{symbol} is already on the list.", { symbol: token.symbol }) };
     // It lands in the folder on screen ("All": none).
     const folder = State.companion.activeFolder || undefined;
     list.push({ ...token, folder });
-    this.onFeeling?.("curious", `ooh, ${token.symbol}?`);
+    this.onFeeling?.("curious", t("ooh, {symbol}?", { symbol: token.symbol }));
     this.save();
     void this.pollNow();
     // What to check before an entry, once Candy has swallowed it (a major
@@ -699,16 +755,16 @@ class CompanionController {
         if (State.token(key)) this.raise({ kind: "checklist", id: uid(), key });
       }, CHECKLIST_DELAY_MS);
     }
-    return { ok: true, message: `${token.symbol} added.` };
+    return { ok: true, message: t("{symbol} added.", { symbol: token.symbol }) };
   }
 
   /** The trader's own note on a token ("" removes it). */
   setNote(key: string, note: string) {
-    const t = State.token(key);
-    if (!t) return;
+    const tok = State.token(key);
+    if (!tok) return;
     const text = note.trim().slice(0, MAX_NOTE);
-    if (text) t.note = text;
-    else delete t.note;
+    if (text) tok.note = text;
+    else delete tok.note;
     this.save();
   }
 
@@ -742,20 +798,35 @@ class CompanionController {
     this.save();
   }
 
+  /** Keeps a token at the top of the list, or lets it go back in line. */
+  togglePin(key: string) {
+    const tok = State.token(key);
+    if (!tok) return;
+    if (tok.pinned) delete tok.pinned;
+    else tok.pinned = true;
+    this.save();
+  }
+
+  /** The watchlist's column sort (src/market/watchsort.ts); null: the trader's own order. */
+  setWatchlistSort(sort: WatchSort | null) {
+    State.companion.watchlistSort = sort;
+    this.save();
+  }
+
   /** Puts a token in a folder (undefined: no folder, All only). */
   moveToFolder(key: string, folder: string | undefined) {
-    const t = State.companion.watchlist.find((x) => x.key === key);
-    if (!t) return;
-    t.folder = folder && State.companion.folders.includes(folder) ? folder : undefined;
+    const tok = State.companion.watchlist.find((x) => x.key === key);
+    if (!tok) return;
+    tok.folder = folder && State.companion.folders.includes(folder) ? folder : undefined;
     this.save();
   }
 
   /** A new folder, shown at once; an error message when the name can't be used. */
   addFolder(raw: string): string | null {
     const c = State.companion;
-    if (c.folders.length >= MAX_FOLDERS) return `${MAX_FOLDERS} folders max.`;
+    if (c.folders.length >= MAX_FOLDERS) return tn(MAX_FOLDERS, "{n} folder max.", "{n} folders max.");
     const name = cleanFolderName(raw, c.folders);
-    if (!name) return "Pick another name.";
+    if (!name) return t("Pick another name.");
     c.folders.push(name);
     c.activeFolder = name;
     this.save();
@@ -793,7 +864,7 @@ class CompanionController {
 
   removeToken(key: string) {
     const c = State.companion;
-    c.watchlist = c.watchlist.filter((t) => t.key !== key);
+    c.watchlist = c.watchlist.filter((tok) => tok.key !== key);
     c.alerts = c.alerts.filter((a) => a.address !== key);
     delete State.quotes[key];
     delete State.history[key];
@@ -814,11 +885,11 @@ class CompanionController {
     if (!q) return null;
     if (q.marketCap) {
       this.addAlert({ address, kind: "mcapAbove", value: q.marketCap * factor, windowMin: 5 });
-      return `Alert at ${formatUsd(q.marketCap * factor)} MC (${factor}x)`;
+      return t("Alert at {mcap} MC ({factor}x)", { mcap: formatUsd(q.marketCap * factor), factor });
     }
     if (q.priceUsd > 0) {
       this.addAlert({ address, kind: "priceAbove", value: q.priceUsd * factor, windowMin: 5 });
-      return `Alert at ${formatPrice(q.priceUsd * factor)} (${factor}x)`;
+      return t("Alert at {price} ({factor}x)", { price: formatPrice(q.priceUsd * factor), factor });
     }
     return null;
   }
@@ -847,23 +918,23 @@ class CompanionController {
   addWallet(address: string, label = "", mine = false): { ok: boolean; message: string } {
     const a = address.trim();
     const list = State.companion.wallets;
-    if (!isAddress(a)) return { ok: false, message: "That doesn't look like a Solana address." };
+    if (!isAddress(a)) return { ok: false, message: t("That doesn't look like a Solana address.") };
     const known = list.find((w) => w.address === a);
     if (known) {
-      if (known.mine === mine) return { ok: false, message: mine ? "That's already your wallet." : "Already following that wallet." };
+      if (known.mine === mine) return { ok: false, message: mine ? t("That's already your wallet.") : t("Already following that wallet.") };
       known.mine = mine;
       if (label.trim()) known.label = label.trim().slice(0, 24);
       this.updatePositions([], {});
       void this.refreshWallets([a]);
-      return { ok: true, message: mine ? "Moved from Following to your wallets." : "Moved from your wallets to Following." };
+      return { ok: true, message: mine ? t("Moved from Following to your wallets.") : t("Moved from your wallets to Following.") };
     }
-    if (list.length >= MAX_WALLETS) return { ok: false, message: `${MAX_WALLETS} wallets max.` };
+    if (list.length >= MAX_WALLETS) return { ok: false, message: tn(MAX_WALLETS, "{n} wallet max.", "{n} wallets max.") };
     const same = list.filter((w) => w.mine === mine).length;
     const name = label.trim().slice(0, 24) || (mine ? (same ? `My wallet ${same + 1}` : "My wallet") : `Wallet ${same + 1}`);
     list.push({ address: a, label: name, mine, baselineUsd: null, addedAt: Date.now() });
     this.save();
     void this.refreshWallets([a]);
-    return { ok: true, message: mine ? "Your wallet is added. Reading it…" : "Following. You'll get an alert when it buys or sells." };
+    return { ok: true, message: mine ? t("Your wallet is added. Reading it…") : t("Following. You'll get an alert when it buys or sells.") };
   }
 
   removeWallet(address: string) {
@@ -1052,7 +1123,8 @@ class CompanionController {
         if (known) symbols[m] = known;
       }
       const solUsd = State.sol?.priceUsd ?? 0;
-      if (!(solUsd > 0)) throw new Error("no SOL price yet, try again in a moment");
+      // Shown on the Activity line (State.historyRead.error).
+      if (!(solUsd > 0)) throw new Error(t("no SOL price yet, try again in a moment"));
       const { activity, closed, taken } = tradesFromSwaps(swaps, symbols, solUsd);
       const c = State.companion;
       const seen = new Set(c.book.activity.map((a) => a.id).filter(Boolean));
@@ -1094,8 +1166,12 @@ class CompanionController {
       const read = State.historyRead?.total ?? 0;
       // Some transactions refused: what was read stays (a retry adds the rest,
       // nothing twice), and the line offers the retry.
-      const whose = State.settings.rpcUrl ? "your RPC" : "the public RPC";
-      const error = failed ? `${failed} of ${read} transactions could not be read, ${whose} is busy` : null;
+      const counts = { failed, total: read };
+      const error = !failed
+        ? null
+        : State.settings.rpcUrl
+          ? t("{failed} of {total} transactions could not be read, your RPC is busy", counts)
+          : t("{failed} of {total} transactions could not be read, the public RPC is busy", counts);
       State.historyRead = { address, done: read, total: read, error, found: activity.length };
     } catch (err) {
       State.historyRead = { ...(State.historyRead ?? { address, done: 0, total: 0, found: null }), error: err instanceof Error ? err.message : String(err) };
@@ -1189,8 +1265,8 @@ class CompanionController {
     const trades = walletTrades(this.pendingSales, State.companion.discipline.unit, State.sol?.priceUsd ?? null);
     if (trades == null) return;
     this.pendingSales = [];
-    for (const t of trades) {
-      this.recordTrade(t.pnl, t.note ?? "", { partial: t.partial, tradePnl: t.tradePnl, auto: true, journal: !t.partial });
+    for (const trade of trades) {
+      this.recordTrade(trade.pnl, trade.note ?? "", { partial: trade.partial, tradePnl: trade.tradePnl, auto: true, journal: !trade.partial });
     }
   }
 
@@ -1295,15 +1371,21 @@ class CompanionController {
       const token = toWatchToken(pair);
       State.walletMoves[address] = { side: m.side === "sold" && m.to === 0 ? "sold all" : m.side, symbol: token.symbol, t: now };
       const q = toQuote(m.mint, pair, now);
-      const what = m.side === "sold" && m.to === 0 ? "sold all its" : m.side;
-      this.pushFeed(`${label} ${what} ${token.symbol}`, m.side === "bought" ? "up" : "down");
+      const who = { wallet: label, symbol: token.symbol };
+      const what =
+        m.side === "bought"
+          ? t("{wallet} bought {symbol}", who)
+          : m.to === 0
+            ? t("{wallet} sold all its {symbol}", who)
+            : t("{wallet} sold {symbol}", who);
+      this.pushFeed(what, m.side === "bought" ? "up" : "down");
       this.raise({
         kind: "alert",
         id: uid(),
         ruleId: `wallet:${label}`,
         address: m.mint,
-        title: `${label} ${what} ${token.symbol}`,
-        detail: `MC ${formatUsd(q.marketCap)} · ${formatPrice(q.priceUsd)} · liq ${formatUsd(q.liquidityUsd)}`,
+        title: what,
+        detail: t("MC {mcap} · {price} · liq {liq}", { mcap: formatUsd(q.marketCap), price: formatPrice(q.priceUsd), liq: formatUsd(q.liquidityUsd) }),
         tone: m.side === "bought" ? "up" : "down",
         token,
       });
@@ -1380,10 +1462,12 @@ class CompanionController {
       return;
     }
     const unit = c.discipline.unit;
+    // A whole trade closed: Candy may flourish (coins for a profit, a tear for a loss).
+    if (!opts.partial && pnl !== 0) this.onTrade?.(opts.tradePnl ?? pnl);
     // Discipline off: the trade is kept, nothing else happens but a feeling.
     if (!c.disciplineOn) {
       const result = opts.tradePnl ?? pnl;
-      if (!opts.partial && pnl !== 0) this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? "closed in profit 💪" : "closed at a loss. it happens.");
+      if (!opts.partial && pnl !== 0) this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? t("closed in profit 💪") : t("closed at a loss. it happens."));
       this.recomputeMood();
       State.notify();
       return;
@@ -1417,11 +1501,11 @@ class CompanionController {
     // A feeling for the trade, unless a discipline card has its own to show.
     const max = c.discipline.maxTradesPerDay;
     if (max > 0 && summarize(out.log).count > max) {
-      this.onFeeling?.("angry", "that's past your max for today 😤");
+      this.onFeeling?.("angry", t("that's past your max for today 😤"));
     } else if (!out.hitLossLimit && !out.hitTilt && !out.hitMaxTrades && !out.startCooldown && !opts.partial && pnl !== 0) {
       const result = opts.tradePnl ?? pnl;
-      if (opts.auto) this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? "closed in profit 💪" : "closed at a loss. it happens.");
-      else this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? "win logged 💪" : "loss logged. it happens.");
+      if (opts.auto) this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? t("closed in profit 💪") : t("closed at a loss. it happens."));
+      else this.onFeeling?.(result > 0 ? "proud" : "sad", result > 0 ? t("win logged 💪") : t("loss logged. it happens."));
     }
     this.recomputeMood();
     State.notify();
@@ -1460,7 +1544,7 @@ class CompanionController {
 
   endCooldown() {
     State.cooldownUntil = 0;
-    this.onFeeling?.("relieved", "cooldown over. fresh start 😮‍💨");
+    this.onFeeling?.("relieved", t("cooldown over. fresh start 😮‍💨"));
     this.recomputeMood();
     State.notify();
   }
@@ -1469,7 +1553,7 @@ class CompanionController {
   ackBreak() {
     State.lastBreakAt = Date.now();
     this.breakPending = false;
-    this.onFeeling?.("proud", "break taken. proud of you 🌿");
+    this.onFeeling?.("proud", t("break taken. proud of you 🌿"));
     State.notify();
   }
 
@@ -1499,7 +1583,7 @@ class CompanionController {
     }
     if (State.cooldownUntil && now >= State.cooldownUntil) {
       State.cooldownUntil = 0;
-      this.onFeeling?.("relieved", "cooldown over. fresh start 😮‍💨");
+      this.onFeeling?.("relieved", t("cooldown over. fresh start 😮‍💨"));
     }
     // Monday: last week's recap, once.
     const week = State.demo ? null : weekRecapDue(new Date(now), c.weekRecapSeen, c.journal);
@@ -1507,6 +1591,13 @@ class CompanionController {
       c.weekRecapSeen = week.from;
       this.save();
       this.raise({ kind: "weekRecap", id: uid(), from: week.from, to: week.to, label: week.label });
+    }
+    // The 1st: last month's recap, once (the same card, a month long).
+    const month = State.demo ? null : monthRecapDue(new Date(now), c.monthRecapSeen, c.journal);
+    if (month) {
+      c.monthRecapSeen = month.from;
+      this.save();
+      this.raise({ kind: "weekRecap", id: uid(), from: month.from, to: month.to, label: month.label, period: "month" });
     }
     // The session the trader set an end for is over.
     if (State.sessionEndAt && now >= State.sessionEndAt) {
@@ -1585,8 +1676,9 @@ class CompanionController {
     if (State.events.length > 8) State.events.splice(0, State.events.length - 8);
     if (e.kind === "alert") State.unseen = e;
     if (State.companion.notifications) {
-      if (e.kind === "alert") void notify(e.title, e.detail);
-      if (e.kind === "lossLimit") void notify("Daily loss limit hit", "Time to stop for today.");
+      if (e.kind === "alert") void notifyAlert(e.title, e.detail, e.address);
+      if (e.kind === "lossLimit") void notify(t("Daily loss limit hit"), t("Time to stop for today."));
+      if (e.kind === "macro") void notify(headsUpTitle(e.label, e.at - Date.now()), e.lines.join("\n"));
     }
     this.onEvent?.(e);
   }
@@ -1601,8 +1693,8 @@ class CompanionController {
     const pollChanged = s.companion.pollSeconds !== State.companion.pollSeconds;
     const ids = new Set(s.companion.alerts.map((a) => a.id));
     for (const id of this.memory.keys()) if (!ids.has(id)) this.memory.delete(id);
-    const known = new Set(State.companion.watchlist.map((t) => t.key));
-    const added = s.companion.watchlist.some((t) => !known.has(t.key));
+    const known = new Set(State.companion.watchlist.map((tok) => tok.key));
+    const added = s.companion.watchlist.some((tok) => !known.has(tok.key));
     const chainsChanged = s.companion.chains.join() !== State.companion.chains.join();
     const knownWallets = new Set(State.companion.wallets.map((w) => w.address));
     const newWallets = s.companion.wallets.filter((w) => !knownWallets.has(w.address)).map((w) => w.address);

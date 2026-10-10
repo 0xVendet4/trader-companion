@@ -4,6 +4,7 @@
 //
 // https://docs.dexscreener.com/api/reference
 
+import { t } from "../core/i18n";
 import type { Quote, TrendingItem, WatchToken } from "../core/state";
 import {
   ALL_CHAINS,
@@ -50,8 +51,9 @@ export interface TokenRef {
 
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API}${path}`, { signal, headers: { Accept: "application/json" } });
-  if (res.status === 429) throw new Error("DexScreener rate limit hit, slowing down");
-  if (!res.ok) throw new Error(`DexScreener returned ${res.status}`);
+  // Shown to the trader (the header's "Offline: …", the search's error line).
+  if (res.status === 429) throw new Error(t("DexScreener rate limit hit, slowing down"));
+  if (!res.ok) throw new Error(t("DexScreener returned {status}", { status: res.status }));
   return (await res.json()) as T;
 }
 
@@ -248,22 +250,22 @@ const PASTE_HOSTS = new Set(["dexscreener.com", "gmgn.ai", "axiom.trade", "based
  * wallet), an 88-character Solana key, words, or an unknown link all give null.
  */
 export function parsePasted(text: string): Extract<ParsedInput, { kind: "address" }> | null {
-  const t = text.trim();
-  if (!t || t.length > 2048 || /\s/.test(t)) return null;
-  if (SOLANA_ADDRESS.test(t) || EVM_ADDRESS.test(t)) {
-    const p = parseInput(t);
+  const pasted = text.trim();
+  if (!pasted || pasted.length > 2048 || /\s/.test(pasted)) return null;
+  if (SOLANA_ADDRESS.test(pasted) || EVM_ADDRESS.test(pasted)) {
+    const p = parseInput(pasted);
     return p.kind === "address" ? p : null;
   }
   let host: string;
   try {
-    const url = new URL(t);
+    const url = new URL(pasted);
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
     host = url.hostname.replace(/^www\./, "");
   } catch {
     return null;
   }
   if (!PASTE_HOSTS.has(host)) return null;
-  const p = parseInput(t);
+  const p = parseInput(pasted);
   return p.kind === "address" ? p : null;
 }
 

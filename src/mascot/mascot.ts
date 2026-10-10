@@ -14,11 +14,13 @@
 // craft of Coucou's Mochi engine (MIT, © Louis Raillé), on Candy's own art.
 
 import { Ease } from "../core/anim";
+import { t } from "../core/i18n";
 import type { CustomSkin, Skin } from "../core/state";
 import { drawHands, drawParticles, drawRig, mixRGB, rgbOf, rigBox, turnTo, type Look, type RGB } from "./paint";
 import { danceStep, dancesIn, stepDanceLevel } from "./dance";
 import { moodGaze } from "./gaze";
 import { spawn, step as stepParticles, type Particle, type ParticleKind } from "./particles";
+import { dangle, piecesOf, pose, pulls, still, type Pieces } from "./pieces";
 import { hasArms, paletteOf, parseRig, wickOf, type Box, type Rig } from "./rig";
 import { skinFilter } from "./skins";
 
@@ -63,7 +65,6 @@ export type Motion =
   | "hop"
   | "squish"
   | "wiggle"
-  | "flip"
   | "spin"
   | "dizzy"
   | "squeeze"
@@ -108,6 +109,8 @@ export interface Manifest {
   outfits?: Record<string, string>;
   /** Face accessories (glasses, a mustache…), worn under the hat. */
   faces?: Record<string, string>;
+  /** Hats and face accessories with loose bits, by the accessory's path (see pieces.ts). */
+  pieces?: Record<string, Pieces>;
   /** Costumes: the whole body redrawn, with its own frames for every state. */
   costumes?: Record<string, { name: string; states: Partial<Record<MascotState, StateDef>> }>;
 }
@@ -324,7 +327,7 @@ function rigPalette(rig: Rig | null | undefined): Pal | null {
 // ── Tweens ────────────────────────────────────────────────────────────────────
 
 /** What the mascot animates by keyframes (Coucou's BotEngine does the same, per property). */
-type Prop = "open" | "sx" | "sy" | "oy" | "ox" | "hands" | "hatY" | "hatA" | "roll" | "es" | "blush";
+type Prop = "open" | "sx" | "sy" | "oy" | "ox" | "hands" | "hatY" | "hatA" | "roll" | "es" | "blush" | "sink";
 
 /** Reactions whose eyes pop wide for a moment. */
 const POP_STATES = new Set<MascotState>(["alert", "shocked", "excited", "curious"]);
@@ -332,6 +335,15 @@ const POP_STATES = new Set<MascotState>(["alert", "shocked", "excited", "curious
 const SWEAT_STATES = new Set<MascotState>(["worried", "nervous", "sick"]);
 /** The glyph effects a short reaction plays as a burst of particles instead. */
 const BURSTS: Partial<Record<Fx, ParticleKind>> = { hearts: "heart", sparkles: "star" };
+/** The glyph effects a lasting mood plays as a particle drifting off now and then: asleep, bored. */
+const DRIFTS: Partial<Record<Fx, ParticleKind>> = { zzz: "z", dots: "dots" };
+const DRIFT_EVERY_MS = 2600;
+/** A music note off him while he dances. */
+const NOTE_EVERY_MS = 1700;
+/** Asleep: how far he sinks into the island, art units. */
+const SLEEP_SINK = 4;
+/** A head tilt (a question, a wink, pride), radians: about 8°. */
+const HEAD_TILT = 0.14;
 type Key = readonly [target: number, seconds: number, ease: (t: number) => number];
 
 interface Tween {
@@ -392,6 +404,8 @@ export class Mascot {
 
   private frameTimer: number | null = null;
   private blinkTimer: number | null = null;
+  /** A lasting mood's drifting z's or "…" (see DRIFTS). */
+  private fxTimer: number | null = null;
   private reactionTimer: number | null = null;
   private bubbleTimer: number | null = null;
   private active = true;
@@ -411,6 +425,8 @@ export class Mascot {
   private oy = 0;
   /** Sideways, in art units: the arrival's slide. */
   private ox = 0;
+  /** Asleep, he sinks a little into the island (art units, down). */
+  private sink = 0;
   /** The hello's little hands, out from behind the body (0–1). */
   private hands = 0;
   /** When the left hand started waving, and until when (seconds, now()); 0: not waving. */
@@ -441,6 +457,12 @@ export class Mascot {
   private swingY = 0;
   private swingYV = 0;
   private prevOy = 0;
+  /** The loose bits of the hat and the face accessory (pieces.ts): two looser springs. */
+  private side = 0;
+  private sideV = 0;
+  private up = 0;
+  private upV = 0;
+  private prevTop = 0;
   private parts: Particle[] = [];
   /** Music is playing (see dance.ts): the dance comes in, unless the mood sits it out. */
   private wantDance = false;
@@ -573,6 +595,10 @@ export class Mascot {
       if (POP_STATES.has(state)) this.pop();
       if (state === "love") this.blushUp();
       if (SWEAT_STATES.has(state)) this.emit("sweat", 1);
+      // A question tilts the head one way, pride the other.
+      const hold = Math.min(1.4, ms / 1000 - 0.6);
+      if (state === "curious" || state === "confused") this.headTilt(1, hold);
+      if (state === "proud") this.headTilt(-1, hold);
     }
     if (this.reactionTimer != null) window.clearTimeout(this.reactionTimer);
     this.reactionTimer = window.setTimeout(() => {
@@ -692,12 +718,21 @@ export class Mascot {
     this.anim("sx", [[1.32, 0.09, Ease.out], [0.9, 0.14, Ease.out], [1.04, 0.12, Ease.inOut], [1, 0.2, Ease.back]]);
   }
 
-  /** A burst of `n` hearts, stars, sparks, sweat or z's off the head. */
-  emit(kind: ParticleKind, n = 4) {
+  /**
+   * A burst of `n` hearts, stars, sparks, sweat, z's, confetti, coins… off the
+   * head; a flame or smoke on the wick. `size` scales them (how big a flame burns).
+   */
+  emit(kind: ParticleKind, n = 4, size?: number) {
     if (!this.active) return;
-    const body = readyArt(this.def?.frames[0], false)?.rig?.body;
-    const at = body ? { x: body.x + body.w / 2, y: body.y, w: body.w } : undefined;
-    this.parts.push(...spawn(kind, n, Math.random, at));
+    const rig = readyArt(this.def?.frames[0], false)?.rig;
+    const body = rig?.body;
+    const wick = rig ? wickOf(rig)?.op.box : undefined;
+    const at = body ? { x: body.x + body.w / 2, y: body.y, w: body.w, wick: wick ? { x: wick.x + wick.w / 2, y: wick.y } : undefined } : undefined;
+    // One flame at a time: a new one takes the old one's place.
+    if (kind === "flame") this.parts = this.parts.filter((p) => p.kind !== "flame");
+    const born = spawn(kind, n, Math.random, at);
+    if (size != null) for (const p of born) p.size *= size;
+    this.parts.push(...born);
     this.invalidate();
   }
 
@@ -731,7 +766,7 @@ export class Mascot {
     switch (c.kind) {
       case "ready":
         this.react("alert", 60_000);
-        this.say("drop it on me!", 60_000);
+        this.say(t("drop it on me!"), 60_000);
         this.mouthOpen(true);
         break;
       case "unready":
@@ -762,6 +797,66 @@ export class Mascot {
     if (this.wantDance === on) return;
     this.wantDance = on;
     this.invalidate();
+    this.syncNotes();
+  }
+
+  /** While he dances, a music note drifts off him now and then; never while hidden. */
+  private syncNotes() {
+    const want = this.wantDance && this.active;
+    if (want && this.noteTimer == null) {
+      this.noteTimer = window.setInterval(() => {
+        if (this.danceLevel > 0.5) this.emit("note", 1);
+      }, NOTE_EVERY_MS);
+    } else if (!want && this.noteTimer != null) {
+      window.clearInterval(this.noteTimer);
+      this.noteTimer = null;
+    }
+  }
+  private noteTimer: number | null = null;
+
+  // ── Flourishes (src/mascot/flourish.ts decides when) ──────────────────────────
+
+  /** A joy jump: high, with a trail of sparks under him, and a squash on landing. */
+  joyJump() {
+    if (!this.active) return;
+    this.anim("oy", [[-24, 0.24, Ease.out], [0, 0.36, Ease.back]], () => this.squash(0.9));
+    const body = readyArt(this.def?.frames[0], false)?.rig?.body;
+    const x = body ? body.x + body.w / 2 : 64;
+    const y = body ? body.y + body.h : 100;
+    for (let i = 0; i < 6; i++) {
+      this.parts.push({ kind: "spark", x: x + (Math.random() - 0.5) * 18, y: y - i * 3, vx: (Math.random() - 0.5) * 10, vy: 12, age: -i * 0.04, life: 0.7, rot: Math.random() * 6, size: 0.8 + Math.random() * 0.4 });
+    }
+    this.invalidate();
+  }
+
+  /** A strong drop: he shrinks and trembles for a moment, upright. */
+  shrinkTremble() {
+    if (!this.active) return;
+    this.anim("sy", [[0.86, 0.18, Ease.out], [0.86, 1.0, Ease.lin], [1, 0.3, Ease.back]]);
+    this.anim("sx", [[0.92, 0.18, Ease.out], [0.92, 1.0, Ease.lin], [1, 0.3, Ease.back]]);
+    const shake: [number, number, (t: number) => number][] = [];
+    for (let i = 0; i < 10; i++) shake.push([i % 2 ? 1.6 : -1.6, 0.05, Ease.inOut]);
+    shake.push([0, 0.06, Ease.out]);
+    this.anim("ox", shake);
+  }
+
+  /** A real yawn: the mouth opens wide and slow, the eyes nearly close, then it shuts. */
+  yawn() {
+    if (!this.active || !this.drawn) return;
+    this.mouthOpen(true);
+    this.anim("open", [[0.25, 0.4, Ease.inOut], [0.25, 0.9, Ease.lin], [1, 0.3, Ease.out]]);
+    this.anim("sy", [[1.06, 0.5, Ease.inOut], [1.06, 0.6, Ease.lin], [1, 0.4, Ease.inOut]]);
+    window.setTimeout(() => this.mouthOpen(false), 1400);
+  }
+
+  /** The eyes go somewhere for a moment (the ticker's price that just moved), then come back. */
+  glance(g: { x: number; y: number }, ms = 1200) {
+    if (!this.active) return;
+    const back = this.target;
+    this.lookAt(g);
+    window.setTimeout(() => {
+      if (this.target.x === g.x && this.target.y === g.y) this.lookAt({ x: back.x, y: back.y });
+    }, ms);
   }
 
   /** A dot in the corner: an alert not looked at yet (its tone), or busy fetching. */
@@ -822,11 +917,23 @@ export class Mascot {
     return this.bubble.classList.contains("on");
   }
 
-  /** Closes the eyes once, a little longer than a blink. */
+  /** Closes the eyes once, a little longer than a blink, with the head tipped. */
   wink() {
     if (!this.active || !canBlink(this.def)) return;
     if (this.blinkTimer != null) window.clearTimeout(this.blinkTimer);
     this.blinkOnce(0.26);
+    this.headTilt(1, 0.3);
+  }
+
+  /**
+   * Tips the head to one side for `hold` seconds (1: right, −1: left), then
+   * back: a question, a wink, a proud pose. Never toward the cursor: the user
+   * wants no leaning after the mouse, and the tilts that mean something kept.
+   */
+  headTilt(dir: 1 | -1, hold = 1) {
+    if (!this.active || !this.drawn || this.tweens.has("roll") || hold <= 0) return;
+    const a = HEAD_TILT * dir;
+    this.anim("roll", [[a, 0.22, Ease.out], [a, hold, Ease.lin], [0, 0.35, Ease.inOut]]);
   }
 
   /** Shuts the eyes for `seconds` (the lid closes and opens), then goes back to blinking now and then. */
@@ -840,6 +947,7 @@ export class Mascot {
     if (this.active === on) return;
     this.active = on;
     this.el.classList.toggle("paused", !on);
+    this.syncNotes();
     if (on) {
       this.shown = null;
       this.apply();
@@ -856,6 +964,7 @@ export class Mascot {
       this.slotV = 0;
       this.swing = this.swingV = 0;
       this.swingY = this.swingYV = 0;
+      this.side = this.sideV = this.up = this.upV = 0;
       this.parts = [];
       this.danceLevel = 0;
     }
@@ -876,8 +985,10 @@ export class Mascot {
   private stopTimers() {
     if (this.frameTimer != null) window.clearInterval(this.frameTimer);
     if (this.blinkTimer != null) window.clearTimeout(this.blinkTimer);
+    if (this.fxTimer != null) window.clearInterval(this.fxTimer);
     this.frameTimer = null;
     this.blinkTimer = null;
+    this.fxTimer = null;
   }
 
   private apply() {
@@ -893,6 +1004,10 @@ export class Mascot {
     this.paint();
     this.frame = 0;
     this.el.dataset.state = state;
+    // Asleep he sinks a little into the island, slowly; awake he rises again.
+    const sink = state === "sleepy" ? SLEEP_SINK : 0;
+    if (this.active && this.sink !== sink) this.anim("sink", [[sink, sink ? 2.4 : 0.5, Ease.inOut]]);
+    else if (!this.active) this.sink = sink;
     if (!def) {
       this.invalidate(true);
       return;
@@ -922,9 +1037,17 @@ export class Mascot {
     // A short reaction bursts its hearts or stars on the canvas; a lasting mood
     // keeps the glyphs floating (CSS: nothing to draw while it lasts).
     const burst = this.reaction && def.fx ? BURSTS[def.fx] : undefined;
+    const drift = def.fx ? DRIFTS[def.fx] : undefined;
     if (burst && this.active && this.drawn) {
       this.emit(burst, 4);
       if (burst === "star") this.emit("spark", 3);
+    } else if (drift) {
+      // Asleep or bored: a z (or a "…") drifts off the head now and then, on
+      // the canvas; nothing runs while he is hidden (stopTimers).
+      if (this.active) {
+        this.emit(drift, 1);
+        this.fxTimer = window.setInterval(() => this.emit(drift, 1), DRIFT_EVERY_MS);
+      }
     } else if (def.fx) {
       this.fxEl.className = `mascot-fx fx-${def.fx}`;
       FX_GLYPHS[def.fx].forEach((g, i) => {
@@ -1069,6 +1192,19 @@ export class Mascot {
     [this.swingY, this.swingYV] = lag(this.swingY, this.swingYV, Math.max(-1, Math.min(1, -oyVel / 80)), dt);
     if (Math.abs(this.swingY) > 0.002 || Math.abs(this.swingYV) > 0.01) moving = true;
     else this.swingY = this.swingYV = 0;
+    // The loose bits trail the hat's swing, and the top of the head as it hops,
+    // squashes, dances or wears a hat landing on it.
+    const hop = this.danceLevel > 0.001 ? danceStep(t, this.danceLevel) : null;
+    const top = this.oy + this.sink + this.hatY + (hop?.dy ?? 0) + (FOOT.y - 24) * (1 - this.sy * (hop?.sy ?? 1));
+    const topV = dt > 0 ? (top - this.prevTop) / dt : 0;
+    this.prevTop = top;
+    if (this.loose()) {
+      const pull = pulls(this.swingV, topV);
+      [this.side, this.sideV] = dangle(this.side, this.sideV, pull.side, dt);
+      [this.up, this.upV] = dangle(this.up, this.upV, pull.up, dt);
+      if (!still(this.side, this.sideV) || !still(this.up, this.upV)) moving = true;
+      else this.side = this.sideV = this.up = this.upV = 0;
+    } else this.side = this.sideV = this.up = this.upV = 0;
 
     if (this.parts.length) {
       this.parts = stepParticles(this.parts, dt);
@@ -1135,7 +1271,7 @@ export class Mascot {
       // While waving, the body bobs with the hand.
       const waving = t < this.waveUntil ? t - this.waveFrom : -1;
       const bob = waving >= 0 ? Math.sin(waving * 2 * Math.PI * 5) * 1.2 * Math.min(1, waving / 0.08) : 0;
-      c.translate(this.ox, this.oy + bob);
+      c.translate(this.ox, this.oy + bob + this.sink);
       if (this.danceLevel > 0.001) {
         // The dance: a hop, a sway and a lean about the foot, a squash on landing.
         const d = danceStep(t, this.danceLevel);
@@ -1212,28 +1348,60 @@ export class Mascot {
       }
     }
     if (this.face) {
-      const img = picture(this.face, () => this.invalidate(true));
-      if (img.complete && img.naturalWidth) {
-        c.save();
-        if (body) turnTo(c, body.x + body.w / 2, body, look);
-        c.drawImage(img, 0, 0, 128, 128);
-        c.restore();
-      }
+      c.save();
+      if (body) turnTo(c, body.x + body.w / 2, body, look);
+      this.drawAccessory(c, this.face);
+      c.restore();
     }
     if (this.hat && this.hatA > 0.01) {
-      const img = picture(this.hat, () => this.invalidate(true));
-      if (img.complete && img.naturalWidth) {
-        c.save();
-        c.globalAlpha = this.hatA;
-        const top = body ? body.y : 24;
-        c.translate(body ? Math.sin(look.yaw) * (body.w / 2) * 0.35 : 0, this.hatY + look.pitch * 0.4 + this.swingY * 5);
-        c.translate(64, top + 6);
-        c.rotate(this.swing * 0.35);
-        c.translate(-64, -(top + 6));
-        c.drawImage(img, 0, 0, 128, 128);
-        c.restore();
-      }
+      c.save();
+      c.globalAlpha = this.hatA;
+      const top = body ? body.y : 24;
+      c.translate(body ? Math.sin(look.yaw) * (body.w / 2) * 0.35 : 0, this.hatY + look.pitch * 0.4 + this.swingY * 5);
+      c.translate(64, top + 6);
+      c.rotate(this.swing * 0.35);
+      c.translate(-64, -(top + 6));
+      this.drawAccessory(c, this.hat);
+      c.restore();
     }
+  }
+
+  /** The hat or the face accessory has loose bits that swing. */
+  private loose(): boolean {
+    return !!(piecesOf(this.manifest.pieces, this.hat) || piecesOf(this.manifest.pieces, this.face));
+  }
+
+  /**
+   * A hat or a face accessory: in pieces, its loose bits turned about where
+   * they are attached, once every piece has loaded; whole until then.
+   */
+  private drawAccessory(c: CanvasRenderingContext2D, src: string) {
+    const load = () => this.invalidate(true);
+    const ready = (img: HTMLImageElement | null) => !img || (img.complete && img.naturalWidth > 0);
+    const set = piecesOf(this.manifest.pieces, src);
+    const base = set?.base ? picture(set.base, load) : null;
+    const bits = set ? set.parts.map((p) => ({ p, img: picture(p.src, load) })) : [];
+    if (set && ready(base) && bits.every((b) => ready(b.img))) {
+      const draw = (under: boolean) => {
+        for (const { p, img } of bits) {
+          if (!!p.under !== under) continue;
+          const { angle, dy } = pose(p, this.side, this.up);
+          const [x, y] = p.pivot;
+          c.save();
+          c.translate(x, y + dy);
+          c.rotate(angle);
+          c.translate(-x, -y);
+          c.drawImage(img, 0, 0, 128, 128);
+          c.restore();
+        }
+      };
+      draw(true);
+      if (base) c.drawImage(base, 0, 0, 128, 128);
+      draw(false);
+      return;
+    }
+    const whole = picture(src, load);
+    if (ready(whole)) c.drawImage(whole, 0, 0, 128, 128);
   }
 }
 

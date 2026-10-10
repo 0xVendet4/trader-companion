@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { AlertRule, Quote, Sample, WatchToken } from "../core/state";
 import {
+  MILESTONE_COOLDOWN_MS,
+  SELL_PRESSURE_COOLDOWN_MS,
   VOLUME_ALERT_COOLDOWN_MS,
   changeOverWindow,
+  crossedMilestone,
+  milestoneAlert,
+  sellPressure,
+  sellPressureAlerts,
   evaluateRules,
   isMuted,
   liquidityDrop,
@@ -191,5 +197,53 @@ describe("volume surges", () => {
     expect(isMuted({ MINT: T0 + MIN }, "MINT", T0)).toBe(true);
     expect(isMuted({ MINT: T0 - 1 }, "MINT", T0)).toBe(false);
     expect(liveMutes({ A: T0 + 1, B: T0 - 1 }, T0)).toEqual({ A: T0 + 1 });
+  });
+});
+
+describe("market-cap milestones", () => {
+  it("names the highest one passed going up, the lowest one lost going down", () => {
+    expect(crossedMilestone(900_000, 1_100_000)).toEqual({ level: 1e6, up: true });
+    expect(crossedMilestone(900_000, 12_000_000)).toEqual({ level: 10e6, up: true });
+    expect(crossedMilestone(6_000_000, 800_000)).toEqual({ level: 1e6, up: false });
+    expect(crossedMilestone(1_200_000, 4_000_000)).toBeNull();
+    expect(crossedMilestone(null, 2_000_000)).toBeNull();
+  });
+
+  it("fires on the crossing, once an hour per level, never for a major coin", () => {
+    const last = new Map<string, number>();
+    const up = milestoneAlert(token, quote({ marketCap: 4_800_000 }), quote({ marketCap: 5_100_000, change: { m5: 0, h1: 8, h6: 0, h24: 0 } }), last, T0);
+    expect(up?.title).toBe("PIP passed $5M market cap");
+    expect(up?.tone).toBe("up");
+    // Back under and over again within the hour: quiet.
+    expect(milestoneAlert(token, quote({ marketCap: 4_900_000 }), quote({ marketCap: 5_050_000 }), last, T0 + 10 * MIN)).toBeNull();
+    expect(milestoneAlert(token, quote({ marketCap: 4_900_000 }), quote({ marketCap: 5_050_000 }), last, T0 + MILESTONE_COOLDOWN_MS)).not.toBeNull();
+    expect(milestoneAlert(token, quote({ marketCap: 1_100_000 }), quote({ marketCap: 950_000 }), last, T0)?.title).toBe("PIP fell below $1M market cap");
+    expect(milestoneAlert(token, undefined, quote({ marketCap: 5_100_000 }), new Map(), T0)).toBeNull();
+    expect(milestoneAlert(token, quote({ major: true, marketCap: 4e6 }), quote({ major: true, marketCap: 6e6 }), new Map(), T0)).toBeNull();
+  });
+});
+
+describe("sell pressure", () => {
+  const heavy = quote({ txnsM5: { buys: 12, sells: 48 }, change: { m5: -7, h1: 0, h6: 0, h24: 0 } });
+
+  it("reads sells per buy, only with enough trades", () => {
+    expect(sellPressure(heavy)).toBe(4);
+    expect(sellPressure(quote({ txnsM5: { buys: 3, sells: 12 } }))).toBeNull();
+    expect(sellPressure(quote({ major: true, txnsM5: { buys: 12, sells: 48 } }))).toBeNull();
+  });
+
+  it("fires once per token per half hour, and not when off", () => {
+    const last = new Map<string, number>();
+    const first = sellPressureAlerts([token], { MINT: heavy }, true, last, T0);
+    expect(first.map((f) => f.title)).toEqual(["PIP: 48 sells and 12 buys in 5 min"]);
+    expect(sellPressureAlerts([token], { MINT: heavy }, true, last, T0 + MIN)).toHaveLength(0);
+    expect(sellPressureAlerts([token], { MINT: heavy }, true, last, T0 + SELL_PRESSURE_COOLDOWN_MS)).toHaveLength(1);
+    expect(sellPressureAlerts([token], { MINT: heavy }, false, new Map(), T0)).toHaveLength(0);
+    expect(sellPressureAlerts([token], { MINT: quote({ txnsM5: { buys: 30, sells: 50 } }) }, true, new Map(), T0)).toHaveLength(0);
+  });
+
+  it("states what happened, never what to do", () => {
+    const all = [...sellPressureAlerts([token], { MINT: heavy }, true, new Map(), T0), milestoneAlert(token, quote({ marketCap: 9e5 }), quote({ marketCap: 2e6 }), new Map(), T0)!];
+    for (const a of all) expect(`${a.title} ${a.detail}`).not.toMatch(/\b(buy now|sell now|exit|take profit|ape)\b/i);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRecap, buildWeekRecap, recapDate, weekRange, weekRecapDue, type RecapInput } from "./recap";
+import { buildRecap, buildWeekRecap, monthRange, monthRecapDue, recapDate, weekRange, weekRecapDue, type RecapInput } from "./recap";
 
 const base: RecapInput = {
   date: "Mon 5 Oct",
@@ -94,5 +94,37 @@ describe("weekly recap", () => {
     expect(due?.label).toBe("5 Oct – 11 Oct");
     expect(weekRecapDue(monday, due!.from, trades)).toBeNull();
     expect(weekRecapDue(monday, 0, [{ t: at(1) }])).toBeNull();
+  });
+});
+
+describe("monthly recap", () => {
+  it("finds this month and the one before, from the 1st, across a new year", () => {
+    const last = monthRange(new Date(2026, 9, 10, 12), "last");
+    expect(new Date(last.from)).toEqual(new Date(2026, 8, 1));
+    expect(new Date(last.to)).toEqual(new Date(2026, 9, 1));
+    expect(last).toMatchObject({ label: "September 2026", period: "month" });
+    expect(monthRange(new Date(2027, 0, 3), "last").label).toBe("December 2026");
+  });
+
+  it("lays out the month in its own words", () => {
+    const trades = [
+      { t: new Date(2026, 8, 3, 10).getTime(), pnl: 1.2 },
+      { t: new Date(2026, 8, 14, 10).getTime(), pnl: 2.1 },
+      { t: new Date(2026, 8, 20, 10).getTime(), pnl: -0.4 },
+    ];
+    const r = buildWeekRecap({ range: monthRange(new Date(2026, 9, 2), "last"), hideMoney: false, unit: "SOL", trades }, "Candy");
+    expect(r.kind).toBe("month");
+    expect(r.headline).toBe("Green month! 🎉");
+    expect(r.tiles[0].label).toBe("Month PnL");
+    expect(r.tiles.find((t) => t.label === "Best day")?.value).toBe("14 Sep");
+  });
+
+  it("is due once, after a month with trades", () => {
+    const first = new Date(2026, 9, 1, 9);
+    const trades = [{ t: new Date(2026, 8, 20).getTime() }];
+    const due = monthRecapDue(first, 0, trades);
+    expect(due?.label).toBe("September 2026");
+    expect(monthRecapDue(first, due!.from, trades)).toBeNull();
+    expect(monthRecapDue(first, 0, [{ t: new Date(2026, 9, 1, 8).getTime() }])).toBeNull();
   });
 });

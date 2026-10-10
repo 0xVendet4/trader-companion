@@ -3,6 +3,7 @@
 // checks the clock.
 
 import { formatPnl } from "../core/format";
+import { N_, t, tn } from "../core/i18n";
 import type { DisciplineRules, JournalEntry, TradeEntry, TradeLog } from "../core/state";
 
 /** Local calendar day, YYYY-MM-DD. */
@@ -117,12 +118,12 @@ export function dayPill(rules: DisciplineRules, s: DaySummary): DayPill | null {
   if (!lossLimit && !maxTrades && s.count === 0 && s.total === 0) return null;
   // Short: the header is crowded. The tooltip says it in full.
   const parts = [lossLimit ? `${formatPnl(s.total, "").trim()}/${rules.dailyLossLimit}` : formatPnl(s.total, rules.unit)];
-  const title = [`Today: ${formatPnl(s.total, rules.unit)}, ${s.count} trade${s.count === 1 ? "" : "s"}`];
-  if (lossLimit) title.push(`Loss limit: ${formatPnl(-rules.dailyLossLimit, rules.unit)}`);
+  const title = [tn(s.count, "Today: {pnl}, {n} trade", "Today: {pnl}, {n} trades", { pnl: formatPnl(s.total, rules.unit) })];
+  if (lossLimit) title.push(t("Loss limit: {limit}", { limit: formatPnl(-rules.dailyLossLimit, rules.unit) }));
   if (maxTrades) {
     parts.push(`${s.count}/${rules.maxTradesPerDay}`);
-    title.push(`Max trades: ${rules.maxTradesPerDay}`);
-  } else if (s.count) parts.push(`${s.count}t`);
+    title.push(t("Max trades: {max}", { max: rules.maxTradesPerDay }));
+  } else if (s.count) parts.push(t("{n}t", { n: s.count }));
   const used = lossLimitUsed(rules, s);
   const tone: DayPill["tone"] =
     used >= 1 || (maxTrades && s.count >= rules.maxTradesPerDay)
@@ -214,13 +215,13 @@ export interface WeekStats {
   worst: number;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = [N_("Sun"), N_("Mon"), N_("Tue"), N_("Wed"), N_("Thu"), N_("Fri"), N_("Sat")];
 
 export function weekStats(journal: JournalEntry[], now = new Date()): WeekStats {
   const days: WeekStats["days"] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    days.push({ day: todayKey(d), label: i === 0 ? "Today" : WEEKDAYS[d.getDay()], pnl: 0, count: 0 });
+    days.push({ day: todayKey(d), label: i === 0 ? t("Today") : t(WEEKDAYS[d.getDay()]), pnl: 0, count: 0 });
   }
   const byDay = new Map(days.map((d) => [d.day, d]));
   let wins = 0;

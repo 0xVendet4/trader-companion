@@ -1,6 +1,7 @@
 // Where the mascot's eyes look, and what it does when nobody pokes it. Pure: the
 // island hands in positions, the mood and a random pick.
 
+import { N_ } from "../core/i18n";
 import type { MascotState, Motion } from "./mascot";
 
 export interface Gaze {
@@ -54,14 +55,14 @@ export const NOTICE_PX = 80;
 
 export interface Fidget {
   motion: Motion;
-  /** Optional short line; most fidgets are silent. */
+  /** Optional short line, in English (N_): the island translates it. Most fidgets are silent. */
   say?: string;
   ms: number;
   wink?: boolean;
 }
 
+// No mirrored "look around": the user asked for the flip to go.
 const FIDGETS: Fidget[] = [
-  { motion: "flip", ms: 900 }, // a look around
   { motion: "squish", ms: 1100 }, // a stretch
   { motion: "hop", ms: 1000 },
   { motion: "wiggle", ms: 1300 },
@@ -77,6 +78,6 @@ export function fidgetDelay(random: number): number {
 /** A small idle move that fits the mood; null when the mood should stay still. */
 export function pickFidget(mood: MascotState, random: number): Fidget | null {
   if (mood === "stop" || mood === "shocked" || mood === "alert") return null;
-  if (mood === "sleepy" || mood === "tired") return random < 0.5 ? { motion: "droop", say: "*yawn*", ms: 1800 } : null;
+  if (mood === "sleepy" || mood === "tired") return random < 0.5 ? { motion: "droop", say: N_("*yawn*"), ms: 1800 } : null;
   return FIDGETS[Math.floor(random * FIDGETS.length) % FIDGETS.length];
 }

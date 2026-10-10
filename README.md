@@ -1,9 +1,10 @@
 # Candy — Trader Companion
 
-A tiny mascot that lives at the top of your screen, on Windows or Linux, and
-keeps an eye on your memecoins on Solana, BSC, Ethereum and Robinhood Chain.
+A tiny mascot that lives at the top of your screen, on Windows, Linux or
+macOS, and keeps an eye on your memecoins on Solana, BSC, Ethereum and
+Robinhood Chain. In ten languages.
 
-### [Install Candy](#install) on Windows or Linux
+### [Install Candy](#install) on Windows, Linux or macOS
 
 Free and open source, and built on your own PC from this code: there is no
 prebuilt download to trust.
@@ -27,7 +28,8 @@ prebuilt download to trust.
   market? Folded, a dot per token shows how the whole list moved in the last
   hour, a dot on Candy flags an alert you haven't looked at yet, and the
   ticker calls out each buy and sell as it happens, yours and the wallets you
-  follow.
+  follow. Click a column's head to sort by it (again to flip it, a third time
+  for your own order), and pin a token with its ☆ to keep it on top.
 - **Drag and drop** — drag a token's link (DexScreener, GMGN, Axiom, Based Bot, an
   explorer) or its address from your browser onto Candy: his eyes follow it,
   his mouth opens, a bar runs along the island while it is looked up, and he
@@ -63,11 +65,18 @@ prebuilt download to trust.
 - **Alerts** — price or market cap above/below a level, % up/down within 5–60
   minutes, liquidity drops (a classic sign of liquidity being pulled), and
   volume surges on any watched token (5-minute volume several times the rest
-  of its hour), and a token leaving pump.fun's curve (or another launchpad's)
-  for a DEX pool. The mascot reacts, a sound plays (each folder can have its
+  of its hour), a token leaving pump.fun's curve (or another launchpad's)
+  for a DEX pool, its market cap crossing $1M, $5M, $10M… either way, and
+  sells running far ahead of buys over 5 minutes. No rule to set for those.
+  The mascot reacts, a sound plays (each folder can have its
   own), the island opens on a card in the alert's colour: open the token, set a
-  2x alert, or mute that token for an hour. On Windows, while a game, a video
-  or a presentation fills the screen, cards and sounds wait until it is over.
+  2x alert, or mute that token for an hour. On Windows the system notification
+  has the same Open and Mute 1 h buttons, and while a game, a video or a
+  presentation fills the screen, cards and sounds wait until it is over.
+- **Economic calendar** — a heads-up before the US releases the whole market
+  moves on (CPI, the Fed's decisions, the jobs report, PCE…), 30 minutes
+  before by default, and the next one in the header from a day ahead (hover it
+  for the rest of the week). From Forex Factory's public calendar.
 - **Discipline** — your own rules: a daily loss limit, a max number of trades,
   a cooldown after a loss, a longer break after losses in a row (tilt), and
   break reminders. A pill in the island's header shows the day against your
@@ -97,14 +106,23 @@ prebuilt download to trust.
   sums up what changed when you come back to the screen (each token that
   moved is a link). It arrives the way Coucou's Mochi does: it falls into the
   island through a rush of streaks, lands in a ring of light, slides aside,
-  waves hello with two little hands and settles into the ticker. 14 backgrounds for
+  waves hello with two little hands and settles into the ticker. Now and then,
+  never every time, it does a little more: a flame on its wick that grows on a
+  rise, smoke when it goes out, confetti, a rain cloud on a hard drop, coins on
+  a winning sale, a tear, a jump for joy, a yawn, fireworks on a green week; it
+  hums music notes while it dances, and sinks a little into the island asleep.
+  14 backgrounds for
   the island; a wardrobe
-  in the island with 23 hats, 23 face accessories and 23 colours (or any colour),
-  costumes (Gengar, Spiderman, Shadow, V) that redraw the whole mascot in
-  every mood, and seasonal looks.
+  in the island with 23 hats, 24 face accessories and 23 colours (or any colour),
+  whose loose bits swing as it moves (pompoms, bunny ears, a tassel, a
+  scarf's ends), costumes (Gengar, Spiderman, Shadow, V) that redraw the whole
+  mascot in every mood, and seasonal looks.
 - **Where it lives** — floating wherever you drag it (the default), centred
   on the top edge, or on the left or right edge (a slim tab that opens into a
   sidebar). On Linux, the top edge.
+- **Ten languages** — English, Português, Español, Français, Deutsch,
+  Русский, Türkçe, 简体中文, 日本語 and 한국어: your system's by default, or
+  pick one in Settings → General → Language; it switches at once, no restart.
 - **Token safety** — a RugCheck badge on every token: mint/freeze authority,
   holder concentration, unlocked liquidity.
 - **Trending** — DexScreener's most boosted and newest tokens on your chains,
@@ -116,21 +134,24 @@ prebuilt download to trust.
 - **Share my day, and my week** — a recap image (trades, PnL, positions,
   discipline) with Candy, ready for X or Telegram; amounts can be hidden. Every
   Monday a card sums up last week (its PnL, trades, green days, best day,
-  plan followed, best trade), to share as a 9:16 story or a wide image; "my
-  week" in the Journal shares the week so far.
+  plan followed, best trade), and on the 1st of the month last month, to share
+  as a 9:16 story or a wide image; "my week" in the Journal shares the week so
+  far.
 - **Quick actions** — mini 24 h chart per token, copy the CA, one-click 2x
   alert, share your watchlist as a list of addresses, global shortcuts (see
   [Shortcuts](#shortcuts)) and a minimize button (a shortcut or the tray icon
   brings Candy back), system notifications. The tray icon wears Candy's mood
-  and colour, with a dot for an alert you haven't seen; its menu also opens the
+  and colour, with a dot for an alert you haven't seen; hover it for today's
+  result and the top mover; its menu also opens the
   wardrobe and plays a 30-second demo with made-up coins (nothing is saved).
 - **Open on hover, alerts that wait** — optional: the island opens as soon as
   the pointer rests on its ticker, and an alert card stays up until you look at
   it, or fold it for later with its ⌃. A thin bar shows the island about to
   fold.
 
-On Windows, hold **Ctrl** over the island to click whatever is behind it (a
-browser tab, a title bar); it fades while the clicks go through.
+On Windows and macOS, hold **Ctrl** (⌃ on a Mac) over the island to click
+whatever is behind it (a browser tab, a title bar); it fades while the clicks
+go through.
 
 <table>
   <tr>
@@ -229,6 +250,37 @@ details are in `%LOCALAPPDATA%\Candy-build\install.log`.
    It builds Candy, 10–20 minutes the first time, and installs it for your
    user only: `~/.local/bin/candy`, with an entry in your app menu.
 
+### macOS
+
+Nobody has tried Candy on a Mac yet: it builds and passes its tests on
+GitHub's macOS machines, and that is all that is known. Tell us how it goes.
+
+1. **The tools, once.** In Terminal:
+
+   ```bash
+   xcode-select --install
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+   Apple's Command Line Tools, then Rust. And Node.js 20 or newer, from
+   [nodejs.org](https://nodejs.org/) (or `brew install node`).
+
+2. **Build and install.** In the Candy folder:
+
+   ```bash
+   npm ci
+   npm run setup
+   ```
+
+   It builds Candy, 10–20 minutes the first time, puts `Candy.app` in your
+   own `~/Applications` and starts it. It lives in the menu bar, with no Dock
+   icon.
+
+On a Mac there is no music card or dance yet (no public way to know what
+plays), no buttons on notifications and no quiet mode for fullscreen apps;
+Ctrl is the Control key (⌃), for the shortcuts and to click through the
+island.
+
 What `npm run setup` does is in [`scripts/setup.mjs`](scripts/setup.mjs), a
 short file you can read before running it: it checks the tools, builds, and
 installs. What a build downloads is the libraries pinned in
@@ -254,20 +306,22 @@ Candy checks GitHub for a newer version a minute after it starts and every
 half hour after, and asks before doing anything. On Windows, **Update now**
 downloads the new code, builds it in its own window (about a minute: what it
 compiled before is reused) and starts Candy again; your settings stay. On
-Linux, or by hand anywhere: get the new code and run the installer again.
-Which version you have: hover Candy's tray icon, or look next to the title of
-its Settings.
+Linux and macOS, or by hand anywhere: get the new code and run the installer
+again. Which version you have: hover Candy's tray icon, or look next to the
+title of its Settings.
 
 What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux:
-`~/.cache/candy/build`); delete that folder to free a few GB.
+`~/.cache/candy/build`, macOS: `~/Library/Caches/Candy/build`); delete that
+folder to free a few GB.
 
 Candy never asks for a wallet, a seed phrase or a private key.
 
 ### Your own sounds
 
 Put a recording named after one of Candy's sounds in
-`%APPDATA%\TraderCompanion\sounds` (Linux: `~/.config/candy/sounds`) and it
-plays instead of the built-in one. The names: `open`, `close`, `blip`, `hover`,
+`%APPDATA%\TraderCompanion\sounds` (Linux: `~/.config/candy/sounds`, macOS:
+`~/Library/Application Support/Candy/sounds`) and it plays instead of the
+built-in one. The names: `open`, `close`, `blip`, `hover`,
 `pop`, `alert-up`, `alert-down`, `warn`, `reminder`, `greet`, `boing`, `squeak`,
 `whee`, `eep`, `dizzy`, `grumble`, `achoo`, `tada`, `hmm`; as `.wav`, `.mp3`,
 `.ogg`, `.m4a`, `.flac` or `.aiff`, up to 8 MB each. Settings → General → Your
@@ -325,7 +379,8 @@ changes. Settings → Candy → Dance when music plays turns it off.
 ## Safety
 
 - Reads **public data only**: DexScreener, RugCheck, CoinGecko (for major
-  coins) and alternative.me's Fear & Greed index (public APIs, no key)
+  coins), alternative.me's Fear & Greed index and Forex Factory's calendar
+  (public, no key)
   and Solana's public RPC for your wallet (with two keyless spares for when
   it is busy) — four read-only calls (balances, token accounts, and the
   transactions a position's entry comes from), whitelisted in Rust
@@ -353,7 +408,12 @@ npm test              # unit tests (alerts, mood, discipline, formatting)
 npm run setup         # build and install (README → Install); --build-only to just build
 npm run pack          # Windows: the installer → release/
 npm run bump -- 0.1.2 # a new version, everywhere it is written; push it and installs offer the update
+npm run i18n          # what each language is missing (src/i18n/); -- --keys lists every English line
 ```
+
+Every visible line goes through `t("…")` (src/core/i18n.ts), with English as
+the key; `src/i18n/<language>.ts` holds the other nine, and a test fails when
+one of them misses a line the code uses.
 
 In a browser the island runs on the same code, with settings kept in
 localStorage; open `/settings.html` for the settings window and `/demo.html`
@@ -387,6 +447,7 @@ nothing to license.
 | `src/mascot/` | Sprite player driven by `public/mascot/mascot.json` |
 | `src/island/`, `src/views/` | The island window and its views |
 | `src/settings/` | Settings window |
+| `src/i18n/` | The nine other languages (English is in the code) |
 | `src/demo/` | Scripted demo for the presentation video |
 | `src-tauri/` | Window placement, click-through, tray, settings file, links |
 | `scripts/` | Install, build, version bump, demo video and README pictures |
@@ -395,8 +456,11 @@ nothing to license.
 
 Candy has no account, no analytics and no telemetry. It keeps
 everything on your PC: settings, watchlist, journal and wallet book in
-`%APPDATA%\TraderCompanion` (Linux: `~/.config/candy`), a log in
-`%LOCALAPPDATA%\TraderCompanion` (Linux: `~/.local/share/candy`).
+`%APPDATA%\TraderCompanion` (Linux: `~/.config/candy`, macOS:
+`~/Library/Application Support/Candy`; with a copy of the settings at most
+twice a day, `settings.daily.json`, to go back to), a log in
+`%LOCALAPPDATA%\TraderCompanion` (Linux: `~/.local/share/candy`, macOS:
+`~/Library/Logs/Candy`).
 
 It talks only to public services, for public data:
 
@@ -405,6 +469,8 @@ It talks only to public services, for public data:
   It is sent the token addresses on your watchlist and in your wallet.
 - **RugCheck** (`api.rugcheck.xyz`): a token's safety report, for tokens you open.
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
+- **Forex Factory** (`nfs.faireconomy.media`): this week's economic calendar,
+  every few hours while its heads-up is on. Nothing is sent but the request.
 - **CoinGecko** (`api.coingecko.com`, logos from `coin-images.coingecko.com` and
   `assets.coingecko.com`):
   the largest coins (at most hourly, when you search), and a major coin's own

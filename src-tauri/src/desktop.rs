@@ -233,6 +233,9 @@ pub struct DesktopInfo {
     mode: &'static str,
     /// He was on the desktop when the app last quit.
     on_desktop: bool,
+    /// His window is on screen now: a page that loaded after it was shown
+    /// never heard "desktop-visible" and asks here instead.
+    shown: bool,
 }
 
 pub fn window(app: &AppHandle) -> Option<WebviewWindow> {
@@ -628,7 +631,8 @@ pub fn desktop_info(app: AppHandle, desktop: State<Arc<Desktop>>) -> DesktopInfo
         .try_state::<crate::Shared>()
         .map(|s| s.settings.lock().unwrap().desktop.on_desktop)
         .unwrap_or(false);
-    DesktopInfo { mode: desktop.mode.as_str(), on_desktop: on_desktop && desktop.mode != DesktopMode::Off }
+    let shown = desktop.inner.lock().unwrap().shown;
+    DesktopInfo { mode: desktop.mode.as_str(), on_desktop: on_desktop && desktop.mode != DesktopMode::Off, shown }
 }
 
 /// Dragging Candy out of the island: the window appears under the pointer

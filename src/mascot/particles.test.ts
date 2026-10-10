@@ -61,6 +61,32 @@ describe("particles", () => {
     expect(p.y).toBeGreaterThan(CANDY_TOP.y + 6);
   });
 
+  it("lights the wick where the art has it, and smoke rises from there", () => {
+    const at = { ...CANDY_TOP, wick: { x: 64, y: 10 } };
+    const [flame] = spawn("flame", 1, seeded(2), at);
+    expect(flame).toMatchObject({ x: 64, y: 10, vx: 0, vy: 0 });
+    step([flame], 0.5);
+    expect(flame.y).toBe(10);
+    const smoke = spawn("smoke", 3, seeded(4), at);
+    let ps = smoke;
+    for (let i = 0; i < 60; i++) ps = step(ps, 1 / 60);
+    for (const p of smoke) expect(p.y).toBeLessThan(10);
+  });
+
+  it("drops confetti, coins and rain; sends notes and z's up", () => {
+    const fall = (kind: Parameters<typeof spawn>[0]) => {
+      const [p] = spawn(kind, 1, seeded(9));
+      let ps = [p];
+      for (let i = 0; i < 70 && ps.length; i++) ps = step(ps, 1 / 60);
+      return p.vy;
+    };
+    expect(fall("confetti")).toBeGreaterThan(-60);
+    expect(fall("coin")).toBeGreaterThan(fall("note"));
+    expect(fall("rain")).toBeGreaterThan(0);
+    const [note] = spawn("note", 1, seeded(1));
+    expect(note.vy).toBeLessThan(0);
+  });
+
   it("fades in over the first 15 % and out over the last 30 %", () => {
     const p: Particle = { kind: "z", x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, rot: 0, size: 1 };
     expect(alpha(p)).toBe(0);

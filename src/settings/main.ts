@@ -40,6 +40,8 @@ import { MASCOT_STATES, Mascot, accessory, dressed, loadManifest, type Manifest 
 import { BASE_HUE, DEFAULT_CUSTOM_SKIN, customSwatch, skinFilter } from "../mascot/skins";
 import { parseLevels } from "../positions/positions";
 import { MAX_FOLDERS, MAX_FOLDER_NAME, cleanFolderName } from "../market/folders";
+import { CALENDAR_LEADS } from "../market/calendar";
+import { LANGS, N_, devLang, pickLang, systemLangs, t, tn, useLang, type LangSetting } from "../core/i18n";
 import { seasonKey } from "../mascot/seasons";
 import { clear, h, svg } from "../views/dom";
 import { ICONS } from "../views/icons";
@@ -126,34 +128,34 @@ const refreshers: (() => void)[] = [];
 
 function watchlistSection(): HTMLElement {
   const list = h("div", { class: "list" });
-  const input = h("input", { class: "field grow", placeholder: "Token address (CA) or a GMGN / Axiom / DexScreener / explorer link" }) as HTMLInputElement;
+  const input = h("input", { class: "field grow", placeholder: t("Token address (CA) or a GMGN / Axiom / DexScreener / explorer link") }) as HTMLInputElement;
   const note = h("span", { class: "note" });
-  const add = h("button", { class: "btn", type: "button", text: "Add" }) as HTMLButtonElement;
+  const add = h("button", { class: "btn", type: "button", text: t("Add") }) as HTMLButtonElement;
 
   async function submit() {
     const text = input.value.trim();
     if (!text) return;
     if (settings.companion.watchlist.length >= MAX_WATCHLIST) {
-      note.textContent = `${MAX_WATCHLIST} tokens max.`;
+      note.textContent = tn(MAX_WATCHLIST, "{n} token max.", "{n} tokens max.");
       return;
     }
     add.disabled = true;
     note.className = "note";
-    note.textContent = "Looking it up…";
+    note.textContent = t("Looking it up…");
     try {
       const parsed = parseInput(text);
       // Searching by name lives in the island, where results can be compared.
-      if (parsed.kind === "query") throw new Error("Paste an address or link here. To search by name, use the field in the island's Watchlist.");
+      if (parsed.kind === "query") throw new Error(t("Paste an address or link here. To search by name, use the field in the island's Watchlist."));
       const token = await resolveAddress(parsed, settings.companion.chains);
-      if (!token) throw new Error("Couldn't find that token on DexScreener.");
-      if (settings.companion.watchlist.some((t) => t.key === token.key)) {
-        throw new Error(`${token.symbol} is already on the list.`);
+      if (!token) throw new Error(t("Couldn't find that token on DexScreener."));
+      if (settings.companion.watchlist.some((tok) => tok.key === token.key)) {
+        throw new Error(t("{symbol} is already on the list.", { symbol: token.symbol }));
       }
       settings.companion.watchlist.push(token);
       save();
       input.value = "";
       note.className = "note ok";
-      note.textContent = `${token.symbol} added.`;
+      note.textContent = t("{symbol} added.", { symbol: token.symbol });
       paint();
     } catch (err) {
       note.className = "note err";
@@ -169,42 +171,42 @@ function watchlistSection(): HTMLElement {
   function paint() {
     clear(list);
     const tokens = settings.companion.watchlist;
-    if (tokens.length === 0) list.append(h("p", { class: "empty", text: "No tokens yet." }));
-    tokens.forEach((t, i) => {
-      const up = h("button", { class: "icon", title: "Move up", type: "button", disabled: i === 0 }, svg(ICONS.chevronLeft, 12, { stroke: 2.2 }));
+    if (tokens.length === 0) list.append(h("p", { class: "empty", text: t("No tokens yet.") }));
+    tokens.forEach((tok, i) => {
+      const up = h("button", { class: "icon", title: t("Move up"), type: "button", disabled: i === 0 }, svg(ICONS.chevronLeft, 12, { stroke: 2.2 }));
       up.style.transform = "rotate(90deg)";
       up.addEventListener("click", () => {
         tokens.splice(i - 1, 0, tokens.splice(i, 1)[0]);
         save();
         paint();
       });
-      const remove = h("button", { class: "icon", title: "Remove", type: "button" }, svg(ICONS.xmark, 12));
+      const remove = h("button", { class: "icon", title: t("Remove"), type: "button" }, svg(ICONS.xmark, 12));
       remove.addEventListener("click", () => {
-        settings.companion.watchlist = tokens.filter((x) => x.key !== t.key);
-        settings.companion.alerts = settings.companion.alerts.filter((a) => a.address !== t.key);
+        settings.companion.watchlist = tokens.filter((x) => x.key !== tok.key);
+        settings.companion.alerts = settings.companion.alerts.filter((a) => a.address !== tok.key);
         save();
         paint();
         paintAlerts();
       });
       // A picture that fails to load (gone, or a host the CSP refuses) leaves the plain dot.
-      const pic = t.imageUrl ? h("img", { class: "tok", src: t.imageUrl, alt: "" }) : h("span", { class: "tok" });
+      const pic = tok.imageUrl ? h("img", { class: "tok", src: tok.imageUrl, alt: "" }) : h("span", { class: "tok" });
       pic.addEventListener("error", () => pic.replaceWith(h("span", { class: "tok" })));
       list.append(
         h(
           "div",
           { class: "item" },
           pic,
-          h("b", { text: t.symbol }),
-          majorFor(t)
+          h("b", { text: tok.symbol }),
+          majorFor(tok)
             ? h("span", {
                 class: "chain-tag",
-                text: "MAJOR",
-                title: `A major coin: priced from a token that tracks it on ${CHAINS[t.chainId].label}.`,
+                text: t("MAJOR"),
+                title: t("A major coin: priced from a token that tracks it on {chain}.", { chain: CHAINS[tok.chainId].label }),
                 style: "--chain:#f5b301",
               })
-            : h("span", { class: "chain-tag", text: CHAINS[t.chainId].tag, title: CHAINS[t.chainId].label, style: `--chain:${CHAINS[t.chainId].color}` }),
-          h("span", { class: "muted grow", text: t.name }),
-          h("code", { text: shortAddress(t.address), title: t.address }),
+            : h("span", { class: "chain-tag", text: CHAINS[tok.chainId].tag, title: CHAINS[tok.chainId].label, style: `--chain:${CHAINS[tok.chainId].color}` }),
+          h("span", { class: "muted grow", text: tok.name }),
+          h("code", { text: shortAddress(tok.address), title: tok.address }),
           up,
           remove,
         ),
@@ -215,27 +217,27 @@ function watchlistSection(): HTMLElement {
   refreshers.push(paint);
 
   return section(
-    "Watchlist",
-    "Tokens the mascot watches, on any of its chains. The order here is the order on the island.",
+    t("Watchlist"),
+    t("Tokens the mascot watches, on any of its chains. The order here is the order on the island."),
     list,
     h("div", { class: "add" }, input, add),
     note,
     row(
-      "Checklist when a token is added",
+      t("Checklist when a token is added"),
       toggle(() => settings.companion.addChecklist, (v) => (settings.companion.addChecklist = v)),
-      "Candy goes over mint and freeze authority, locked liquidity, top holders, age and real liquidity, one by one, with what RugCheck and DexScreener say, and sums it up.",
+      t("Candy goes over mint and freeze authority, locked liquidity, top holders, age and real liquidity, one by one, with what RugCheck and DexScreener say, and sums it up."),
     ),
     row(
-      "Mini charts against the chain's coin",
+      t("Mini charts against the chain's coin"),
       toggle(() => settings.companion.relativeStrength, (v) => (settings.companion.relativeStrength = v)),
-      "SOL (or BNB, ETH) as a faint dashed line under each token's 24 h line: did it rise alone or with the market? Hover for the numbers.",
+      t("SOL (or BNB, ETH) as a faint dashed line under each token's 24 h line: did it rise alone or with the market? Hover for the numbers."),
     ),
     row(
-      "Pasted or dropped: open it too",
+      t("Pasted or dropped: open it too"),
       toggle(() => settings.companion.pasteOpens, (v) => (settings.companion.pasteOpens = v)),
-      "A token you paste with the shortcut or drop on Candy also opens on your terminal.",
+      t("A token you paste with the shortcut or drop on Candy also opens on your terminal."),
     ),
-    h("p", { class: "sub", text: "Folders (pick one on the island; move a token with the folder button on its row)" }),
+    h("p", { class: "sub", text: t("Folders (pick one on the island; move a token with the folder button on its row)") }),
     foldersEditor(),
   );
 }
@@ -243,16 +245,16 @@ function watchlistSection(): HTMLElement {
 /** Sounds that make sense for an alert, for a folder's own. */
 const ALERT_SOUND_CHOICES: [string, string][] = (
   [
-    ["alertUp", "Chime up"],
-    ["alertDown", "Chime down"],
-    ["warn", "Warning"],
-    ["reminder", "Reminder"],
-    ["tada", "Ta-da"],
-    ["pop", "Pop"],
-    ["boing", "Boing"],
-    ["whee", "Whee"],
-    ["eep", "Eep"],
-    ["hmm", "Hmm"],
+    ["alertUp", N_("Chime up")],
+    ["alertDown", N_("Chime down")],
+    ["warn", N_("Warning")],
+    ["reminder", N_("Reminder")],
+    ["tada", N_("Ta-da")],
+    ["pop", N_("Pop")],
+    ["boing", N_("Boing")],
+    ["whee", N_("Whee")],
+    ["eep", N_("Eep")],
+    ["hmm", N_("Hmm")],
   ] as [string, string][]
 ).filter(([n]) => (SOUND_NAMES as readonly string[]).includes(n));
 
@@ -269,29 +271,29 @@ function foldersEditor(): HTMLElement {
         if (!c.folders.includes(name)) return; // a field from before the last redraw
         const next = cleanFolderName(field.value, c.folders.filter((f) => f !== name));
         if (!next) {
-          note.textContent = "Pick another name.";
+          note.textContent = t("Pick another name.");
           field.value = name;
           return;
         }
         note.textContent = "";
         c.folders = c.folders.map((f) => (f === name ? next : f));
-        for (const t of c.watchlist) if (t.folder === name) t.folder = next;
+        for (const tok of c.watchlist) if (tok.folder === name) tok.folder = next;
         if (c.activeFolder === name) c.activeFolder = next;
         save();
         paint();
       });
-      const count = c.watchlist.filter((t) => t.folder === name).length;
-      const remove = h("button", { class: "icon", title: "Delete the folder (its tokens stay, under All)", type: "button" }, svg(ICONS.trash, 12, { stroke: 2 }));
+      const count = c.watchlist.filter((tok) => tok.folder === name).length;
+      const remove = h("button", { class: "icon", title: t("Delete the folder (its tokens stay, under All)"), type: "button" }, svg(ICONS.trash, 12, { stroke: 2 }));
       remove.addEventListener("click", () => {
         c.folders = c.folders.filter((f) => f !== name);
-        for (const t of c.watchlist) if (t.folder === name) t.folder = undefined;
+        for (const tok of c.watchlist) if (tok.folder === name) tok.folder = undefined;
         if (c.activeFolder === name) c.activeFolder = "";
         save();
         paint();
       });
-      box.append(h("div", { class: "item" }, field, h("span", { class: "grow dim", text: `${count} token${count === 1 ? "" : "s"}` }), remove));
+      box.append(h("div", { class: "item" }, field, h("span", { class: "grow dim", text: tn(count, "{n} token", "{n} tokens") }), remove));
     }
-    const add = h("button", { class: "btn", type: "button", text: "New folder" }) as HTMLButtonElement;
+    const add = h("button", { class: "btn", type: "button", text: t("New folder") }) as HTMLButtonElement;
     add.disabled = c.folders.length >= MAX_FOLDERS;
     add.addEventListener("click", () => {
       let n = c.folders.length + 1;
@@ -317,17 +319,17 @@ function alertsSection(): HTMLElement {
     clear(list);
     const rules = settings.companion.alerts;
     if (rules.length === 0) {
-      list.append(h("p", { class: "empty", text: "No alerts. Create them from the island's Alerts tab, or with the bell on a token." }));
+      list.append(h("p", { class: "empty", text: t("No alerts. Create them from the island's Alerts tab, or with the bell on a token.") }));
     }
     for (const rule of rules) {
-      const token = settings.companion.watchlist.find((t) => t.key === rule.address);
+      const token = settings.companion.watchlist.find((tok) => tok.key === rule.address);
       const tg = h("button", { class: `toggle ${rule.enabled ? "on" : ""}`, type: "button" }, h("i"));
       tg.addEventListener("click", () => {
         rule.enabled = !rule.enabled;
         save();
         paintAlerts();
       });
-      const del = h("button", { class: "icon", title: "Delete", type: "button" }, svg(ICONS.trash, 12, { stroke: 2 }));
+      const del = h("button", { class: "icon", title: t("Delete"), type: "button" }, svg(ICONS.trash, 12, { stroke: 2 }));
       del.addEventListener("click", () => {
         settings.companion.alerts = rules.filter((r) => r.id !== rule.id);
         save();
@@ -349,7 +351,7 @@ function alertsSection(): HTMLElement {
   refreshers.push(() => paintAlerts());
   // A sound per folder: Runners and Holds don't have to sound the same.
   const folderSounds = h("div", { class: "folder-sounds" });
-  const soundChoices: [string, string][] = [["", "Usual"], ...ALERT_SOUND_CHOICES];
+  const soundChoices: [string, string][] = [["", t("Usual")], ...ALERT_SOUND_CHOICES.map(([n, label]): [string, string] => [n, t(label)])];
   let foldersShown = "";
   const paintFolderSounds = () => {
     const folders = settings.companion.folders;
@@ -363,29 +365,48 @@ function alertsSection(): HTMLElement {
         Sound.setEnabled(true);
         if (v) Sound.play(v as SoundName);
       });
-      folderSounds.append(row(`Alert sound: ${f}`, pick));
+      folderSounds.append(row(t("Alert sound: {folder}", { folder: f }), pick));
     }
   };
   paintFolderSounds();
   refreshers.push(paintFolderSounds);
 
   return section(
-    "Alerts",
-    "They fire when the condition becomes true, and re-arm once it stops being true. An alert card's Mute 1 h silences that token for an hour.",
+    t("Alerts"),
+    t("They fire when the condition becomes true, and re-arm once it stops being true. An alert card's Mute 1 h silences that token for an hour."),
     list,
     row(
-      "Volume surges",
+      t("Volume surges"),
       select<number>(
-        VOLUME_ALERT_CHOICES.map((x): [number, string] => [x, x ? `At ${x}x the hour's pace` : "Off"]),
+        VOLUME_ALERT_CHOICES.map((x): [number, string] => [x, x ? t("At {x}x the hour's pace", { x }) : t("Off")]),
         () => settings.companion.volumeAlertX,
         (v) => (settings.companion.volumeAlertX = v),
       ),
-      "An alert when a watched token's 5-minute volume runs that many times the rest of its hour (at least $10K, once per 30 min).",
+      t("An alert when a watched token's 5-minute volume runs that many times the rest of its hour (at least $10K, once per 30 min)."),
     ),
     row(
-      "Graduations",
+      t("Graduations"),
       toggle(() => settings.companion.graduationAlert, (v) => (settings.companion.graduationAlert = v)),
-      "An alert when a watched token leaves pump.fun's curve (or another launchpad's) for a DEX pool.",
+      t("An alert when a watched token leaves pump.fun's curve (or another launchpad's) for a DEX pool."),
+    ),
+    row(
+      t("Market cap milestones"),
+      toggle(() => settings.companion.milestoneAlert, (v) => (settings.companion.milestoneAlert = v)),
+      t("An alert when a watched token's market cap crosses $1M, $5M, $10M, $50M, $100M, $500M or $1B, up or down (once an hour per level)."),
+    ),
+    row(
+      t("Sell pressure"),
+      toggle(() => settings.companion.sellPressureAlert, (v) => (settings.companion.sellPressureAlert = v)),
+      t("An alert when a watched token's sells run 2.5 times its buys or more over 5 minutes (at least 40 trades, once per 30 min)."),
+    ),
+    row(
+      t("Economic calendar"),
+      select<number>(
+        CALENDAR_LEADS.map((m): [number, string] => [m, m ? t("{minutes} min before", { minutes: m }) : t("Off")]),
+        () => settings.companion.calendarLeadMin,
+        (v) => (settings.companion.calendarLeadMin = v),
+      ),
+      t("A heads-up before the US releases the whole market watches (CPI, the Fed's decisions, the jobs report…), and the next one in the header within a day. From Forex Factory's public calendar."),
     ),
     folderSounds,
   );
@@ -396,41 +417,41 @@ function alertsSection(): HTMLElement {
 function disciplineSection(): HTMLElement {
   const d = () => settings.companion.discipline;
   return section(
-    "Discipline",
-    "Your rules. The mascot only reminds you. Use 0 to turn any of them off.",
+    t("Discipline"),
+    t("Your rules. The mascot only reminds you. Use 0 to turn any of them off."),
     row(
-      "Discipline",
+      t("Discipline"),
       toggle(() => settings.companion.disciplineOn, (v) => (settings.companion.disciplineOn = v)),
-      "Off: no Discipline tab, no day pill, no breaks, limits, cooldowns, check-ins or Monday recap. Your trades are still kept for when you turn it back on.",
+      t("Off: no Discipline tab, no day pill, no breaks, limits, cooldowns, check-ins or Monday recap. Your trades are still kept for when you turn it back on."),
     ),
-    row("Break every", h("span", { class: "with-unit" }, number(() => d().breakEveryMin, (v) => (d().breakEveryMin = v), 0, 600, 5), "min")),
+    row(t("Break every"), h("span", { class: "with-unit" }, number(() => d().breakEveryMin, (v) => (d().breakEveryMin = v), 0, 600, 5), t("min"))),
     row(
-      "Daily loss limit",
+      t("Daily loss limit"),
       h(
         "span",
         { class: "with-unit" },
         number(() => d().dailyLossLimit, (v) => (d().dailyLossLimit = v), 0, 1_000_000, 0.1),
         select<"SOL" | "USD">([["SOL", "SOL"], ["USD", "USD"]], () => d().unit, (v) => (d().unit = v)),
       ),
-      "When you hit it, the mascot asks you to call it a day.",
+      t("When you hit it, the mascot asks you to call it a day."),
     ),
-    row("Max trades per day", number(() => d().maxTradesPerDay, (v) => (d().maxTradesPerDay = v), 0, 500)),
-    row("Cooldown after a loss", h("span", { class: "with-unit" }, number(() => d().cooldownMin, (v) => (d().cooldownMin = v), 0, 240), "min")),
+    row(t("Max trades per day"), number(() => d().maxTradesPerDay, (v) => (d().maxTradesPerDay = v), 0, 500)),
+    row(t("Cooldown after a loss"), h("span", { class: "with-unit" }, number(() => d().cooldownMin, (v) => (d().cooldownMin = v), 0, 240), t("min"))),
     row(
-      "Tilt: losses in a row",
+      t("Tilt: losses in a row"),
       number(() => d().tiltLosses, (v) => (d().tiltLosses = v), 0, 10),
-      "A streak of losing trades asks for a longer break than a single loss.",
+      t("A streak of losing trades asks for a longer break than a single loss."),
     ),
-    row("Break after a tilt", h("span", { class: "with-unit" }, number(() => d().tiltBreakMin, (v) => (d().tiltBreakMin = v), 5, 480, 5), "min")),
+    row(t("Break after a tilt"), h("span", { class: "with-unit" }, number(() => d().tiltBreakMin, (v) => (d().tiltBreakMin = v), 5, 480, 5), t("min"))),
     row(
-      "Count my wallet's trades",
+      t("Count my wallet's trades"),
       toggle(() => settings.companion.autoJournal, (v) => (settings.companion.autoJournal = v)),
-      "With your wallet set, today's trades follow it by themselves: a part sold adds its profit, a closed position is a trade (and a journal line), and both count for these rules.",
+      t("With your wallet set, today's trades follow it by themselves: a part sold adds its profit, a closed position is a trade (and a journal line), and both count for these rules."),
     ),
     row(
-      "Check in after a trade",
+      t("Check in after a trade"),
       toggle(() => settings.companion.checkIn, (v) => (settings.companion.checkIn = v)),
-      "When a trade closes: did you follow your plan? Yes, partly or no goes into the journal, and into the Monday recap.",
+      t("When a trade closes: did you follow your plan? Yes, partly or no goes into the journal, and into the Monday recap."),
     ),
   );
 }
@@ -443,8 +464,8 @@ function terminalSection(): HTMLElement {
   const axiomInvite = h(
     "p",
     { class: "hint invite" },
-    "New to Axiom? ",
-    h("a", { class: "link", href: AXIOM_REFERRAL_URL, text: "Sign up with the developer's referral", onclick: (e: Event) => {
+    t("New to Axiom?") + " ",
+    h("a", { class: "link", href: AXIOM_REFERRAL_URL, text: t("Sign up with the developer's referral"), onclick: (e: Event) => {
       e.preventDefault();
       void Bridge.openUrl(AXIOM_REFERRAL_URL);
     } }),
@@ -453,8 +474,8 @@ function terminalSection(): HTMLElement {
   const paint = () => {
     axiomInvite.style.display = settings.companion.terminal === "axiom" ? "" : "none";
     clear(group);
-    for (const [id, t] of Object.entries(TERMINALS) as [Terminal, (typeof TERMINALS)[Terminal]][]) {
-      const b = h("button", { class: `choice ${settings.companion.terminal === id ? "on" : ""}`, type: "button", text: t.label });
+    for (const [id, term] of Object.entries(TERMINALS) as [Terminal, (typeof TERMINALS)[Terminal]][]) {
+      const b = h("button", { class: `choice ${settings.companion.terminal === id ? "on" : ""}`, type: "button", text: term.label });
       b.addEventListener("click", () => {
         settings.companion.terminal = id;
         save();
@@ -465,7 +486,7 @@ function terminalSection(): HTMLElement {
   };
   paint();
   refreshers.push(paint);
-  return section("Terminal", "Where a token opens when you click it. GMGN and Based Bot links carry the developer's referral code.", group, axiomInvite);
+  return section(t("Terminal"), t("Where a token opens when you click it. GMGN and Based Bot links carry the developer's referral code."), group, axiomInvite);
 }
 
 /** The sounds folder: the trader's own recordings, named after Candy's sounds, play instead of them. */
@@ -473,20 +494,22 @@ function ownSoundsRow(): HTMLElement {
   const count = h("span", { class: "note" });
   const refresh = async () => {
     const n = (await Bridge.customSounds(SOUND_NAMES.map(soundFile)))?.length ?? 0;
-    count.textContent = n ? `${n} of yours in use` : "none of yours yet";
+    count.textContent = n ? tn(n, "{n} of yours in use", "{n} of yours in use") : t("none of yours yet");
   };
-  const open = h("button", { class: "btn", type: "button", text: "Open sounds folder" });
+  const open = h("button", { class: "btn", type: "button", text: t("Open sounds folder") });
   open.addEventListener("click", () => void Bridge.revealSoundsFolder());
-  const reload = h("button", { class: "btn", type: "button", text: "Reload" });
+  const reload = h("button", { class: "btn", type: "button", text: t("Reload") });
   reload.addEventListener("click", async () => {
     await Bridge.reloadSounds();
     await refresh();
   });
   void refresh();
   return row(
-    "Your own sounds",
+    t("Your own sounds"),
     h("span", { class: "with-unit" }, open, reload, count),
-    `A file named after a sound (${SOUND_NAMES.slice(0, 3).map(soundFile).join(", ")}, alert-up, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.`,
+    t("A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.", {
+      files: [...SOUND_NAMES.slice(0, 3).map(soundFile), "alert-up"].join(", "),
+    }),
   );
 }
 
@@ -500,37 +523,50 @@ function generalSection(): HTMLElement {
   paintVolume();
   refreshers.push(paintVolume);
 
+  const system = LANGS.find(([id]) => id === pickLang("auto", systemLangs()))?.[1] ?? "English";
   return section(
-    "General",
+    t("General"),
     null,
+    row(
+      t("Language"),
+      select<LangSetting>(
+        [["auto", t("Same as the system ({language})", { language: system })], ...LANGS.map(([id, name]): [LangSetting, string] => [id, name])],
+        () => settings.companion.language,
+        (v) => {
+          settings.companion.language = v;
+          // Saved first; then this window is drawn again in the new words (the island relabels itself).
+          window.setTimeout(() => location.reload(), 300);
+        },
+      ),
+    ),
     // Without a cursor poll (Linux) the island stays at the top edge.
     !State.cursorPoll ? null : row(
-      "Island position",
+      t("Island position"),
       select<Placement>(
         [
-          ["top", "Top of the screen"],
-          ["left", "Left edge"],
-          ["right", "Right edge"],
-          ["float", "Floating (drag it anywhere)"],
+          ["top", t("Top of the screen")],
+          ["left", t("Left edge")],
+          ["right", t("Right edge")],
+          ["float", t("Floating (drag it anywhere)")],
         ],
         () => settings.placement,
         (v) => (settings.placement = v),
       ),
-      "Floating: drag the ticker where you want it; it stays on screen.",
+      t("Floating: drag the ticker where you want it; it stays on screen."),
     ),
-    row("Refresh prices every", select<number>([[10, "10 s"], [15, "15 s"], [20, "20 s"], [30, "30 s"], [60, "1 min"]], () => settings.companion.pollSeconds, (v) => (settings.companion.pollSeconds = v))),
-    row("Keep the ticker on screen", toggle(() => settings.companion.keepTickerVisible, (v) => (settings.companion.keepTickerVisible = v)), "When off, the island hides after a minute and comes back when the mouse touches its edge of the screen." + (State.cursorPoll ? " Hold Ctrl over the island to click what is behind it." : "")),
-    row("Open on hover", toggle(() => settings.companion.openOnHover, (v) => (settings.companion.openOnHover = v)), "Resting the pointer on the ticker opens the island, and it folds again soon after the pointer leaves. Click inside to keep it open."),
-    row("Keep alert cards", toggle(() => settings.companion.stickyAlerts, (v) => (settings.companion.stickyAlerts = v)), "An alert card stays open until you look at it (OK), or fold it for later with its ⌃."),
+    row(t("Refresh prices every"), select<number>([[10, t("{n} s", { n: 10 })], [15, t("{n} s", { n: 15 })], [20, t("{n} s", { n: 20 })], [30, t("{n} s", { n: 30 })], [60, t("1 min")]], () => settings.companion.pollSeconds, (v) => (settings.companion.pollSeconds = v))),
+    row(t("Keep the ticker on screen"), toggle(() => settings.companion.keepTickerVisible, (v) => (settings.companion.keepTickerVisible = v)), t("When off, the island hides after a minute and comes back when the mouse touches its edge of the screen.") + (State.cursorPoll ? " " + t("Hold Ctrl over the island to click what is behind it.") : "")),
+    row(t("Open on hover"), toggle(() => settings.companion.openOnHover, (v) => (settings.companion.openOnHover = v)), t("Resting the pointer on the ticker opens the island, and it folds again soon after the pointer leaves. Click inside to keep it open.")),
+    row(t("Keep alert cards"), toggle(() => settings.companion.stickyAlerts, (v) => (settings.companion.stickyAlerts = v)), t("An alert card stays open until you look at it (OK), or fold it for later with its ⌃.")),
     !IS_TAURI || State.os !== "windows"
       ? null
-      : row("Quiet in fullscreen", toggle(() => settings.companion.fullscreenQuiet, (v) => (settings.companion.fullscreenQuiet = v)), "While a game, a video or a presentation fills the screen, alert cards and their sounds wait, and show once it is over."),
-    row("Close the island after", select<number>([[8, "8 s"], [15, "15 s"], [30, "30 s"], [60, "1 min"]], () => settings.autoCloseInterval, (v) => (settings.autoCloseInterval = v))),
-    row("Sounds", toggle(() => settings.soundEnabled, (v) => (settings.soundEnabled = v))),
-    row("Volume", volume),
+      : row(t("Quiet in fullscreen"), toggle(() => settings.companion.fullscreenQuiet, (v) => (settings.companion.fullscreenQuiet = v)), t("While a game, a video or a presentation fills the screen, alert cards and their sounds wait, and show once it is over.")),
+    row(t("Close the island after"), select<number>([[8, t("{n} s", { n: 8 })], [15, t("{n} s", { n: 15 })], [30, t("{n} s", { n: 30 })], [60, t("1 min")]], () => settings.autoCloseInterval, (v) => (settings.autoCloseInterval = v))),
+    row(t("Sounds"), toggle(() => settings.soundEnabled, (v) => (settings.soundEnabled = v))),
+    row(t("Volume"), volume),
     !IS_TAURI ? null : ownSoundsRow(),
-    !State.cursorPoll ? null : row("Screen", select<"primary" | "cursor">([["primary", "Main screen"], ["cursor", "Where the mouse is"]], () => settings.screen, (v) => (settings.screen = v))),
-    row(State.os === "windows" || !IS_TAURI ? "Start with Windows" : "Start when you log in", toggle(() => settings.autostart, (v) => (settings.autostart = v))),
+    !State.cursorPoll ? null : row(t("Screen"), select<"primary" | "cursor">([["primary", t("Main screen")], ["cursor", t("Where the mouse is")]], () => settings.screen, (v) => (settings.screen = v))),
+    row(State.os === "windows" || !IS_TAURI ? t("Start with Windows") : t("Start when you log in"), toggle(() => settings.autostart, (v) => (settings.autostart = v))),
     rpcRow(),
     rpcKeySites(),
   );
@@ -545,7 +581,7 @@ function rpcRow(): HTMLElement {
   const input = h("input", {
     class: "field grow",
     type: "password",
-    placeholder: "Public RPC — or paste your own https URL",
+    placeholder: t("Public RPC — or paste your own https URL"),
     spellcheck: "false",
     autocomplete: "off",
   }) as HTMLInputElement;
@@ -557,13 +593,13 @@ function rpcRow(): HTMLElement {
     const v = input.value.trim();
     if (!validRpcUrl(v)) {
       note.className = "note err";
-      note.textContent = "Needs an https URL, like https://solana-mainnet.g.alchemy.com/v2/your-key";
+      note.textContent = t("Needs an https URL, like {example}", { example: "https://solana-mainnet.g.alchemy.com/v2/your-key" });
       return;
     }
     settings.rpcUrl = v;
     input.value = v;
     note.className = "note ok";
-    note.textContent = v ? "Saved: wallets are read through your RPC." : "Back to the public RPC.";
+    note.textContent = v ? t("Saved: wallets are read through your RPC.") : t("Back to the public RPC.");
     window.setTimeout(() => (note.textContent = ""), 3500);
     save();
   });
@@ -572,20 +608,23 @@ function rpcRow(): HTMLElement {
   return row(
     "Solana RPC",
     h("span", { class: "rpc-field" }, input, note),
-    "Optional. Your wallets are read from Solana's public RPC, which is shared and often busy. A free key from Helius, Alchemy or QuickNode is faster: paste its https URL. Only read-only calls go to it, and it stays on this PC.",
+    t("Optional. Your wallets are read from Solana's public RPC, which is shared and often busy. A free key from Helius, Alchemy or QuickNode is faster: paste its https URL. Only read-only calls go to it, and it stays on this PC."),
   );
 }
 
 /** Where to get a free key, under the RPC field. */
 function rpcKeySites(): HTMLElement {
+  const or = " " + t("or") + " ";
   const links = RPC_KEY_SITES.flatMap((site, i) => [
-    i ? " or " : "",
+    i ? or : "",
     h("a", { class: "link", href: site.url, text: site.label, onclick: (e: Event) => {
       e.preventDefault();
       void Bridge.openUrl(site.url);
     } }),
   ]);
-  return h("p", { class: "hint invite" }, "No key yet? Make one for free on ", ...links, " (Solana mainnet), then paste its https URL above.");
+  // The links go where {sites} is, wherever a language puts it.
+  const [before, after = ""] = t("Make one for free on {sites} (Solana mainnet), then paste its https URL above.").split("{sites}");
+  return h("p", { class: "hint invite" }, t("No key yet?") + " " + before, ...links, after);
 }
 
 // ── Wallets: yours, and the ones you follow ───────────────────────────────────
@@ -596,23 +635,23 @@ function rpcKeySites(): HTMLElement {
  */
 function walletList(mine: boolean): { list: HTMLElement; add: HTMLElement; note: HTMLElement } {
   const list = h("div", { class: "list" });
-  const address = h("input", { class: "field grow", placeholder: mine ? "Your wallet address (public)" : "Wallet address to follow (public)" }) as HTMLInputElement;
-  const label = h("input", { class: "field", placeholder: "Name", style: "width:120px" }) as HTMLInputElement;
-  const addBtn = h("button", { class: "btn", type: "button", text: mine ? "Add" : "Follow" }) as HTMLButtonElement;
+  const address = h("input", { class: "field grow", placeholder: mine ? t("Your wallet address (public)") : t("Wallet address to follow (public)") }) as HTMLInputElement;
+  const label = h("input", { class: "field", placeholder: t("Name"), style: "width:120px" }) as HTMLInputElement;
+  const addBtn = h("button", { class: "btn", type: "button", text: mine ? t("Add") : t("Follow") }) as HTMLButtonElement;
   const note = h("span", { class: "note" });
 
   addBtn.addEventListener("click", () => {
     const a = address.value.trim();
     const wallets = settings.companion.wallets;
     note.className = "note err";
-    if (!isAddress(a)) return void (note.textContent = "That doesn't look like a Solana address.");
+    if (!isAddress(a)) return void (note.textContent = t("That doesn't look like a Solana address."));
     const known = wallets.find((w) => w.address === a);
-    if (known && known.mine === mine) return void (note.textContent = mine ? "That's already your wallet." : "Already following that wallet.");
+    if (known && known.mine === mine) return void (note.textContent = mine ? t("That's already your wallet.") : t("Already following that wallet."));
     if (known) {
       // The same address can't be both: it moves to this list.
       known.mine = mine;
     } else {
-      if (wallets.length >= MAX_WALLETS) return void (note.textContent = `${MAX_WALLETS} wallets max.`);
+      if (wallets.length >= MAX_WALLETS) return void (note.textContent = tn(MAX_WALLETS, "{n} wallet max.", "{n} wallets max."));
       const same = wallets.filter((w) => w.mine === mine).length;
       const name = label.value.trim().slice(0, 24) || (mine ? (same ? `My wallet ${same + 1}` : "My wallet") : `Wallet ${same + 1}`);
       wallets.push({ address: a, label: name, mine, baselineUsd: null, addedAt: Date.now() });
@@ -621,21 +660,21 @@ function walletList(mine: boolean): { list: HTMLElement; add: HTMLElement; note:
     address.value = "";
     label.value = "";
     note.className = "note ok";
-    note.textContent = known ? (mine ? "Moved from Following." : "Moved from your wallets.") : mine ? "Added." : "Following.";
+    note.textContent = known ? (mine ? t("Moved from Following.") : t("Moved from your wallets.")) : mine ? t("Added.") : t("Following.");
     for (const fn of refreshers) fn();
   });
 
   function paint() {
     clear(list);
     const wallets = settings.companion.wallets.filter((w) => w.mine === mine);
-    if (wallets.length === 0) list.append(h("p", { class: "empty", text: mine ? "No wallet yet." : "Not following anyone." }));
+    if (wallets.length === 0) list.append(h("p", { class: "empty", text: mine ? t("No wallet yet.") : t("Not following anyone.") }));
     for (const w of wallets) {
       const name = h("input", { class: "field", value: w.label, style: "width:140px" }) as HTMLInputElement;
       name.addEventListener("change", () => {
         if (name.value.trim()) w.label = name.value.trim().slice(0, 24);
         save();
       });
-      const remove = h("button", { class: "icon", title: mine ? "Remove" : "Stop following", type: "button" }, svg(ICONS.trash, 12, { stroke: 2 }));
+      const remove = h("button", { class: "icon", title: mine ? t("Remove") : t("Stop following"), type: "button" }, svg(ICONS.trash, 12, { stroke: 2 }));
       remove.addEventListener("click", () => {
         settings.companion.wallets = settings.companion.wallets.filter((x) => x.address !== w.address);
         save();
@@ -673,14 +712,14 @@ function myWalletSection(): HTMLElement {
   };
 
   return section(
-    "My wallet",
-    "Your own wallet, by its public address: its buys and sells are recorded, with the profit of every token (the My wallet tab), and closed trades go into your journal. Never paste a seed phrase or private key: no real app asks for one.",
+    t("My wallet"),
+    t("Your own wallet, by its public address: its buys and sells are recorded, with the profit of every token (the My wallet tab), and closed trades go into your journal. Never paste a seed phrase or private key: no real app asks for one."),
     list,
     add,
     note,
-    row("Position alerts", toggle(() => settings.companion.positionAlerts.enabled, (v) => (settings.companion.positionAlerts.enabled = v)), "When a token in your wallet reaches a level from its entry."),
-    row("Up, as multiples", levelField("up"), "e.g. 2x, 3x, 5x, 10x"),
-    row("Down, in %", levelField("down"), "e.g. -30%, -50%"),
+    row(t("Position alerts"), toggle(() => settings.companion.positionAlerts.enabled, (v) => (settings.companion.positionAlerts.enabled = v)), t("When a token in your wallet reaches a level from its entry.")),
+    row(t("Up, as multiples"), levelField("up"), t("e.g. 2x, 3x, 5x, 10x")),
+    row(t("Down, in %"), levelField("down"), t("e.g. -30%, -50%")),
   );
 }
 
@@ -691,10 +730,10 @@ function followingSection(): HTMLElement {
   paintBody();
   refreshers.push(paintBody);
   return section(
-    "Following",
-    "Other people's wallets, for an alert when they buy or sell. Off by default: they are checked once a minute on Solana's shared public RPC, so alerts come up to a minute late, and every wallet adds three calls a minute.",
+    t("Following"),
+    t("Other people's wallets, for an alert when they buy or sell. Off by default: they are checked once a minute on Solana's shared public RPC, so alerts come up to a minute late, and every wallet adds three calls a minute."),
     row(
-      "Follow other wallets",
+      t("Follow other wallets"),
       toggle(
         () => settings.companion.following,
         (v) => {
@@ -702,7 +741,7 @@ function followingSection(): HTMLElement {
           paintBody();
         },
       ),
-      "Shows the Following tab on the island.",
+      t("Shows the Following tab on the island."),
     ),
     body,
   );
@@ -715,7 +754,7 @@ function chainsSection(): HTMLElement {
   const paint = () => {
     clear(group);
     const cur = settings.companion.chains;
-    const all = h("button", { class: `choice ${cur.length === ALL_CHAINS.length ? "on" : ""}`, type: "button", text: "All" });
+    const all = h("button", { class: `choice ${cur.length === ALL_CHAINS.length ? "on" : ""}`, type: "button", text: t("All") });
     all.addEventListener("click", () => {
       settings.companion.chains = [...ALL_CHAINS];
       save();
@@ -737,8 +776,8 @@ function chainsSection(): HTMLElement {
   paint();
   refreshers.push(paint);
   return section(
-    "Chains",
-    "What search, trending and the header prices cover. One, several or all. Tokens added by address work on any of them.",
+    t("Chains"),
+    t("What search, trending and the header prices cover. One, several or all. Tokens added by address work on any of them."),
     group,
   );
 }
@@ -748,57 +787,58 @@ function chainsSection(): HTMLElement {
 const THEMES: [Theme, string][] = THEME_IDS.map((id) => [id, ISLAND_THEMES[id].name]);
 
 const OUTFITS: [Outfit, string][] = [
-  ["none", "None"],
-  ["cap", "Cap"],
-  ["crown", "Crown"],
-  ["party", "Party hat"],
-  ["headphones", "Headphones"],
-  ["tophat", "Top hat"],
-  ["cowboy", "Cowboy"],
-  ["beanie", "Beanie"],
-  ["halo", "Halo"],
-  ["horns", "Horns"],
-  ["wizard", "Wizard"],
-  ["viking", "Viking"],
-  ["bow", "Bow"],
-  ["chef", "Chef"],
-  ["pirate", "Pirate"],
-  ["santa", "Santa"],
-  ["grad", "Grad cap"],
-  ["beret", "Beret"],
-  ["propeller", "Propeller"],
-  ["flowers", "Flower crown"],
-  ["bunny", "Bunny ears"],
-  ["pumpkin", "Pumpkin"],
-  ["catears", "Cat ears"],
-  ["rocket", "Rocket"],
+  ["none", N_("None")],
+  ["cap", N_("Cap")],
+  ["crown", N_("Crown")],
+  ["party", N_("Party hat")],
+  ["headphones", N_("Headphones")],
+  ["tophat", N_("Top hat")],
+  ["cowboy", N_("Cowboy")],
+  ["beanie", N_("Beanie")],
+  ["halo", N_("Halo")],
+  ["horns", N_("Horns")],
+  ["wizard", N_("Wizard")],
+  ["viking", N_("Viking")],
+  ["bow", N_("Bow")],
+  ["chef", N_("Chef")],
+  ["pirate", N_("Pirate")],
+  ["santa", N_("Santa")],
+  ["grad", N_("Grad cap")],
+  ["beret", N_("Beret")],
+  ["propeller", N_("Propeller")],
+  ["flowers", N_("Flower crown")],
+  ["bunny", N_("Bunny ears")],
+  ["pumpkin", N_("Pumpkin")],
+  ["catears", N_("Cat ears")],
+  ["rocket", N_("Rocket")],
 ];
 
 const FACES: [Face, string][] = [
-  ["none", "None"],
-  ["shades", "Shades"],
-  ["laser", "Laser eyes"],
-  ["glasses", "Glasses"],
-  ["monocle", "Monocle"],
-  ["mustache", "Mustache"],
-  ["starglasses", "Star glasses"],
-  ["threed", "3D glasses"],
-  ["eyepatch", "Eye patch"],
-  ["heartglasses", "Heart glasses"],
-  ["clownnose", "Clown nose"],
-  ["beard", "Beard"],
-  ["domino", "Hero mask"],
-  ["vr", "VR headset"],
-  ["pixel", "Pixel shades"],
-  ["goggles", "Goggles"],
-  ["whiskers", "Whiskers"],
-  ["freckles", "Freckles"],
-  ["bandaid", "Band-aid"],
-  ["lollipop", "Lollipop"],
-  ["bubblegum", "Bubble gum"],
-  ["warpaint", "War paint"],
-  ["dollareyes", "Dollar eyes"],
-  ["facemask", "Face mask"],
+  ["none", N_("None")],
+  ["shades", N_("Shades")],
+  ["laser", N_("Laser eyes")],
+  ["glasses", N_("Glasses")],
+  ["monocle", N_("Monocle")],
+  ["mustache", N_("Mustache")],
+  ["starglasses", N_("Star glasses")],
+  ["threed", N_("3D glasses")],
+  ["eyepatch", N_("Eye patch")],
+  ["heartglasses", N_("Heart glasses")],
+  ["clownnose", N_("Clown nose")],
+  ["beard", N_("Beard")],
+  ["domino", N_("Hero mask")],
+  ["vr", N_("VR headset")],
+  ["pixel", N_("Pixel shades")],
+  ["goggles", N_("Goggles")],
+  ["whiskers", N_("Whiskers")],
+  ["freckles", N_("Freckles")],
+  ["bandaid", N_("Band-aid")],
+  ["lollipop", N_("Lollipop")],
+  ["bubblegum", N_("Bubble gum")],
+  ["warpaint", N_("War paint")],
+  ["dollareyes", N_("Dollar eyes")],
+  ["facemask", N_("Face mask")],
+  ["scarf", N_("Scarf")],
 ];
 
 /** "none" is Candy itself. Only the costumes this build offers are shown (see OFFERED_COSTUMES). */
@@ -812,30 +852,30 @@ const COSTUMES: [Costume, string][] = [
 ];
 
 const SKINS: [Skin, string][] = [
-  ["mint", "Mint"],
-  ["neon", "Neon"],
-  ["forest", "Forest"],
-  ["lime", "Lime"],
-  ["lemon", "Lemon"],
-  ["gold", "Gold"],
-  ["sunset", "Sunset"],
-  ["peach", "Peach"],
-  ["cherry", "Cherry"],
-  ["ruby", "Ruby"],
-  ["rose", "Rose"],
-  ["magenta", "Magenta"],
-  ["grape", "Grape"],
-  ["lavender", "Lavender"],
-  ["violet", "Violet"],
-  ["teal", "Teal"],
-  ["sky", "Sky"],
-  ["ice", "Ice"],
-  ["ocean", "Ocean"],
-  ["navy", "Navy"],
-  ["ghost", "Ghost"],
-  ["slate", "Slate"],
-  ["charcoal", "Charcoal"],
-  ["custom", "Custom"],
+  ["mint", N_("Mint")],
+  ["neon", N_("Neon")],
+  ["forest", N_("Forest")],
+  ["lime", N_("Lime")],
+  ["lemon", N_("Lemon")],
+  ["gold", N_("Gold")],
+  ["sunset", N_("Sunset")],
+  ["peach", N_("Peach")],
+  ["cherry", N_("Cherry")],
+  ["ruby", N_("Ruby")],
+  ["rose", N_("Rose")],
+  ["magenta", N_("Magenta")],
+  ["grape", N_("Grape")],
+  ["lavender", N_("Lavender")],
+  ["violet", N_("Violet")],
+  ["teal", N_("Teal")],
+  ["sky", N_("Sky")],
+  ["ice", N_("Ice")],
+  ["ocean", N_("Ocean")],
+  ["navy", N_("Navy")],
+  ["ghost", N_("Ghost")],
+  ["slate", N_("Slate")],
+  ["charcoal", N_("Charcoal")],
+  ["custom", N_("Custom")],
 ];
 
 function appearanceSection(manifest: Manifest): HTMLElement {
@@ -891,7 +931,7 @@ function appearanceSection(manifest: Manifest): HTMLElement {
   hue.classList.add("hue");
   hue.style.background = `linear-gradient(to right, ${stops.join(", ")})`;
   const swatch = h("i", { class: "skin-swatch" });
-  const reset = h("button", { class: "btn ghost", type: "button", text: "Reset" });
+  const reset = h("button", { class: "btn ghost", type: "button", text: t("Reset") });
   reset.addEventListener("click", () => {
     settings.companion.customSkin = { ...DEFAULT_CUSTOM_SKIN };
     save();
@@ -900,10 +940,10 @@ function appearanceSection(manifest: Manifest): HTMLElement {
   const custom = h(
     "div",
     { class: "custom-skin" },
-    row("Hue", hue),
-    row("Saturation", sat),
-    row("Brightness", light),
-    h("div", { class: "custom-foot" }, swatch, h("span", { class: "hint", text: "Pick Custom, then slide. The face still shows the mood." }), reset),
+    row(t("Hue"), hue),
+    row(t("Saturation"), sat),
+    row(t("Brightness"), light),
+    h("div", { class: "custom-foot" }, swatch, h("span", { class: "hint", text: t("Pick Custom, then slide. The face still shows the mood.") }), reset),
   );
   const paintSliders = () => {
     const c = settings.companion.customSkin;
@@ -922,7 +962,7 @@ function appearanceSection(manifest: Manifest): HTMLElement {
       const swatch = h("i", { class: "swatch" });
       swatch.style.background = ISLAND_THEMES[id].background;
       if (ISLAND_THEMES[id].ring) swatch.style.boxShadow = ISLAND_THEMES[id].ring!;
-      const b = h("button", { class: `choice ${c.theme === id ? "on" : ""}`, type: "button" }, swatch, label);
+      const b = h("button", { class: `choice ${c.theme === id ? "on" : ""}`, type: "button" }, swatch, t(label));
       b.addEventListener("click", () => {
         c.theme = id;
         save();
@@ -934,7 +974,7 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     for (const [id, label] of SKINS) {
       const m = preview(c.outfit, c.face, id, "none");
       if (id === "custom") customPreview = m;
-      const b = h("button", { class: `outfit ${c.costume === "none" && c.skin === id ? "on" : ""}`, type: "button" }, m.el, h("span", { text: label }));
+      const b = h("button", { class: `outfit ${c.costume === "none" && c.skin === id ? "on" : ""}`, type: "button" }, m.el, h("span", { text: t(label) }));
       b.addEventListener("click", () => {
         c.skin = id;
         c.costume = "none";
@@ -959,11 +999,13 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     };
     // A look picked during a season wins until the season ends.
     const ownPick = () => (c.seasonOff = seasonKey(new Date()) ?? c.seasonOff);
-    grid(outfits, OUTFITS, c.outfit, (id) => preview(id as Outfit, c.face, c.skin), (id) => {
+    // Hats and faces in the trader's words; costumes keep their own names.
+    const translated = (items: [string, string][]) => items.map(([id, label]): [string, string] => [id, t(label)]);
+    grid(outfits, translated(OUTFITS), c.outfit, (id) => preview(id as Outfit, c.face, c.skin), (id) => {
       c.outfit = id as Outfit;
       ownPick();
     });
-    grid(faces, FACES, c.face, (id) => preview(c.outfit, id as Face, c.skin), (id) => {
+    grid(faces, translated(FACES), c.face, (id) => preview(c.outfit, id as Face, c.skin), (id) => {
       c.face = id as Face;
       ownPick();
     });
@@ -982,26 +1024,26 @@ function appearanceSection(manifest: Manifest): HTMLElement {
   refreshers.push(paint);
 
   return section(
-    "Appearance",
+    t("Appearance"),
     null,
-    h("p", { class: "sub", text: "Island theme" }),
+    h("p", { class: "sub", text: t("Island theme") }),
     themes,
-    h("p", { class: "sub", text: "Colour (tints every mood but a loss: like a candle, Candy goes red then)" }),
+    h("p", { class: "sub", text: t("Colour (tints every mood but a loss: like a candle, Candy goes red then)") }),
     skins,
     custom,
-    h("p", { class: "sub", text: "Hat" }),
+    h("p", { class: "sub", text: t("Hat") }),
     outfits,
-    h("p", { class: "sub", text: "Face" }),
+    h("p", { class: "sub", text: t("Face") }),
     faces,
-    h("p", { class: "sub", text: "Costume (redraws the whole mascot, every mood included; it keeps its own colours)" }),
+    h("p", { class: "sub", text: t("Costume (redraws the whole mascot, every mood included; it keeps its own colours)") }),
     costumes,
-    row("BTC and Fear & Greed", toggle(() => settings.companion.headerMarket, (v) => (settings.companion.headerMarket = v)), "In the island's header, next to your chains' coins."),
-    row("Seasonal looks", toggle(() => settings.companion.seasonal, (v) => (settings.companion.seasonal = v)), "A Santa hat in December, a pumpkin at Halloween, a party hat at New Year, heart glasses on Valentine's Day. Your own look comes back after."),
-    row("Lively", toggle(() => settings.companion.lively, (v) => (settings.companion.lively = v)), "Candy's eyes follow your mouse, and it fidgets now and then."),
-    row("Music card", toggle(() => settings.companion.musicCard, (v) => (settings.companion.musicCard = v)), IS_TAURI ? "What plays on this PC (Spotify, a browser video…) gets a Music tab in the island: cover, progress, play, pause, next." : "In the app only."),
-    row("Dance when music plays", toggle(() => settings.companion.danceToMusic, (v) => (settings.companion.danceToMusic = v)), IS_TAURI ? "Candy bobs along while the island is on screen, folded or open." : "In the app only."),
-    row("Doze off late at night", toggle(() => settings.companion.nightSleep, (v) => (settings.companion.nightSleep = v)), "From 1 to 6 am the mascot sleeps, unless something big moves."),
-    row("React to SOL", toggle(() => settings.companion.reactToSol, (v) => (settings.companion.reactToSol = v)), "Happy or worried when SOL moves 3% in an hour."),
+    row(t("BTC and Fear & Greed"), toggle(() => settings.companion.headerMarket, (v) => (settings.companion.headerMarket = v)), t("In the island's header, next to your chains' coins.")),
+    row(t("Seasonal looks"), toggle(() => settings.companion.seasonal, (v) => (settings.companion.seasonal = v)), t("A Santa hat in December, a pumpkin at Halloween, a party hat at New Year, heart glasses on Valentine's Day. Your own look comes back after.")),
+    row(t("Lively"), toggle(() => settings.companion.lively, (v) => (settings.companion.lively = v)), t("Candy's eyes follow your mouse, and it fidgets now and then.")),
+    row(t("Music card"), toggle(() => settings.companion.musicCard, (v) => (settings.companion.musicCard = v)), IS_TAURI ? t("What plays on this PC (Spotify, a browser video…) gets a Music tab in the island: cover, progress, play, pause, next.") : t("In the app only.")),
+    row(t("Dance when music plays"), toggle(() => settings.companion.danceToMusic, (v) => (settings.companion.danceToMusic = v)), IS_TAURI ? t("Candy bobs along while the island is on screen, folded or open.") : t("In the app only.")),
+    row(t("Doze off late at night"), toggle(() => settings.companion.nightSleep, (v) => (settings.companion.nightSleep = v)), t("From 1 to 6 am the mascot sleeps, unless something big moves.")),
+    row(t("React to SOL"), toggle(() => settings.companion.reactToSol, (v) => (settings.companion.reactToSol = v)), t("Happy or worried when SOL moves 3% in an hour.")),
   );
 }
 
@@ -1017,7 +1059,7 @@ function notificationsSection(): HTMLElement {
       const ok = await enableNotifications();
       if (!ok) {
         note.className = "note err";
-        note.textContent = "Notifications are blocked. Allow them for this app in your system or browser settings.";
+        note.textContent = t("Notifications are blocked. Allow them for this app in your system or browser settings.");
         return;
       }
     }
@@ -1029,18 +1071,18 @@ function notificationsSection(): HTMLElement {
   paint();
   refreshers.push(paint);
 
-  const test = h("button", { class: "chip-btn", type: "button", text: "Send a test" });
+  const test = h("button", { class: "chip-btn", type: "button", text: t("Send a test") });
   test.addEventListener("click", async () => {
-    if (await enableNotifications()) void notify(APP_NAME, "Notifications work. Alerts will show up like this.");
+    if (await enableNotifications()) void notify(APP_NAME, t("Notifications work. Alerts will show up like this."));
   });
 
   return section(
-    "Notifications and shortcuts",
+    t("Notifications and shortcuts"),
     null,
     row(
-      "System notifications for alerts",
+      t("System notifications for alerts"),
       h("span", { class: "with-unit" }, test, tg),
-      !IS_TAURI ? "Browser notifications, while this page is open." : State.os === "windows" ? "Windows notifications reach you even over a fullscreen game or video." : "Your desktop's notifications, even while the island is hidden.",
+      !IS_TAURI ? t("Browser notifications, while this page is open.") : State.os === "windows" ? t("Windows notifications reach you even over a fullscreen game or video.") : t("Your desktop's notifications, even while the island is hidden."),
     ),
     note,
     ...shortcutRows(),
@@ -1110,13 +1152,13 @@ function shortcutRows(): HTMLElement[] {
   const rows = SHORTCUTS.map((def) => {
     const keys = h("button", { class: "keys", type: "button" }) as HTMLButtonElement;
     keys.addEventListener("click", () => startRecording(def.id));
-    const off = h("button", { class: "chip-btn", type: "button", text: "Off", title: "No shortcut for this" });
+    const off = h("button", { class: "chip-btn", type: "button", text: t("Off"), title: t("No shortcut for this") });
     off.addEventListener("click", () => {
       stopRecording();
       setKeys(def.id, "");
       paintAll();
     });
-    const reset = h("button", { class: "chip-btn", type: "button", text: "Default", title: keysLabel(def.dflt) });
+    const reset = h("button", { class: "chip-btn", type: "button", text: t("Default"), title: keysLabel(def.dflt) });
     reset.addEventListener("click", () => {
       stopRecording();
       setKeys(def.id, null);
@@ -1127,15 +1169,15 @@ function shortcutRows(): HTMLElement[] {
       const k = keysOf(def.id);
       const rec = recording === def.id;
       keys.classList.toggle("recording", rec);
-      keys.textContent = rec ? "Press the keys…" : keysLabel(k);
-      keys.title = rec ? "Esc cancels, Backspace turns it off" : "Click, then press the new keys";
+      keys.textContent = rec ? t("Press the keys…") : keysLabel(k);
+      keys.title = rec ? t("Esc cancels, Backspace turns it off") : t("Click, then press the new keys");
       off.style.visibility = k ? "" : "hidden";
       reset.style.visibility = k === def.dflt ? "hidden" : "";
       const keysNow = Object.fromEntries(SHORTCUTS.map((d) => [d.id, keysOf(d.id)]));
       const s = twice(keysNow).has(def.id) ? { kind: "twice" as const } : k ? status[def.id] : undefined;
       why.textContent = rec ? "" : statusLabel(s);
     });
-    return h("div", { class: "row shortcut" }, h("span", { class: "label" }, def.label, why), h("span", { class: "with-unit" }, off, reset, keys));
+    return h("div", { class: "row shortcut" }, h("span", { class: "label" }, t(def.label), why), h("span", { class: "with-unit" }, off, reset, keys));
   });
   refreshers.push(paintAll);
   paintAll();
@@ -1147,13 +1189,15 @@ function shortcutRows(): HTMLElement[] {
   }).then(() => emitToWindow("island", "shortcuts-ask"));
 
   const where = !IS_TAURI
-    ? "In the browser they only work while the page has focus."
+    ? t("In the browser they only work while the page has focus.")
     : State.os === "linux"
-      ? "They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland)."
-      : "They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.";
+      ? t("They work from any app where your desktop lets apps have global shortcuts (X11, and GNOME through XWayland).")
+      : State.os === "macos"
+        ? t("They work from any app. Ctrl here is the Control key (⌃), not Command.")
+        : t("They work from any app. Ctrl + Alt is AltGr on many keyboards: a combination that types a character on yours is left alone and flagged.");
   return [
-    h("p", { class: "sub", text: "Shortcuts" }),
-    h("p", { class: "hint", text: `${where} While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.` }),
+    h("p", { class: "sub", text: t("Shortcuts") }),
+    h("p", { class: "hint", text: where + " " + t("While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.") }),
     ...rows,
   ];
 }
@@ -1162,35 +1206,35 @@ function shortcutRows(): HTMLElement[] {
 
 function shareSection(): HTMLElement {
   const note = h("span", { class: "note" });
-  const copy = h("button", { class: "btn", type: "button", text: "Copy token list" });
+  const copy = h("button", { class: "btn", type: "button", text: t("Copy token list") });
   copy.addEventListener("click", async () => {
     const entries = settings.companion.watchlist.map(shareEntry);
     note.className = "note err";
-    if (!entries.length) return void (note.textContent = "Your watchlist is empty.");
+    if (!entries.length) return void (note.textContent = t("Your watchlist is empty."));
     const ok = await Bridge.copy(shareText(entries));
     note.className = ok ? "note ok" : "note err";
-    note.textContent = ok ? "Copied. Anyone with Candy can paste it into Import." : "Couldn't copy.";
+    note.textContent = ok ? t("Copied. Anyone with Candy can paste it into Import.") : t("Couldn't copy.");
   });
 
-  const input = h("input", { class: "field grow", placeholder: "Paste a token list (or addresses)" }) as HTMLInputElement;
-  const load = h("button", { class: "btn", type: "button", text: "Import" }) as HTMLButtonElement;
+  const input = h("input", { class: "field grow", placeholder: t("Paste a token list (or addresses)") }) as HTMLInputElement;
+  const load = h("button", { class: "btn", type: "button", text: t("Import") }) as HTMLButtonElement;
   load.addEventListener("click", async () => {
     const entries = parseShared(input.value);
     note.className = "note err";
-    if (!entries.length) return void (note.textContent = "No token addresses in that.");
+    if (!entries.length) return void (note.textContent = t("No token addresses in that."));
     load.disabled = true;
     note.className = "note";
-    note.textContent = "Importing…";
+    note.textContent = t("Importing…");
     let added = 0;
     for (const entry of entries) {
       if (settings.companion.watchlist.length >= MAX_WATCHLIST) break;
       const [chainPart, address] = entry.includes(":") ? entry.split(":", 2) : ["solana", entry];
       const chainId: ChainId = isChain(chainPart) ? chainPart : "solana";
-      if (settings.companion.watchlist.some((t) => t.key === tokenKey(chainId, address))) continue;
+      if (settings.companion.watchlist.some((tok) => tok.key === tokenKey(chainId, address))) continue;
       try {
-        const t = await resolveAddress({ kind: "address", address, chainId, isPool: false });
-        if (t && !settings.companion.watchlist.some((x) => x.key === t.key)) {
-          settings.companion.watchlist.push(t);
+        const tok = await resolveAddress({ kind: "address", address, chainId, isPool: false });
+        if (tok && !settings.companion.watchlist.some((x) => x.key === tok.key)) {
+          settings.companion.watchlist.push(tok);
           added++;
         }
       } catch {
@@ -1201,13 +1245,13 @@ function shareSection(): HTMLElement {
     load.disabled = false;
     input.value = "";
     note.className = "note ok";
-    note.textContent = `${added} token${added === 1 ? "" : "s"} added.`;
+    note.textContent = tn(added, "{n} token added.", "{n} tokens added.");
     for (const fn of refreshers) fn();
   });
 
   return section(
-    "Share",
-    "A link carries only the token addresses of your watchlist, nothing else.",
+    t("Share"),
+    t("A link carries only the token addresses of your watchlist, nothing else."),
     h("div", { class: "add" }, copy),
     h("div", { class: "add", style: "margin-top:8px" }, input, load),
     note,
@@ -1224,7 +1268,7 @@ function mascotSection(manifest: Manifest): HTMLElement {
     m.setMood(state);
     grid.append(h("div", { class: "cell" }, m.el, h("span", { text: state })));
   }
-  return section("Mascot", "Everything the mascot can feel.", grid);
+  return section(t("Mascot"), t("Everything the mascot can feel."), grid);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
@@ -1236,12 +1280,13 @@ async function main() {
   settings = boot.settings;
   State.os = boot.os ?? "browser";
   State.cursorPoll = boot.cursorPoll ?? true;
+  await useLang(pickLang(devLang() ?? settings.companion.language, systemLangs()));
 
   const page = h(
     "main",
     {},
     // Which Candy this is: what a friend asks when helping.
-    h("h1", {}, "Settings", h("span", { class: "app-version", text: `Candy ${boot.version}` })),
+    h("h1", {}, t("Settings"), h("span", { class: "app-version", text: `Candy ${boot.version}` })),
     watchlistSection(),
     alertsSection(),
     myWalletSection(),

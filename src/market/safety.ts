@@ -4,6 +4,7 @@
 //
 // It is a hint, not a guarantee: a clean report does not make a token safe.
 
+import { N_, t } from "../core/i18n";
 import type { SafetyReport } from "../core/state";
 
 const API = "https://api.rugcheck.xyz/v1/tokens";
@@ -23,7 +24,7 @@ const LOW_LP_LOCK = 50;
 
 export function toSafety(s: RugSummary, now = Date.now()): SafetyReport {
   const risks = (s.risks ?? []).map((r) => ({
-    name: String(r.name ?? "Unknown risk"),
+    name: String(r.name ?? t("Unknown risk")),
     value: String(r.value ?? ""),
     level: r.level === "danger" ? ("danger" as const) : r.level === "warn" ? ("warn" as const) : ("info" as const),
   }));
@@ -44,18 +45,19 @@ export async function fetchSafety(mint: string, signal?: AbortSignal): Promise<S
 }
 
 export const SAFETY_LABEL: Record<SafetyReport["level"], string> = {
-  low: "Low risk",
-  medium: "Some risks",
-  high: "High risk",
+  low: N_("Low risk"),
+  medium: N_("Some risks"),
+  high: N_("High risk"),
 };
 
 /** Tooltip text: the level, each risk, locked liquidity, and the caveat. */
 export function describeSafety(r: SafetyReport): string {
-  const lines = [`${SAFETY_LABEL[r.level]} · RugCheck score ${r.score}/100`];
+  const lines = [t("{level} · RugCheck score {score}/100", { level: t(SAFETY_LABEL[r.level]), score: r.score })];
+  // RugCheck's own words for each risk: shown as they came.
   for (const risk of r.risks) lines.push(`${risk.level === "danger" ? "✖" : risk.level === "warn" ? "!" : "·"} ${risk.name}${risk.value ? ` (${risk.value})` : ""}`);
-  if (r.risks.length === 0) lines.push("No risks flagged");
-  if (r.lpLockedPct != null) lines.push(`Liquidity locked: ${Math.round(r.lpLockedPct)}%`);
-  lines.push("A hint, not a guarantee. Click for the full report.");
+  if (r.risks.length === 0) lines.push(t("No risks flagged"));
+  if (r.lpLockedPct != null) lines.push(t("Liquidity locked: {pct}%", { pct: Math.round(r.lpLockedPct) }));
+  lines.push(t("A hint, not a guarantee. Click for the full report."));
   return lines.join("\n");
 }
 

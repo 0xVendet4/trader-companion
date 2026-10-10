@@ -10,27 +10,36 @@ import { btn, field, iconBtn, pct, tokenImg, type ViewActions, type ViewHost } f
 import { Companion } from "../companion";
 import { Bridge } from "../core/bridge";
 import { formatAge, formatPct, formatPrice, formatUsd, pctClass, shortAddress } from "../core/format";
+import { N_, t, tn } from "../core/i18n";
 import { State, type ActivityItem, type WatchToken } from "../core/state";
 import { todayKey } from "../discipline/discipline";
 import { entrySource, formatMultiple, formatSignedUsd, sinceWords } from "../positions/positions";
-import { allocation, byDay, progressOf, sortHeld, type PositionSort } from "../positions/board";
+import { allocation, byDay, progressOf, sortHeld, type PositionSort, type Progress } from "../positions/board";
 
 /** The allocation bar's colours, biggest token first (SOL keeps its own). */
 const ALLOC_COLORS = ["#34d399", "#60a5fa", "#f59e0b", "#f472b6", "#a78bfa"];
 
 const SIDE_WORDS: Record<ActivityItem["side"], string> = {
-  tracked: "Held",
-  opened: "Bought",
-  bought: "Bought more",
-  sold: "Sold part",
-  closed: "Sold all",
+  tracked: N_("Held"),
+  opened: N_("Bought"),
+  bought: N_("Bought more"),
+  sold: N_("Sold part"),
+  closed: N_("Sold all"),
 };
+
+/** A row's progress line, in words: one whole line for a target or a stop. */
+function progressTitle(prog: Progress): string {
+  const way = Math.round(prog.frac * 100);
+  if (prog.kind === "stop") return t("{pct}% of the way to your stop", { pct: way });
+  if (prog.kind === "target") return t("{pct}% of the way to your target", { pct: way });
+  return t("{pct}% of the way to {level}x", { pct: way, level: prog.level ?? "" });
+}
 
 export function buildPositions(actions: ViewActions): ViewHost {
   // The wallet(s) this tab reads, and the Holdings / Activity switch.
   const mineLine = h("div", { class: "mine-line" });
-  const segHoldings = h("button", { class: "seg-btn", text: "Holdings" });
-  const segActivity = h("button", { class: "seg-btn", text: "Activity" });
+  const segHoldings = h("button", { class: "seg-btn", text: t("Holdings") });
+  const segActivity = h("button", { class: "seg-btn", text: t("Activity") });
   const setMode = (activity: boolean) => {
     State.walletActivity = activity;
     actions.blip();
@@ -62,40 +71,42 @@ export function buildPositions(actions: ViewActions): ViewHost {
       },
     });
   const sorts = {
-    value: sortBtn("value", "Value", "c-val", "Sort by value"),
-    pnl: sortBtn("pnl", "PnL", "c-pnl2", "Sort by profit"),
-    pct: sortBtn("pct", "%", "c-pct2", "Sort by %"),
-    x: sortBtn("x", "x", "c-x", "Sort by multiple"),
+    value: sortBtn("value", t("Value"), "c-val", t("Sort by value")),
+    pnl: sortBtn("pnl", "PnL", "c-pnl2", t("Sort by profit")),
+    pct: sortBtn("pct", "%", "c-pct2", t("Sort by %")),
+    x: sortBtn("x", "x", "c-x", t("Sort by multiple")),
   };
-  const head = h("div", { class: "row head pos-head" }, h("span", { class: "c-tok" }, "Token", h("span", { class: "narrow-off", text: " · held · entry → now" })), sorts.value, sorts.pnl, sorts.pct, sorts.x);
+  const head = h("div", { class: "row head pos-head" }, h("span", { class: "c-tok" }, t("Token"), h("span", { class: "narrow-off", text: ` · ${t("held · entry → now")}` })), sorts.value, sorts.pnl, sorts.pct, sorts.x);
   const rows = h("div", { class: "rows" });
   const activity = h("div", { class: "rows activity" });
   const quiet = h("div", { class: "empty" });
   // Reading the wallet's history: progress, then what it found.
   const historyLine = h("div", { class: "history-line" });
-  // When the shared public RPC fails the wallet: where the fix is.
+  // When the shared public RPC fails the wallet: where the fix is. One
+  // sentence, the link's words in place of {link}.
+  const [rpcBefore, rpcAfter = ""] = t("Solana's public RPC is shared and busy. A free RPC key (Helius, Alchemy) reads your wallet faster: {link}.").split("{link}");
   const rpcHint = h(
     "div",
     { class: "history-line err" },
-    "Solana's public RPC is shared and busy. A free RPC key (Helius, Alchemy) reads your wallet faster: ",
-    h("a", { class: "link", text: "add it in Settings", onclick: () => actions.openSettings() }),
-    ".",
+    rpcBefore,
+    h("a", { class: "link", text: t("add it in Settings"), onclick: () => actions.openSettings() }),
+    rpcAfter,
   );
   const fine = h("div", {
     class: "fine-print",
-    text: "Click an entry to type yours · ○ held before tracking · the line under a row: the way to your target, stop or next x",
+    text: t("Click an entry to type yours · ○ held before tracking · the line under a row: the way to your target, stop or next x"),
   });
 
   // No wallet yet: add it right here.
-  const address = field(actions, { placeholder: "Your wallet address (public)", class: "field" });
-  const add = btn("Add my wallet", "secondary", () => submit());
+  const address = field(actions, { placeholder: t("Your wallet address (public)"), class: "field" });
+  const add = btn(t("Add my wallet"), "secondary", () => submit());
   const note = h("span", { class: "note" });
   const setup = h(
     "div",
     { class: "wallet-setup" },
     h("div", {
       class: "empty",
-      text: "Add your own wallet: its buys and sells are recorded, with the profit of every token, and closed trades go into your journal. Public address only — never a seed phrase or a key.",
+      text: t("Add your own wallet: its buys and sells are recorded, with the profit of every token, and closed trades go into your journal. Public address only — never a seed phrase or a key."),
     }),
     h("div", { class: "add-bar" }, address, add, note),
   );
@@ -128,7 +139,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
 
   /** The entry: a price, or a field to type one into. */
   function entryCell(mint: string, entry: number, source: string): HTMLElement {
-    const cell = h("span", { class: "entry", text: formatPrice(entry), title: `${source}\nClick to type your real average entry.` });
+    const cell = h("span", { class: "entry", text: formatPrice(entry), title: `${source}\n${t("Click to type your real average entry.")}` });
     cell.addEventListener("click", (e) => {
       e.stopPropagation();
       const input = field(actions, { class: "field entry-field", value: String(Number(entry.toPrecision(4))), inputmode: "decimal" });
@@ -161,8 +172,8 @@ export function buildPositions(actions: ViewActions): ViewHost {
     clear(bar);
     bar.classList.add("editing");
     const num = (v: number | undefined) => (v ? String(Number(v.toPrecision(4))) : "");
-    const targetIn = field(actions, { class: "field tiny", placeholder: "target $", value: num(target), inputmode: "decimal" });
-    const stopIn = field(actions, { class: "field tiny", placeholder: "stop $", value: num(stop), inputmode: "decimal" });
+    const targetIn = field(actions, { class: "field tiny", placeholder: t("target $"), value: num(target), inputmode: "decimal" });
+    const stopIn = field(actions, { class: "field tiny", placeholder: t("stop $"), value: num(stop), inputmode: "decimal" });
     const read = (f: HTMLInputElement) => {
       const v = Number(f.value.replace(",", ".").replace("$", ""));
       return v > 0 ? v : null;
@@ -183,7 +194,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
         }
       });
     }
-    const ok = btn("Save", "secondary", save);
+    const ok = btn(t("Save"), "secondary", save);
     ok.addEventListener("click", (e) => e.stopPropagation());
     bar.append(targetIn, stopIn, ok);
     actions.focusInput(true);
@@ -193,8 +204,8 @@ export function buildPositions(actions: ViewActions): ViewHost {
   /** What the last read of a wallet found: its SOL and value, or why it failed. */
   function walletStatus(address: string): { text: string; err: boolean } {
     const snap = State.wallets[address];
-    if (!snap) return { text: "reading…", err: false };
-    if (snap.error) return { text: `couldn't read it: ${snap.error}`, err: true };
+    if (!snap) return { text: t("reading…"), err: false };
+    if (snap.error) return { text: t("couldn't read it: {error}", { error: snap.error }), err: true };
     return { text: `${snap.sol.toFixed(snap.sol < 10 ? 3 : 1)} SOL · ${formatUsd(snap.totalUsd)}`, err: false };
   }
 
@@ -209,7 +220,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
           h("b", { text: w.label }),
           ` ${shortAddress(w.address)}`,
           h("span", { class: `mine-status ${status.err ? "err" : ""}`, text: ` · ${status.text}` }),
-          iconBtn(ICONS.xmark, "Remove this wallet", () => {
+          iconBtn(ICONS.xmark, t("Remove this wallet"), () => {
             Companion.removeWallet(w.address);
             actions.relayout();
           }),
@@ -229,17 +240,19 @@ export function buildPositions(actions: ViewActions): ViewHost {
     historyLine.classList.toggle("err", !!r.error);
     if (r.error) {
       historyLine.append(
-        `Couldn't read your recent trades (${r.error}). `,
-        h("a", { class: "link", text: "Try again", onclick: () => void Companion.readTradeHistory(r.address) }),
+        `${t("Couldn't read your recent trades ({error}).", { error: r.error })} `,
+        h("a", { class: "link", text: t("Try again"), onclick: () => void Companion.readTradeHistory(r.address) }),
       );
     } else if (r.found != null) {
       historyLine.append(
         r.found
-          ? `Found ${r.found} trade${r.found === 1 ? "" : "s"} in your last ${r.total} transactions: see Activity.`
-          : `No trades in your last ${r.total} transactions. New ones show up within a minute.`,
+          ? tn(r.found, "Found {n} trade in your last {total} transactions: see Activity.", "Found {n} trades in your last {total} transactions: see Activity.", {
+              total: r.total,
+            })
+          : t("No trades in your last {total} transactions. New ones show up within a minute.", { total: r.total }),
       );
     } else {
-      historyLine.append(`Reading your recent trades… ${r.total ? `${r.done}/${r.total}` : ""}`);
+      historyLine.append(t("Reading your recent trades… {progress}", { progress: r.total ? `${r.done}/${r.total}` : "" }));
     }
   }
 
@@ -262,23 +275,32 @@ export function buildPositions(actions: ViewActions): ViewHost {
 
     for (const x of list) {
       const { p, price, s } = x;
-      const t = tokenFor(p.mint, p.symbol);
-      const goals = [p.target ? `target ${formatPrice(p.target)}` : "", p.stop ? `stop ${formatPrice(p.stop)}` : ""].filter(Boolean).join(" · ");
+      const tok = tokenFor(p.mint, p.symbol);
+      const target = p.target ? formatPrice(p.target) : "";
+      const stop = p.stop ? formatPrice(p.stop) : "";
+      const goals =
+        target && stop
+          ? t("Your target {target} · stop {stop}", { target, stop })
+          : target
+            ? t("Your target {target}", { target })
+            : stop
+              ? t("Your stop {stop}", { stop })
+              : "";
       const bar: HTMLElement = h(
         "span",
         { class: "row-actions" },
-        iconBtn(ICONS.bell, goals ? `Your ${goals}: click to change` : "Set your target and stop: an alert when the price gets there", (e) => {
+        iconBtn(ICONS.bell, goals ? t("{goals}: click to change", { goals }) : t("Set your target and stop: an alert when the price gets there"), (e) => {
           e.stopPropagation();
           targetEditor(p.mint, p.target, p.stop, bar);
         }),
-        iconBtn(ICONS.copy, "Copy the CA", (e) => {
+        iconBtn(ICONS.copy, t("Copy the CA"), (e) => {
           e.stopPropagation();
           void Bridge.copy(p.mint).then((ok) => ok && actions.blip());
         }, 2),
-        ...(State.token(t.key)
+        ...(State.token(tok.key)
           ? []
           : [
-              iconBtn(ICONS.plus, "Add to the watchlist", (e) => {
+              iconBtn(ICONS.plus, t("Add to the watchlist"), (e) => {
                 e.stopPropagation();
                 void Companion.addToken(p.mint).then(() => actions.relayout());
               }),
@@ -288,11 +310,11 @@ export function buildPositions(actions: ViewActions): ViewHost {
       const share = whole > 0 ? (s.valueUsd / whole) * 100 : 0;
       const row = h(
         "div",
-        { class: "row pos-row", title: `${p.symbol} · ${sinceWords(p)}${goals ? `\nYour ${goals}` : ""}\nClick to open its page.` },
+        { class: "row pos-row", title: `${p.symbol} · ${sinceWords(p)}${goals ? `\n${goals}` : ""}\n${t("Click to open its page.")}` },
         h(
           "span",
           { class: "c-tok" },
-          tokenImg(t.imageUrl, p.symbol),
+          tokenImg(tok.imageUrl, p.symbol),
           h(
             "span",
             { class: "tok-lines" },
@@ -300,8 +322,8 @@ export function buildPositions(actions: ViewActions): ViewHost {
               "span",
               { class: "sym-line" },
               h("span", { class: "sym", text: p.symbol }),
-              p.fromTracking ? h("span", { class: "since", text: "○", title: "Held before tracking began: numbers start from then" }) : null,
-              goals ? h("span", { class: "goal-mark", text: "◎", title: `Your ${goals}` }) : null,
+              p.fromTracking ? h("span", { class: "since", text: "○", title: t("Held before tracking began: numbers start from then") }) : null,
+              goals ? h("span", { class: "goal-mark", text: "◎", title: goals }) : null,
             ),
             h(
               "span",
@@ -321,11 +343,11 @@ export function buildPositions(actions: ViewActions): ViewHost {
           text: s.multiple != null ? formatMultiple(Math.round(s.multiple * 10) / 10) : "",
         }),
         prog
-          ? h("i", { class: `prog ${prog.kind}`, style: `width:${Math.round(prog.frac * 100)}%`, title: `${Math.round(prog.frac * 100)}% of the way ${prog.label}` })
+          ? h("i", { class: `prog ${prog.kind}`, style: `width:${Math.round(prog.frac * 100)}%`, title: progressTitle(prog) })
           : null,
         bar,
       );
-      row.addEventListener("click", () => actions.openToken(t.key, t));
+      row.addEventListener("click", () => actions.openToken(tok.key, tok));
       rows.append(row);
     }
 
@@ -340,26 +362,32 @@ export function buildPositions(actions: ViewActions): ViewHost {
     clear(summary);
     summary.append(
       card(
-        "Wallet",
+        t("Wallet"),
         formatUsd(whole),
-        baseline > 0 && totalNow > 0 ? h("span", { class: pctClass(totalNow - baseline), text: `${formatSignedUsd(totalNow - baseline)} in all`, title: "Since you added the wallet" }) : `${sol.toFixed(sol < 10 ? 2 : 1)} SOL`,
+        baseline > 0 && totalNow > 0
+          ? h("span", {
+              class: pctClass(totalNow - baseline),
+              text: t("{amount} in all", { amount: formatSignedUsd(totalNow - baseline) }),
+              title: t("Since you added the wallet"),
+            })
+          : `${sol.toFixed(sol < 10 ? 2 : 1)} SOL`,
         "",
-        "Tokens and SOL in your wallet",
+        t("Tokens and SOL in your wallet"),
       ),
       card(
-        "Open PnL",
+        t("Open PnL"),
         h("span", { class: pctClass(unreal), text: formatSignedUsd(unreal) }),
         cost > 0 ? h("span", { class: pctClass(unreal), text: formatPct((unreal / cost) * 100) }) : "",
         "",
-        "What the tokens held are up or down from their entries",
+        t("What the tokens held are up or down from their entries"),
       ),
-      card("Taken today", h("span", { class: pctClass(realized), text: formatSignedUsd(realized) }), "from sales", "", "Profit or loss on today's sales"),
+      card(t("Taken today"), h("span", { class: pctClass(realized), text: formatSignedUsd(realized) }), t("from sales"), "", t("Profit or loss on today's sales")),
       card(
-        "Best",
+        t("Best"),
         best && best.s.multiple != null ? formatMultiple(Math.round(best.s.multiple * 10) / 10) : "—",
-        best ? best.p.symbol : "nothing held",
+        best ? best.p.symbol : t("nothing held"),
         best && best.s.multiple != null && best.s.multiple >= 2 ? "hot" : "",
-        "The position with the biggest multiple",
+        t("The position with the biggest multiple"),
       ),
     );
 
@@ -378,7 +406,10 @@ export function buildPositions(actions: ViewActions): ViewHost {
     alloc.append(barEl, legend);
 
     // Nothing held: say what the wallet does hold, and where its trades are.
-    quiet.textContent = `No tokens held right now${sol > 0 ? ` (${sol.toFixed(3)} SOL in the wallet)` : ""}. Buys show up here within a minute; your recent trades are under Activity.`;
+    quiet.textContent =
+      sol > 0
+        ? t("No tokens held right now ({sol} SOL in the wallet). Buys show up here within a minute; your recent trades are under Activity.", { sol: sol.toFixed(3) })
+        : t("No tokens held right now. Buys show up here within a minute; your recent trades are under Activity.");
     quiet.style.display = list.length ? "none" : "block";
     head.style.display = list.length ? "" : "none";
     fine.style.display = list.length ? "" : "none";
@@ -392,12 +423,12 @@ export function buildPositions(actions: ViewActions): ViewHost {
         h(
           "div",
           { class: "empty" },
-          "No buys or sells seen yet. New ones show up here within a minute. ",
+          `${t("No buys or sells seen yet. New ones show up here within a minute.")} `,
           State.historyRead
             ? null
             : h("a", {
                 class: "link",
-                text: "Read my recent trades",
+                text: t("Read my recent trades"),
                 onclick: () => {
                   const w = State.companion.wallets.find((x) => x.mine);
                   if (w) void Companion.readTradeHistory(w.address);
@@ -411,7 +442,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
     for (const group of byDay(items)) {
       activity.append(h("div", { class: "day-head", text: group.label }));
       for (const a of group.items) {
-        const t = tokenFor(a.mint, a.symbol);
+        const tok = tokenFor(a.mint, a.symbol);
         const took = a.side === "sold" || a.side === "closed";
         const d = new Date(a.t);
         const row = h(
@@ -420,22 +451,22 @@ export function buildPositions(actions: ViewActions): ViewHost {
           h("span", {
             class: "c-when",
             text: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
-            title: a.history ? "Read from your wallet's history" : `${formatAge(a.t)} ago`,
+            title: a.history ? t("Read from your wallet's history") : t("{age} ago", { age: formatAge(a.t) }),
           }),
-          h("span", { class: `c-side side-${a.side}`, text: SIDE_WORDS[a.side] }),
-          h("span", { class: "c-tok" }, tokenImg(t.imageUrl, a.symbol), h("span", { class: "sym", text: a.symbol })),
-          h("span", { class: "c-mc", text: formatUsd(a.usd), title: "Value of what moved" }),
+          h("span", { class: `c-side side-${a.side}`, text: t(SIDE_WORDS[a.side]) }),
+          h("span", { class: "c-tok" }, tokenImg(tok.imageUrl, a.symbol), h("span", { class: "sym", text: a.symbol })),
+          h("span", { class: "c-mc", text: formatUsd(a.usd), title: t("Value of what moved") }),
           h(
             "span",
             {
               class: `c-pnl pct ${took ? pctClass(a.realizedUsd) : ""}`,
-              title: a.side === "closed" ? "What the whole position took" : took ? "What this sell took" : "",
+              title: a.side === "closed" ? t("What the whole position took") : took ? t("What this sell took") : "",
             },
             // Bought before the history began: what it took is unknown.
             took ? (a.costUnknown ? "—" : formatSignedUsd(a.realizedUsd)) : "",
           ),
         );
-        row.addEventListener("click", () => actions.openToken(t.key, t));
+        row.addEventListener("click", () => actions.openToken(tok.key, tok));
         activity.append(row);
       }
     }

@@ -13,7 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+# macos-private-api: a transparent window on macOS (macOSPrivateApi in
+# tauri.conf.json); nothing changes on Windows or Linux.
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
@@ -31,7 +33,13 @@ gtk = "0.18"
 # The session bus, where media players announce what they play (MPRIS): the dance.
 dbus = "0.9"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
+# Alert notifications with buttons (Open, Mute 1 h): already built for the
+# notification plugin, used directly for the buttons it doesn't offer.
+tauri-winrt-notification = "0.8"
 windows = { version = "0.61", features = [
   "Media_Control",
   "Storage_Streams",

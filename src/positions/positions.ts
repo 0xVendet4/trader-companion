@@ -10,6 +10,7 @@
 // cancel out.
 
 import { formatPct, formatPrice, formatUsd } from "../core/format";
+import { t } from "../core/i18n";
 import type { ActivityItem, Position, PositionAlerts, PositionBook } from "../core/state";
 
 export interface WalletRead {
@@ -278,14 +279,14 @@ export function positionStats(p: Position, price: number): PositionStats {
 
 /** Where a position's numbers start from, in words. */
 export function sinceWords(p: Position): string {
-  return p.fromTracking ? "since tracking began" : "from your entry";
+  return p.fromTracking ? t("since tracking began") : t("from your entry");
 }
 
 /** Where a position's entry comes from, for a tooltip. */
 export function entrySource(p: Position): string {
-  if (p.fromTracking) return "Price when tracking began (held before): click to type your real entry";
-  if (p.fromHistory) return "From your wallet's transactions (paid in SOL, valued at today's SOL price)";
-  return "Price when the buy showed up in your balance, or the one you typed";
+  if (p.fromTracking) return t("Price when tracking began (held before): click to type your real entry");
+  if (p.fromHistory) return t("From your wallet's transactions (paid in SOL, valued at today's SOL price)");
+  return t("Price when the buy showed up in your balance, or the one you typed");
 }
 
 export interface LevelHit {
@@ -305,21 +306,28 @@ export function crossedLevels(p: Position, price: number, levels: PositionAlerts
   const alerted = [...p.alerted];
   const hits: LevelHit[] = [];
   if (!levels.enabled || s.multiple == null || s.pnlPct == null) return { hits, alerted };
-  const detail = `Value ${formatUsd(s.valueUsd)} · avg entry ${formatPrice(s.entry)} · now ${formatPrice(price)}`;
+  const detail = t("Value {value} · avg entry {entry} · now {price}", {
+    value: formatUsd(s.valueUsd),
+    entry: formatPrice(s.entry),
+    price: formatPrice(price),
+  });
+  /** "WIF 2x since tracking began", "WIF −30% from your entry". */
+  const moved = (change: string) =>
+    p.fromTracking ? t("{symbol} {change} since tracking began", { symbol: p.symbol, change }) : t("{symbol} {change} from your entry", { symbol: p.symbol, change });
 
   const ups = [...levels.ups].sort((a, b) => a - b).filter((m) => s.multiple! >= m);
   const newUp = ups.filter((m) => !alerted.includes(`x${m}`));
   if (newUp.length) {
     const top = newUp[newUp.length - 1];
     for (const m of ups) if (!alerted.includes(`x${m}`)) alerted.push(`x${m}`);
-    hits.push({ key: `x${top}`, title: `${p.symbol} ${formatMultiple(top)} ${sinceWords(p)}`, detail, tone: "up" });
+    hits.push({ key: `x${top}`, title: moved(formatMultiple(top)), detail, tone: "up" });
   }
 
   const downs = [...levels.downs].sort((a, b) => b - a).filter((d) => s.pnlPct! <= d);
   const newDown = downs.filter((d) => !alerted.includes(String(d)));
   if (newDown.length) {
     for (const d of downs) if (!alerted.includes(String(d))) alerted.push(String(d));
-    hits.push({ key: String(newDown[newDown.length - 1]), title: `${p.symbol} ${formatPct(s.pnlPct)} ${sinceWords(p)}`, detail, tone: "down" });
+    hits.push({ key: String(newDown[newDown.length - 1]), title: moved(formatPct(s.pnlPct)), detail, tone: "down" });
   }
   return { hits, alerted };
 }
@@ -347,14 +355,20 @@ export function crossedTargets(p: Position, price: number): { hits: LevelHit[]; 
   const hits: LevelHit[] = [];
   if (!(price > 0)) return { hits, alerted };
   const s = positionStats(p, price);
-  const detail = `Value ${formatUsd(s.valueUsd)} · avg entry ${formatPrice(s.entry)}${s.pnlPct != null ? ` · ${formatPct(s.pnlPct)} ${sinceWords(p)}` : ""}`;
+  const d = { value: formatUsd(s.valueUsd), entry: formatPrice(s.entry), pct: formatPct(s.pnlPct) };
+  const detail =
+    s.pnlPct == null
+      ? t("Value {value} · avg entry {entry}", d)
+      : p.fromTracking
+        ? t("Value {value} · avg entry {entry} · {pct} since tracking began", d)
+        : t("Value {value} · avg entry {entry} · {pct} from your entry", d);
   if (p.target != null && price >= p.target && !alerted.includes("target")) {
     alerted.push("target");
-    hits.push({ key: "target", title: `${p.symbol} reached your target ${formatPrice(p.target)}`, detail, tone: "up" });
+    hits.push({ key: "target", title: t("{symbol} reached your target {price}", { symbol: p.symbol, price: formatPrice(p.target) }), detail, tone: "up" });
   }
   if (p.stop != null && price <= p.stop && !alerted.includes("stop")) {
     alerted.push("stop");
-    hits.push({ key: "stop", title: `${p.symbol} fell to your stop ${formatPrice(p.stop)}`, detail, tone: "down" });
+    hits.push({ key: "stop", title: t("{symbol} fell to your stop {price}", { symbol: p.symbol, price: formatPrice(p.stop) }), detail, tone: "down" });
   }
   return { hits, alerted };
 }

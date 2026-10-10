@@ -1,16 +1,19 @@
 // The island header: six tabs (only the open one shows its label, so they
-// fit), live prices of the chosen chains' coins, BTC and the Fear & Greed
-// index, the data status, refresh, where the island sits, settings and sound.
+// fit), live prices of the chosen chains' coins, BTC, the Fear & Greed index
+// and the next US release on the economic calendar, the data status, refresh,
+// where the island sits, settings and sound.
 
 import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { iconBtn, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
 import { IS_TAURI } from "../core/bridge";
+import { t } from "../core/i18n";
 import { compact, formatCoin, formatDuration, formatPct, formatUsd, pctClass } from "../core/format";
 import { State, type IslandViewName, type Placement, type Quote } from "../core/state";
 import { nativeCoins } from "../market/chains";
 import { fngTone } from "../market/sentiment";
+import { chipWord, nextRelease, releases, untilShort, weekLines } from "../market/calendar";
 import { currentLog, dayPill, summarize } from "../discipline/discipline";
 
 const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music"];
@@ -41,13 +44,13 @@ export function buildHeader(actions: ViewActions): ViewHost {
     return el;
   };
   const tabs: Record<string, HTMLElement> = {
-    watchlist: tab("watchlist", ICONS.chart, "Watchlist", 2.2),
-    trending: tab("trending", ICONS.flame, "Trending"),
-    alerts: tab("alerts", ICONS.bell, "Alerts"),
-    positions: tab("positions", ICONS.wallet, "My wallet"),
-    wallets: tab("wallets", ICONS.eye, "Following", 2),
-    discipline: tab("discipline", ICONS.shield, "Discipline"),
-    music: tab("music", ICONS.note, "Music"),
+    watchlist: tab("watchlist", ICONS.chart, t("Watchlist"), 2.2),
+    trending: tab("trending", ICONS.flame, t("Trending")),
+    alerts: tab("alerts", ICONS.bell, t("Alerts")),
+    positions: tab("positions", ICONS.wallet, t("My wallet")),
+    wallets: tab("wallets", ICONS.eye, t("Following"), 2),
+    discipline: tab("discipline", ICONS.shield, t("Discipline")),
+    music: tab("music", ICONS.note, t("Music")),
   };
 
   // The day against the trader's own limits; a click opens Discipline.
@@ -62,24 +65,24 @@ export function buildHeader(actions: ViewActions): ViewHost {
   // One price per native coin of the chosen chains (SOL, BNB, ETH).
   const natives = h("span", { class: "natives" });
   const status = h("span", { class: "status-dot" });
-  const refresh = iconBtn(ICONS.refresh, "Refresh now", () => {
+  const refresh = iconBtn(ICONS.refresh, t("Refresh now"), () => {
     actions.blip();
     void Companion.pollNow();
     if (State.view === "trending") void Companion.refreshTrending(true);
     if (State.view === "wallets" || State.view === "positions") void Companion.refreshWallets();
   }, 2.2);
-  const gear = iconBtn(ICONS.gear, "Settings", () => actions.openSettings());
-  const sound = iconBtn(ICONS.speakerOn, "Sound", () => actions.toggleSound());
-  const minimize = iconBtn(ICONS.minimize, "Minimize: your show/hide shortcut, or Open in the tray icon, brings Candy back", () => actions.minimize(), 2.4);
+  const gear = iconBtn(ICONS.gear, t("Settings"), () => actions.openSettings());
+  const sound = iconBtn(ICONS.speakerOn, t("Sound"), () => actions.toggleSound());
+  const minimize = iconBtn(ICONS.minimize, t("Minimize: your show/hide shortcut, or Open in the tray icon, brings Candy back"), () => actions.minimize(), 2.4);
   // A browser (npm run dev) has no tray to come back from.
   if (!IS_TAURI) minimize.style.display = "none";
 
   // Where the island sits, picked right here (like a browser's dock side).
   const PLACES: [Placement, string, string][] = [
-    ["top", ICONS.dockTop, "Top of the screen"],
-    ["left", ICONS.dockLeft, "Left edge"],
-    ["right", ICONS.dockRight, "Right edge"],
-    ["float", ICONS.dockFloat, "Floating: drag it anywhere"],
+    ["top", ICONS.dockTop, t("Top of the screen")],
+    ["left", ICONS.dockLeft, t("Left edge")],
+    ["right", ICONS.dockRight, t("Right edge")],
+    ["float", ICONS.dockFloat, t("Floating: drag it anywhere")],
   ];
   const placeIcon = (p: Placement) => PLACES.find(([id]) => id === p)?.[1] ?? ICONS.dockTop;
   let dockOpen = false;
@@ -98,7 +101,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     dockMenu.append(b);
     return { id, b };
   });
-  const dock = iconBtn(ICONS.dockTop, "Where the island sits", () => {
+  const dock = iconBtn(ICONS.dockTop, t("Where the island sits"), () => {
     dockOpen = !dockOpen;
     actions.blip();
     paintDock();
@@ -141,9 +144,9 @@ export function buildHeader(actions: ViewActions): ViewHost {
     el,
     sync() {
       const shown = shownTabs();
-      for (const [name, t] of Object.entries(tabs)) {
-        t.classList.toggle("on", State.view === name);
-        t.style.display = shown.includes(name as IslandViewName) ? "" : "none";
+      for (const [name, tabEl] of Object.entries(tabs)) {
+        tabEl.classList.toggle("on", State.view === name);
+        tabEl.style.display = shown.includes(name as IslandViewName) ? "" : "none";
       }
       const show = TAB_VIEWS.includes(State.view) || State.view === "wardrobe";
       el.style.opacity = show ? "1" : "0";
@@ -155,7 +158,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
         dayPillEl.textContent = pill.text;
         dayPillEl.className = `day-pill ${pill.tone}`;
         dayPillEl.title = `${pill.title}
-Click for Discipline`;
+${t("Click for Discipline")}`;
       }
 
       clear(natives);
@@ -165,24 +168,28 @@ Click for Discipline`;
       const coins: { symbol: string; q: Quote; title: string }[] = [];
       for (const coin of nativeCoins(State.companion.chains)) {
         const q = State.natives[coin.symbol] ?? (coin.symbol === "SOL" ? State.sol : null);
-        if (q) coins.push({ symbol: coin.symbol, q, title: `${coin.symbol} price` });
+        if (q) coins.push({ symbol: coin.symbol, q, title: t("{symbol} price", { symbol: coin.symbol }) });
       }
       const market = State.companion.headerMarket;
-      if (market && State.btc) coins.push({ symbol: "BTC", q: State.btc, title: "BTC price (wrapped BTC on Ethereum)" });
+      if (market && State.btc) coins.push({ symbol: "BTC", q: State.btc, title: t("BTC price (wrapped BTC on Ethereum)") });
       const fg = market ? State.fearGreed : null;
+      // The next US release the whole market watches, within a day (src/market/calendar.ts).
+      const lead = State.companion.calendarLeadMin;
+      const all = lead && State.calendar ? releases(State.calendar.events) : [];
+      const next = nextRelease(all, Date.now());
       // The day pill takes room too.
-      const crowded = coins.length + (fg ? 1 : 0) + (pill ? 1 : 0) > 3;
+      const crowded = coins.length + (fg ? 1 : 0) + (next ? 1 : 0) + (pill ? 1 : 0) > 3;
       natives.classList.toggle("crowded", crowded);
       for (const { symbol, q, title } of coins) {
         // Crowded: short numbers, no "$" (SOL 150, BTC 67.2K).
         const price = crowded ? compact(q.priceUsd) : symbol === "BTC" ? formatUsd(q.priceUsd) : formatCoin(q.priceUsd);
-        const change = `${formatPct(q.change.h1)} in the last hour`;
+        const change = t("{pct} in the last hour", { pct: formatPct(q.change.h1) });
         natives.append(
           crowded
             ? h("span", { class: "sol-chip", title: `${title} · ${change}` }, h("b", { text: symbol }), " ", h("span", { class: `pct ${pctClass(q.change.h1)}`, text: price }))
             : h(
                 "span",
-                { class: "sol-chip", title: `${title} · change over the last hour` },
+                { class: "sol-chip", title: `${title} · ${t("change over the last hour")}` },
                 h("b", { text: symbol }),
                 ` ${price} `,
                 h("span", { class: `pct ${pctClass(q.change.h1)}`, text: formatPct(q.change.h1) }),
@@ -193,16 +200,35 @@ Click for Discipline`;
         natives.append(
           h(
             "span",
-            { class: `sol-chip fng tone-${fngTone(fg.value)}`, title: `Crypto Fear & Greed index (alternative.me): ${fg.label}` },
+            { class: `sol-chip fng tone-${fngTone(fg.value)}`, title: t("Crypto Fear & Greed index (alternative.me): {label}", { label: t(fg.label) }) },
             h("b", { text: "F&G" }),
             h("span", { class: "fng-value", text: ` ${fg.value}` }),
           ),
         );
       }
+      if (next) {
+        const ms = next.at - Date.now();
+        natives.append(
+          h(
+            "span",
+            {
+              class: `sol-chip cal${ms <= lead * 60_000 ? " soon" : ""}`,
+              title: `${t("Economic calendar (Forex Factory), US releases:")}\n${weekLines(all, Date.now()).join("\n")}`,
+            },
+            h("b", { text: chipWord(next) }),
+            h("span", { class: "cal-when", text: ` ${untilShort(ms)}` }),
+          ),
+        );
+      }
       // No room for every chip (many chains, the day pill): the extra chains'
-      // coins go first, then BTC, then the index; SOL stays.
+      // coins go first, then BTC, then the index, then the calendar; SOL stays.
       const chips = [...natives.children] as HTMLElement[];
-      const dropOrder = [...chips.slice(1, coins.length).filter((c) => !c.textContent?.startsWith("BTC")), ...chips.filter((c) => c.textContent?.startsWith("BTC")), ...chips.filter((c) => c.classList.contains("fng"))];
+      const dropOrder = [
+        ...chips.slice(1, coins.length).filter((c) => !c.textContent?.startsWith("BTC")),
+        ...chips.filter((c) => c.textContent?.startsWith("BTC")),
+        ...chips.filter((c) => c.classList.contains("fng")),
+        ...chips.filter((c) => c.classList.contains("cal")),
+      ];
       for (const chip of dropOrder) {
         if (natives.scrollWidth <= natives.clientWidth + 1) break;
         chip.remove();
@@ -210,11 +236,11 @@ Click for Discipline`;
 
       status.className = `status-dot ${State.paused ? "paused" : State.marketStatus}`;
       status.title = State.paused
-        ? "Paused"
+        ? t("Paused")
         : State.marketStatus === "error"
-          ? `Offline: ${State.marketError ?? ""}`
+          ? t("Offline: {error}", { error: State.marketError ?? "" })
           : State.lastUpdate
-            ? `Updated ${formatDuration(Date.now() - State.lastUpdate)} ago`
+            ? t("Updated {time} ago", { time: formatDuration(Date.now() - State.lastUpdate) })
             : "";
       clear(sound);
       sound.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 13));

@@ -14,11 +14,14 @@ describe("the dance", () => {
     expect(landing.sy).toBeLessThan(1);
   });
 
-  it("sways and leans the same way, and does nothing at level 0", () => {
-    const s = danceStep(0.1, 1);
-    expect(Math.sign(s.dx)).toBe(Math.sign(s.rot));
+  it("stays upright: no sway or lean to the sides, and nothing at level 0", () => {
+    for (let t = 0; t < 2; t += 0.05) {
+      const s = danceStep(t, 1);
+      expect(s.dx).toBe(0);
+      expect(s.rot).toBe(0);
+    }
     expect(danceStep(0.1, 0)).toEqual({ dx: 0, dy: 0, rot: 0, sx: 1, sy: 1 });
-    expect(Math.abs(danceStep(0.1, 0.5).dx)).toBeCloseTo(Math.abs(s.dx) / 2);
+    expect(danceStep(0.1, 0.5).dy).toBeCloseTo(danceStep(0.1, 1).dy / 2);
   });
 
   it("fades in over 0.3 s and out over 0.5 s", () => {

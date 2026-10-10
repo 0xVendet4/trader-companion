@@ -477,6 +477,33 @@ pub fn fullscreen_busy() -> bool {
     hr >= 0 && matches!(state, 2..=4)
 }
 
+/// An alert as a Windows notification with two buttons, Open and Mute 1 h
+/// (`buttons`: their words in the trader's language). `on_action` hears
+/// "open", "mute", or "show" (the notification itself was clicked), while
+/// Candy runs. False if it couldn't be shown.
+pub fn alert_toast(identifier: &str, title: &str, body: &str, buttons: (&str, &str), on_action: impl Fn(&str) + Send + 'static) -> bool {
+    use tauri_winrt_notification::Toast;
+    // As the notification plugin does: the installed app's own id, which its
+    // Start menu shortcut carries; a dev build has none and borrows PowerShell's.
+    let dev = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.ends_with("target\\debug") || d.ends_with("target\\release")))
+        .unwrap_or(false);
+    let app_id = if dev { Toast::POWERSHELL_APP_ID } else { identifier };
+    // Plain text: the toolkit escapes it into the notification's XML.
+    Toast::new(app_id)
+        .title(title)
+        .text1(body)
+        .add_button(buttons.0, "open")
+        .add_button(buttons.1, "mute")
+        .on_activated(move |action| {
+            on_action(action.as_deref().unwrap_or("show"));
+            Ok(())
+        })
+        .show()
+        .is_ok()
+}
+
 // The display name only feeds Candy's greeting (identity.rs). The calls are
 // declared by hand with their documented C signatures, so they need no extra
 // `windows` crate features. From Coucou's platform/windows.rs (MIT, © Louis Raillé).
@@ -494,7 +521,7 @@ extern "system" {
 /// EXTENDED_NAME_FORMAT::NameDisplay.
 const NAME_DISPLAY: i32 = 3;
 
-/// The account's display name ("Chris Silva"): the directory's for a domain or
+/// The account's display name ("Ana Souza"): the directory's for a domain or
 /// Microsoft/Entra account, else the local account's "Full name", else nothing.
 pub fn user_full_name() -> Option<String> {
     directory_display_name().or_else(local_full_name).filter(|n| !n.trim().is_empty())
@@ -605,8 +632,10 @@ pub fn unpack_and_install(dir: &std::path::Path, archive: &std::path::Path, root
     if !script.is_file() {
         return Err(format!("no installer in the update ({})", script.display()));
     }
+    // In its own window, through cmd /c: `start` on the script itself would run
+    // it with cmd /k, and the window would stay open after the update.
     Command::new("cmd.exe")
-        .args(["/c", "start", "Updating Candy"])
+        .args(["/c", "start", "Updating Candy", "cmd.exe", "/c"])
         .arg(&script)
         .arg("--update")
         .creation_flags(CREATE_NO_WINDOW)

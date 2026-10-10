@@ -5,6 +5,7 @@
 // until the trader pastes the image somewhere. Token symbols are drawn as
 // canvas text, never parsed as markup.
 
+import { currentLang, t } from "../core/i18n";
 import { resolveState, type Manifest } from "../mascot/mascot";
 import type { Recap } from "./recap";
 
@@ -54,9 +55,9 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number, size
     s -= 2;
     ctx.font = `${weight} ${s}px ${FONT}`;
   }
-  let t = text;
-  while (ctx.measureText(t).width > maxW && t.length > 1) t = `${t.slice(0, -2)}…`;
-  return t;
+  let out = text;
+  while (ctx.measureText(out).width > maxW && out.length > 1) out = `${out.slice(0, -2)}…`;
+  return out;
 }
 
 /** Splits a line into at most two that fit the width. */
@@ -90,19 +91,19 @@ async function drawMascot(ctx: CanvasRenderingContext2D, recap: Recap, look: Car
 }
 
 /** One tile: its label, its value in its tone, a line under it. */
-function drawTile(ctx: CanvasRenderingContext2D, t: Recap["tiles"][number], x: number, y: number, w: number, h: number, k = 1) {
+function drawTile(ctx: CanvasRenderingContext2D, tile: Recap["tiles"][number], x: number, y: number, w: number, h: number, k = 1) {
   ctx.fillStyle = "#121826";
   roundRect(ctx, x, y, w, h, 20 * k);
   ctx.fill();
   ctx.fillStyle = "#8b919b";
   ctx.font = `700 ${18 * k}px ${FONT}`;
-  ctx.fillText(t.label.toUpperCase(), x + 24 * k, y + 38 * k);
-  ctx.fillStyle = TONES[t.tone];
-  const value = fitText(ctx, t.value, w - 48 * k, 40 * k, 800, 22 * k);
+  ctx.fillText(tile.label.toLocaleUpperCase(currentLang()), x + 24 * k, y + 38 * k);
+  ctx.fillStyle = TONES[tile.tone];
+  const value = fitText(ctx, tile.value, w - 48 * k, 40 * k, 800, 22 * k);
   ctx.fillText(value, x + 24 * k, y + 86 * k);
-  if (t.sub) {
+  if (tile.sub) {
     ctx.fillStyle = "#9aa0aa";
-    const sub = fitText(ctx, t.sub, w - 48 * k, 19 * k, 600, 14 * k);
+    const sub = fitText(ctx, tile.sub, w - 48 * k, 19 * k, 600, 14 * k);
     ctx.fillText(sub, x + 24 * k, y + 118 * k);
   }
 }
@@ -110,8 +111,13 @@ function drawTile(ctx: CanvasRenderingContext2D, t: Recap["tiles"][number], x: n
 const toPng = (canvas: HTMLCanvasElement) =>
   new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't draw the card"))), "image/png"));
 
-/** "My day · Mon 5 Oct", "My week · 28 Sep – 4 Oct". */
-const subtitle = (recap: Recap) => `${recap.kind === "week" ? "My week" : "My day"} · ${recap.date}`;
+/** "My day · Mon 5 Oct", "My week · 28 Sep – 4 Oct", "My month · September 2026". */
+const subtitle = (recap: Recap) =>
+  recap.kind === "month"
+    ? t("My month · {date}", { date: recap.date })
+    : recap.kind === "week"
+      ? t("My week · {date}", { date: recap.date })
+      : t("My day · {date}", { date: recap.date });
 
 /** The story card (9:16): the mascot big on top, its line, the tiles under it. */
 async function drawStory(recap: Recap, look: CardLook, name: string): Promise<Blob> {
@@ -169,12 +175,12 @@ async function drawStory(recap: Recap, look: CardLook, name: string): Promise<Bl
   const gap = 30;
   const gx = (STORY_W - (tw * 2 + gap)) / 2;
   const gy = by + bh + 70;
-  recap.tiles.forEach((t, i) => drawTile(ctx, t, gx + (i % 2) * (tw + gap), gy + Math.floor(i / 2) * (th + gap), tw, th, k));
+  recap.tiles.forEach((tile, i) => drawTile(ctx, tile, gx + (i % 2) * (tw + gap), gy + Math.floor(i / 2) * (th + gap), tw, th, k));
 
   ctx.fillStyle = "#6b7079";
   ctx.font = `600 28px ${FONT}`;
   ctx.textAlign = "center";
-  ctx.fillText(`${name} · not financial advice`, STORY_W / 2, STORY_H - 70);
+  ctx.fillText(t("{name} · not financial advice", { name }), STORY_W / 2, STORY_H - 70);
   ctx.textAlign = "left";
   return toPng(canvas);
 }
@@ -238,13 +244,13 @@ export async function drawRecapCard(recap: Recap, look: CardLook, name: string, 
   const tw = 320;
   const th = 138;
   const gap = 20;
-  recap.tiles.forEach((t, i) => drawTile(ctx, t, gx + (i % 2) * (tw + gap), gy + Math.floor(i / 2) * (th + gap), tw, th));
+  recap.tiles.forEach((tile, i) => drawTile(ctx, tile, gx + (i % 2) * (tw + gap), gy + Math.floor(i / 2) * (th + gap), tw, th));
 
   // Footer.
   ctx.fillStyle = "#6b7079";
   ctx.font = `600 18px ${FONT}`;
   ctx.textAlign = "right";
-  ctx.fillText(`${name} · not financial advice`, CARD_W - 60, CARD_H - 34);
+  ctx.fillText(t("{name} · not financial advice", { name }), CARD_W - 60, CARD_H - 34);
   ctx.textAlign = "left";
 
   return toPng(canvas);

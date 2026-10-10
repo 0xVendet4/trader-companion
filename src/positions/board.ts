@@ -3,6 +3,7 @@
 // toward the trader's target (or the next level), and the activity grouped by
 // day. Pure, so it is tested; the tab only draws what comes out.
 
+import { currentLang, t } from "../core/i18n";
 import type { ActivityItem, Position } from "../core/state";
 import type { PositionStats } from "./positions";
 
@@ -52,7 +53,7 @@ export function allocation(list: Held[], solValue: number, max = 5): Slice[] {
   parts.sort((a, b) => b.value - a.value);
   const top = parts.slice(0, max);
   const rest = parts.slice(max).reduce((s, x) => s + x.value, 0);
-  if (rest > 0) top.push({ key: "others", symbol: "Others", value: rest });
+  if (rest > 0) top.push({ key: "others", symbol: t("Others"), value: rest });
   return top.map((x) => ({ ...x, share: x.value / total }));
 }
 
@@ -63,6 +64,8 @@ export interface Progress {
   /** "target"/"stop": the trader's own; "level": the next multiple alert. */
   kind: "target" | "stop" | "level";
   label: string;
+  /** For "level": the multiple it leads to (3 for 3x). */
+  level?: number;
 }
 
 /**
@@ -75,14 +78,14 @@ export function progressOf(x: Held, levels: number[]): Progress | null {
   const { p, price, s } = x;
   const entry = s.entry;
   const clamp = (v: number) => Math.max(0, Math.min(1, v));
-  if (p.stop && price < entry && entry > p.stop) return { frac: clamp((entry - price) / (entry - p.stop)), kind: "stop", label: "to your stop" };
-  if (p.target && p.target > entry) return { frac: clamp((price - entry) / (p.target - entry)), kind: "target", label: "to your target" };
+  if (p.stop && price < entry && entry > p.stop) return { frac: clamp((entry - price) / (entry - p.stop)), kind: "stop", label: t("to your stop") };
+  if (p.target && p.target > entry) return { frac: clamp((price - entry) / (p.target - entry)), kind: "target", label: t("to your target") };
   if (s.multiple == null) return null;
   const ups = [...levels].filter((l) => l > 1).sort((a, b) => a - b);
   const next = ups.find((l) => l > s.multiple!);
   if (next == null) return null;
   const prev = [1, ...ups].filter((l) => l <= s.multiple!).pop() ?? 1;
-  return { frac: clamp((s.multiple - prev) / (next - prev)), kind: "level", label: `to ${next}x` };
+  return { frac: clamp((s.multiple - prev) / (next - prev)), kind: "level", label: t("to {level}x", { level: next }), level: next };
 }
 
 /** The activity, newest first, under one heading per day ("Today", "Yesterday", "Mon 6"). */
@@ -95,10 +98,10 @@ export function byDay(items: ActivityItem[], now = new Date()): { label: string;
     const start = dayStart(d);
     const label =
       start === today
-        ? "Today"
+        ? t("Today")
         : start === today - 86_400_000
-          ? "Yesterday"
-          : `${d.toLocaleDateString("en-US", { weekday: "short" })} ${d.getDate()}`;
+          ? t("Yesterday")
+          : `${d.toLocaleDateString(currentLang(), { weekday: "short" })} ${d.getDate()}`;
     const last = groups[groups.length - 1];
     if (last && last.label === label) last.items.push(a);
     else groups.push({ label, items: [a] });
@@ -108,15 +111,16 @@ export function byDay(items: ActivityItem[], now = new Date()): { label: string;
 
 /** The ticker's line for a buy or sell just seen in the trader's own wallet. */
 export function ownFeedLine(c: { symbol: string; side: ActivityItem["side"]; usd: number }, usd: (n: number) => string): { text: string; tone: "up" | "down" } | null {
+  const p = { symbol: c.symbol, usd: usd(c.usd) };
   switch (c.side) {
     case "opened":
-      return { text: `You bought ${c.symbol} · ${usd(c.usd)}`, tone: "up" };
+      return { text: t("You bought {symbol} · {usd}", p), tone: "up" };
     case "bought":
-      return { text: `You bought more ${c.symbol} · ${usd(c.usd)}`, tone: "up" };
+      return { text: t("You bought more {symbol} · {usd}", p), tone: "up" };
     case "sold":
-      return { text: `You sold some ${c.symbol} · ${usd(c.usd)}`, tone: "down" };
+      return { text: t("You sold some {symbol} · {usd}", p), tone: "down" };
     case "closed":
-      return { text: `You sold all your ${c.symbol} · ${usd(c.usd)}`, tone: "down" };
+      return { text: t("You sold all your {symbol} · {usd}", p), tone: "down" };
     default:
       return null;
   }

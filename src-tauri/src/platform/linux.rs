@@ -387,13 +387,18 @@ pub fn fullscreen_busy() -> bool {
     false
 }
 
+/// No buttons on Linux notifications here: the page sends the plain one.
+pub fn alert_toast(_identifier: &str, _title: &str, _body: &str, _buttons: (&str, &str), _on_action: impl Fn(&str) + Send + 'static) -> bool {
+    false
+}
+
 /// Ctrl+Alt is not AltGr on Linux: a Ctrl+Alt shortcut types nothing.
 pub fn ctrl_alt_types(_vk: u16, _shift: bool) -> Option<String> {
     None
 }
 
 /// The account's full name: the first field of the passwd GECOS entry
-/// ("Chris Silva,,,"), or nothing when it is unset. From Coucou's
+/// ("Ana Souza,,,"), or nothing when it is unset. From Coucou's
 /// platform/linux.rs.
 pub fn user_full_name() -> Option<String> {
     unsafe {

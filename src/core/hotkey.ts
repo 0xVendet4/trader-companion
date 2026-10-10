@@ -3,16 +3,18 @@
 // the page has focus.
 
 import { IS_TAURI } from "./bridge";
+import { N_, t } from "./i18n";
 import { keyName, type ShortcutId } from "./shortcuts";
 
 export const HOTKEY_CHOICES: [string, string][] = [
   ["CommandOrControl+Shift+Space", "Ctrl + Shift + Space"],
   ["Alt+Shift+Space", "Alt + Shift + Space"],
   ["CommandOrControl+Alt+T", "Ctrl + Alt + T"],
-  ["", "Off"],
+  ["", N_("Off")],
 ];
 
 export function hotkeyLabel(accel: string): string {
+  if (!accel) return t("Off");
   return HOTKEY_CHOICES.find(([a]) => a === accel)?.[1] ?? accel.replace(/CommandOrControl/g, "Ctrl").replace(/\+/g, " + ");
 }
 

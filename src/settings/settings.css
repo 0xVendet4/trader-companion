@@ -145,6 +145,9 @@ h2 {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  /* One line, whatever the language: the row gives way, not the button. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn:disabled {
@@ -362,7 +365,7 @@ h2 {
 @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12%); } }
 @keyframes jump { 0% { transform: translateY(0); } 40% { transform: translateY(-14%); } 100% { transform: translateY(0); } }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4%); } 75% { transform: translateX(4%); } }
-@keyframes sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes sway { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-2.5%) scale(0.99, 1.02); } }
 @keyframes droop { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.95); } }
 
 .mascot-fx { display: none; }

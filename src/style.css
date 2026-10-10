@@ -1162,6 +1162,11 @@ body.passing #island {
   animation: droop 4s ease-in-out infinite;
 }
 
+/* Asleep, he breathes slower (and sinks a little: Mascot.apply). */
+.mascot[data-state="sleepy"] .mascot-body {
+  animation-duration: 5.5s;
+}
+
 @keyframes breathe {
   0%, 100% { transform: scale(1, 1); }
   50% { transform: scale(1.015, 0.97); }
@@ -1185,9 +1190,11 @@ body.passing #island {
   75% { transform: translateX(4%); }
 }
 
+/* Bored, worried, unsure: a slow bob in place. Nothing in Candy tilts sideways
+   (the user's call): only up, down, squash and stretch. */
 @keyframes sway {
-  0%, 100% { transform: rotate(-4deg); }
-  50% { transform: rotate(4deg); }
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-2.5%) scale(0.99, 1.02); }
 }
 
 @keyframes droop {
@@ -1207,10 +1214,6 @@ body.passing #island {
 .motion-wiggle {
   animation: wiggle 0.3s ease-in-out 4;
   transform-origin: 50% 90%;
-}
-
-.motion-flip {
-  animation: flip 0.7s ease-in-out 1;
 }
 
 .motion-spin {
@@ -1236,20 +1239,20 @@ body.passing #island {
   animation: jitter 0.16s linear infinite;
 }
 
-/* Curious: the head tilts, and stays tilted. */
+/* Curious: perks up a little, and stays up. */
 .motion-tilt {
   animation: tilt 0.5s ease-out forwards;
 }
 
-/* Dizzy: a slow, wobbly sway. */
+/* Dizzy: a slow, wobbly drift, upright. */
 .motion-woozy {
   animation: woozy 1.3s ease-in-out infinite;
   transform-origin: 50% 90%;
 }
 
 @keyframes woozy {
-  0%, 100% { transform: rotate(-6deg) translateX(-3%); }
-  50% { transform: rotate(6deg) translateX(3%); }
+  0%, 100% { transform: translateX(-3%) scale(1.02, 0.98); }
+  50% { transform: translateX(3%) scale(0.98, 1.02); }
 }
 
 @keyframes jitter {
@@ -1259,7 +1262,7 @@ body.passing #island {
 }
 
 @keyframes tilt {
-  to { transform: rotate(-8deg); }
+  to { transform: translateY(-4%) scale(0.98, 1.03); }
 }
 
 .motion-dance {
@@ -1284,17 +1287,16 @@ body.passing #island {
 }
 
 @keyframes dance {
-  0%, 50%, 100% { transform: translate(0, 0) rotate(0); }
-  25% { transform: translate(-8%, -4%) rotate(-8deg); }
-  75% { transform: translate(8%, -4%) rotate(8deg); }
+  0%, 50%, 100% { transform: translateY(0) scale(1.05, 0.95); }
+  25%, 75% { transform: translateY(-8%) scale(0.97, 1.04); }
 }
 
 /* A breath in, then the sneeze. */
 @keyframes sneeze {
   0%, 100% { transform: none; }
-  40% { transform: translateY(2%) scale(1.05, 0.92) rotate(-4deg); }
-  55% { transform: translateY(-6%) scale(0.95, 1.08) rotate(8deg); }
-  70% { transform: translateY(0) rotate(-2deg); }
+  40% { transform: translateY(2%) scale(1.05, 0.92); }
+  55% { transform: translateY(-6%) scale(0.95, 1.08); }
+  70% { transform: translateY(0) scale(1.02, 0.98); }
 }
 
 /* Shy: it makes itself small for a moment. */
@@ -1330,16 +1332,11 @@ body.passing #island {
 }
 
 @keyframes wiggle {
-  0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-8deg); }
-  75% { transform: rotate(8deg); }
+  0%, 100% { transform: scale(1, 1); }
+  25% { transform: scale(1.07, 0.93); }
+  75% { transform: scale(0.95, 1.05); }
 }
 
-/* A look to one side and back: the "head turn". */
-@keyframes flip {
-  0%, 100% { transform: scaleX(1); }
-  35%, 65% { transform: scaleX(-1); }
-}
 
 @keyframes spin {
   0% { transform: rotate(0) scale(1); }
@@ -1348,9 +1345,9 @@ body.passing #island {
 }
 
 @keyframes dizzy {
-  0%, 100% { transform: rotate(0) translateX(0); }
-  25% { transform: rotate(-10deg) translateX(-5%); }
-  75% { transform: rotate(10deg) translateX(5%); }
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5%); }
+  75% { transform: translateX(5%); }
 }
 
 @keyframes squeeze {
@@ -2060,6 +2057,14 @@ select option {
   color: var(--dim-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* A label and its buttons: they wrap together, never apart. */
+.seg-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .seg.chains .seg-btn {
@@ -2211,6 +2216,49 @@ select option {
   color: var(--ink);
 }
 
+/* Column heads that sort the list; the value and volume heads switch what
+   they show, so their sort is the little arrow beside them. */
+.row.head .pick {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.row.head .sortable {
+  cursor: pointer;
+}
+
+.row.head .pick:hover,
+.row.head .sortable:hover {
+  color: var(--ink);
+}
+
+.sort-mark {
+  margin-left: 2px;
+}
+
+.sort-btn {
+  padding: 0 0 0 3px;
+  border: 0;
+  background: none;
+  color: var(--dim-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sort-btn:hover,
+.sort-btn.on,
+.sort-mark.on {
+  color: var(--ink);
+}
+
+/* A token pinned to the top of the list. */
+.pin-mark {
+  margin-left: 2px;
+  color: var(--amber);
+  font-size: 9px;
+}
+
 .c-txns {
   width: 64px;
   text-align: right;
@@ -2250,6 +2298,16 @@ select option {
 }
 
 .fng.tone-warn .fng-value {
+  color: var(--amber);
+}
+
+/* The next US release on the economic calendar: amber once its heads-up is near. */
+.cal .cal-when {
+  font-weight: 700;
+}
+
+.cal.soon b,
+.cal.soon .cal-when {
   color: var(--amber);
 }
 

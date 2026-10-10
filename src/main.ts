@@ -12,14 +12,24 @@ import { Companion } from "./companion";
 import { Island } from "./island/island";
 import { syncTrayIcon } from "./island/tray-icon";
 import { loadManifest } from "./mascot/mascot";
+import { devLang, pickLang, systemLangs, t, useLang } from "./core/i18n";
+
+/** The words Rust shows (the tray menu, the settings window's title), in the trader's language. */
+function syncRustLabels() {
+  void Bridge.setUiLabels([t("Open"), t("Wardrobe…"), t("Try the demo"), t("Settings…"), t("Pause / resume"), t("Quit")], t("Settings — Candy"));
+}
 
 async function main() {
   const root = document.getElementById("root");
   if (!root) return;
   if (!IS_TAURI) document.body.classList.add("browser");
 
-  const island = new Island(root);
   const [boot, manifest] = await Promise.all([Bridge.boot(), loadManifest()]);
+  // The words first: the island is built in the trader's language.
+  let lang = pickLang(devLang() ?? boot.settings.companion.language, systemLangs());
+  await useLang(lang);
+  const island = new Island(root);
+  if (IS_TAURI) syncRustLabels();
   State.settings = boot.settings;
   State.version = boot.version;
   State.os = boot.os ?? "browser";
@@ -69,6 +79,9 @@ async function main() {
   await onEvent<{ moved: boolean; x: number | null; y: number | null }>("float-drag-end", (e) =>
     island.floatDragEnded(e.moved, e.x, e.y),
   );
+
+  // An alert's Windows notification: its Open or Mute 1 h button, or a click on it.
+  await onEvent<{ action: string; key: string }>("toast-action", (e) => island.toastAction(e.action, e.key));
 
   // The global shortcuts (src/core/shortcuts.ts; page-only in a browser).
   // Settings asks how each one went, and has them all let go while it records
@@ -128,6 +141,15 @@ async function main() {
     Companion.applyExternal(s);
     island.applySettings();
     applyShortcuts();
+    // A new language: its words load, and the island is relabelled in place.
+    const next = pickLang(State.companion.language, systemLangs());
+    if (next !== lang) {
+      lang = next;
+      void useLang(next).then(() => {
+        island.relabel();
+        if (IS_TAURI) syncRustLabels();
+      });
+    }
     if (wantsMusic() !== watching) {
       watching = wantsMusic();
       if (IS_TAURI) void Bridge.setMediaWatch(watching);
@@ -137,6 +159,7 @@ async function main() {
 
   Companion.onEvent = (e) => island.showEvent(e);
   Companion.onFeeling = (state, line) => island.feel(state, line);
+  Companion.onTrade = (pnl) => island.tradeClosed(pnl);
   // The tray icon wears Candy's mood and colour, and a dot for an alert not seen yet.
   if (IS_TAURI) State.subscribe(syncTrayIcon);
   Companion.start();
@@ -145,7 +168,7 @@ async function main() {
   if (!IS_TAURI) {
     document.addEventListener("click", () => Sound.resume(), { once: true });
     // Dev-server handle for poking at the state from the dev tools.
-    if (import.meta.env.DEV) Object.assign(window, { __companion: { State, Companion, island } });
+    if (import.meta.env.DEV) Object.assign(window, { __companion: { State, Companion, island, useLang } });
   }
 }
 

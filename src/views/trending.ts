@@ -7,17 +7,19 @@ import { h, clear } from "./dom";
 import { chainTag, liquidityCell, pct, safetyBadge, tokenImg, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
 import { formatAge, formatUsd } from "../core/format";
+import { N_, t } from "../core/i18n";
 import { MAX_ROWS, ROW_H } from "../core/layout";
 import { State, type Timeframe, type TrendingItem, type TrendingSort } from "../core/state";
 import { ALL_CHAINS, CHAINS, type ChainId } from "../market/chains";
 import { rugcheckUrl } from "../market/safety";
 import { sortTrending } from "../market/trending";
 
+// "Vol", "MC" and "Liq" are trading shorthand, the same everywhere: not marked.
 const SORTS: [TrendingSort, string, string][] = [
-  ["volume", "Vol", "Volume in the chosen window"],
-  ["mcap", "MC", "Market cap"],
-  ["liquidity", "Liq", "Liquidity"],
-  ["newest", "New", "Newest pairs first"],
+  ["volume", "Vol", N_("Volume in the chosen window")],
+  ["mcap", "MC", N_("Market cap")],
+  ["liquidity", "Liq", N_("Liquidity")],
+  ["newest", N_("New"), N_("Newest pairs first")],
 ];
 
 const FRAMES: [Timeframe, string][] = [
@@ -59,8 +61,8 @@ export function buildTrending(actions: ViewActions): ViewHost {
 
   const lists = segment<"hot" | "fresh">(
     [
-      ["hot", "Hot", "Most boosted on DexScreener. Boosts are paid promotion: what's being pushed, not what's good."],
-      ["fresh", "New", "Newest token profiles"],
+      ["hot", t("Hot"), t("Most boosted on DexScreener. Boosts are paid promotion: what's being pushed, not what's good.")],
+      ["fresh", t("New"), t("Newest token profiles")],
     ],
     (v) => State.trendingList === v,
     (v) => {
@@ -71,7 +73,7 @@ export function buildTrending(actions: ViewActions): ViewHost {
 
   // Chains: "All", or any combination (at least one stays on).
   const chainItems: [ChainId | "all", string, string][] = [
-    ["all", "All", "Every chain"],
+    ["all", t("All"), t("Every chain")],
     ...ALL_CHAINS.map((c): [ChainId, string, string] => [c, CHAINS[c].tag, CHAINS[c].label]),
   ];
   const chains = segment<ChainId | "all">(
@@ -90,7 +92,7 @@ export function buildTrending(actions: ViewActions): ViewHost {
   chains.el.classList.add("chains");
 
   const sorts = segment<TrendingSort>(
-    SORTS,
+    SORTS.map(([v, label, title]): [TrendingSort, string, string] => [v, t(label), t(title)]),
     (v) => State.companion.trendingSort === v,
     (v) => {
       State.companion.trendingSort = v;
@@ -111,8 +113,8 @@ export function buildTrending(actions: ViewActions): ViewHost {
   const head = h(
     "div",
     { class: "row head" },
-    h("span", { class: "c-tok", text: "Token" }),
-    h("span", { class: "c-age", text: "Age" }),
+    h("span", { class: "c-tok", text: t("Token") }),
+    h("span", { class: "c-age", text: t("Age") }),
     h("span", { class: "c-mc", text: "MC" }),
     h("span", { class: "c-liq", text: "Liq" }),
     volHead,
@@ -131,15 +133,15 @@ export function buildTrending(actions: ViewActions): ViewHost {
   }
 
   function row(item: TrendingItem): HTMLElement {
-    const t = item.token;
+    const tok = item.token;
     const q = item.quote;
     const frame = State.companion.trendingFrame;
-    const watched = !!State.token(t.key);
+    const watched = !!State.token(tok.key);
     const plus = h(
       "button",
       {
         class: `icon-btn add ${watched ? "done" : ""}`,
-        title: watched ? "On your watchlist" : "Add to watchlist",
+        title: watched ? t("On your watchlist") : t("Add to watchlist"),
         onclick: (e: Event) => {
           e.stopPropagation();
           if (!watched) add(item);
@@ -149,23 +151,23 @@ export function buildTrending(actions: ViewActions): ViewHost {
     );
     const el = h(
       "div",
-      { class: "row", title: `${t.name} · open its page` },
+      { class: "row", title: t("{name} · open its page", { name: tok.name }) },
       h(
         "span",
         { class: "c-tok" },
-        tokenImg(t.imageUrl, t.symbol),
-        h("span", { class: "sym", text: t.symbol }),
-        State.companion.chains.length > 1 ? chainTag(t.chainId) : null,
-        safetyBadge(t, () => actions.openUrl(rugcheckUrl(t.address))),
+        tokenImg(tok.imageUrl, tok.symbol),
+        h("span", { class: "sym", text: tok.symbol }),
+        State.companion.chains.length > 1 ? chainTag(tok.chainId) : null,
+        safetyBadge(tok, () => actions.openUrl(rugcheckUrl(tok.address))),
       ),
-      h("span", { class: "c-age", text: formatAge(item.pairCreatedAt), title: "Pair age" }),
+      h("span", { class: "c-age", text: formatAge(item.pairCreatedAt), title: t("Pair age") }),
       h("span", { class: "c-mc", text: formatUsd(q?.marketCap) }),
       liquidityCell(q),
-      h("span", { class: "c-vol", text: formatUsd(q?.volume[frame]), title: "Volume" }),
+      h("span", { class: "c-vol", text: formatUsd(q?.volume[frame]), title: t("Volume in the chosen window") }),
       h("span", { class: "c-pct" }, pct(q?.change[frame])),
       h("span", { class: "c-add" }, plus),
     );
-    el.addEventListener("click", () => actions.openToken(t.key, t));
+    el.addEventListener("click", () => actions.openToken(tok.key, tok));
     return el;
   }
 
@@ -173,7 +175,13 @@ export function buildTrending(actions: ViewActions): ViewHost {
     "div",
     { class: "view trending" },
     h("div", { class: "seg-bar" }, lists.el, chains.el, note),
-    h("div", { class: "seg-bar" }, h("span", { class: "seg-label", text: "Sort" }), sorts.el, h("span", { class: "seg-label", text: "Window" }), frames.el),
+    // Each label stays with its buttons when a narrow island wraps the bar.
+    h(
+      "div",
+      { class: "seg-bar" },
+      h("span", { class: "seg-group" }, h("span", { class: "seg-label", text: t("Sort") }), sorts.el),
+      h("span", { class: "seg-group" }, h("span", { class: "seg-label", text: t("Window") }), frames.el),
+    ),
     head,
     rows,
     status,
@@ -192,10 +200,10 @@ export function buildTrending(actions: ViewActions): ViewHost {
       head.style.display = list.length ? "flex" : "none";
       status.style.display = list.length ? "none" : "block";
       status.textContent = State.trending.error
-        ? `DexScreener didn't answer (${State.trending.error}). Retrying…`
+        ? t("DexScreener didn't answer ({error}). Retrying…", { error: State.trending.error })
         : State.trending.updatedAt
-          ? "Nothing trending on these chains right now."
-          : "Loading trending tokens…";
+          ? t("Nothing trending on these chains right now.")
+          : t("Loading trending tokens…");
       const safety = list.map((x) => {
         const r = State.safety[x.token.key];
         return typeof r === "object" ? r.level : String(r);

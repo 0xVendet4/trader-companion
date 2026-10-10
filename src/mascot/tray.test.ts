@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Manifest } from "./mascot";
-import { trayKey, trayLook } from "./tray";
+import { TOOLTIP_MAX, trayKey, trayLook, trayTooltip } from "./tray";
 
 const manifest: Manifest = {
   name: "test",
@@ -35,5 +35,21 @@ describe("the tray icon", () => {
     expect(alerted.dot).toBe(true);
     expect(trayKey(alerted)).not.toBe(trayKey(quiet));
     expect(trayKey(trayLook(manifest, "idle", PINK, false, false))).toBe(trayKey(quiet));
+  });
+});
+
+describe("the tray tooltip", () => {
+  it("says which Candy, how today went and what moved most", () => {
+    expect(trayTooltip("0.1.13", { total: 0.42, count: 3, unit: "SOL" }, "BONK +12.4% today", false)).toBe(
+      "Candy 0.1.13\nToday: +0.42 SOL (3 trades)\nTop mover: BONK +12.4% today",
+    );
+    expect(trayTooltip("0.1.13", { total: -35, count: 1, unit: "USD" }, null, true)).toBe("Candy 0.1.13 (paused)\nToday: −35.0 USD (1 trade)");
+    expect(trayTooltip("0.1.13", null, null, false)).toBe("Candy 0.1.13\nToday: no trades yet");
+  });
+
+  it("never runs past what Windows shows", () => {
+    const long = trayTooltip("0.1.13", { total: 1, count: 2, unit: "SOL" }, `${"X".repeat(200)} +5% today`, false);
+    expect(long.length).toBe(TOOLTIP_MAX);
+    expect(long.endsWith("…")).toBe(true);
   });
 });

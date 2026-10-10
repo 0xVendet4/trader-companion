@@ -5,6 +5,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
+import { t } from "./i18n";
 import { normalizeSettings, type Settings } from "./state";
 
 export const IS_TAURI =
@@ -29,6 +30,8 @@ export interface DesktopInfo {
   mode: DesktopMode;
   /** He was on the desktop when the app last quit. */
   onDesktop: boolean;
+  /** His window is on screen right now (a page loading late missed the news). */
+  shown?: boolean;
 }
 
 /** An event for one window only (island ⇄ desktop Candy). Never throws. */
@@ -54,19 +57,45 @@ export interface BootInfo {
   firstName?: string | null;
 }
 
+/** The browser's settings. Ones that can't be read are left alone: the page runs on defaults and saves nothing. */
 function devLoad(): Settings {
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(DEV_KEY);
-    return normalizeSettings(raw ? JSON.parse(raw) : null);
+    raw = localStorage.getItem(DEV_KEY);
+    const s = normalizeSettings(raw ? JSON.parse(raw) : null);
+    booted = true;
+    return s;
   } catch {
+    booted = raw == null;
     return normalizeSettings(null);
   }
 }
 
+/**
+ * The settings were read in this page (from Rust in the app, from
+ * localStorage in a browser). Until they have, the page holds only defaults,
+ * and saving them would write an empty config over the trader's (a page
+ * reloaded while the app restarts can miss Rust for a moment): nothing is
+ * saved before.
+ */
+let booted = false;
+
 export const Bridge = {
   async boot(): Promise<BootInfo> {
-    const info = await call<BootInfo>("boot");
-    if (info) return { ...info, settings: normalizeSettings(info.settings) };
+    if (IS_TAURI) {
+      // Never the browser's fallback in the app: Rust is asked again, and a
+      // page that still can't reach it stops here rather than run on defaults.
+      for (let tries = 0; ; tries++) {
+        try {
+          const info = await invoke<BootInfo>("boot");
+          booted = true;
+          return { ...info, settings: normalizeSettings(info.settings) };
+        } catch (err) {
+          if (tries >= 20) throw err;
+          await new Promise((r) => setTimeout(r, 250));
+        }
+      }
+    }
     return {
       settings: devLoad(),
       screen: { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, scale: 1 },
@@ -75,6 +104,10 @@ export const Bridge = {
   },
 
   async saveSettings(settings: Settings): Promise<void> {
+    if (!booted) {
+      console.error("[companion] not saved: this page never read the settings");
+      return;
+    }
     if (IS_TAURI) {
       await call<void>("save_settings", { settings });
       return;
@@ -88,6 +121,14 @@ export const Bridge = {
 
   /** Candy's look on the tray icon: RGBA pixels, square, 16 to 64 px (see island/tray-icon.ts). */
   setTrayIcon: (rgba: number[], width: number, height: number) => call<void>("set_tray_icon", { rgba, width, height }),
+  /** The tray icon's hover text (see mascot/tray.ts trayTooltip). */
+  setTrayTooltip: (text: string) => call<void>("set_tray_tooltip", { text }),
+  /** The tray menu's six items and the settings window's title, in the trader's language. */
+  setUiLabels: (tray: string[], settingsTitle: string) => call<void>("set_ui_labels", { tray, settingsTitle }),
+  /** An alert's notification with Open and Mute 1 h (`buttons`: their words; Windows); false where there is none. */
+  async notifyAlert(title: string, body: string, key: string, buttons: [string, string]): Promise<boolean> {
+    return (await call<boolean>("notify_alert", { title, body, key, buttons })) ?? false;
+  },
 
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
   setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
@@ -131,7 +172,7 @@ export const Bridge = {
 
   /** Downloads the new code and starts its installer; resolves to what went wrong, or null once under way. */
   async startUpdate(): Promise<string | null> {
-    if (!IS_TAURI) return "Updates come with the app.";
+    if (!IS_TAURI) return t("Updates come with the app.");
     try {
       await invoke("start_update");
       return null;
@@ -156,6 +197,18 @@ export const Bridge = {
     const json = (await res.json().catch(() => null)) as { result?: T; error?: { message?: string } } | null;
     if (!res.ok || !json || json.error) throw new Error(json?.error?.message ?? `Solana RPC returned ${res.status}`);
     return json.result as T;
+  },
+
+  /**
+   * This week's economic calendar, as Forex Factory exports it (see
+   * src/market/calendar.ts): through Rust in the app, through the dev server's
+   * /api/calendar proxy in a browser (it sends no CORS headers).
+   */
+  async economicCalendar(): Promise<unknown> {
+    if (IS_TAURI) return invoke<unknown>("economic_calendar");
+    const res = await fetch("/api/calendar", { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`the calendar returned ${res.status}`);
+    return res.json();
   },
 
   /** Which of these sound files the trader put in the sounds folder (src-tauri/src/sounds.rs). */

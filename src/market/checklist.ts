@@ -4,6 +4,7 @@
 // It states what the data shows; it never says whether to buy.
 
 import { formatAge, formatUsd } from "../core/format";
+import { currentLang, t, tn } from "../core/i18n";
 import type { Quote, SafetyReport } from "../core/state";
 
 export type CheckId = "mint" | "freeze" | "lp" | "holders" | "age" | "liquidity";
@@ -38,51 +39,54 @@ export function checklistFor(quote: Quote | undefined, safety: SafetyReport | nu
   const risk = (re: RegExp) => safety?.risks.find((r) => re.test(r.name) && r.level !== "info");
   const noReport = (id: CheckId, label: string): CheckItem =>
     safety === undefined
-      ? { id, label, state: "unknown", detail: "Waiting for RugCheck…", waiting: true }
-      : { id, label, state: "unknown", detail: "No RugCheck report: check it yourself" };
+      ? { id, label, state: "unknown", detail: t("Waiting for RugCheck…"), waiting: true }
+      : { id, label, state: "unknown", detail: t("No RugCheck report: check it yourself") };
   const fromRugcheck = (id: CheckId, label: string, re: RegExp, okText: string): CheckItem => {
     if (!safety) return noReport(id, label);
     const r = risk(re);
+    // RugCheck's own words for a risk: shown as they came.
     return r ? { id, label, state: "warn", detail: r.value ? `${r.name} (${r.value})` : r.name } : { id, label, state: "ok", detail: okText };
   };
 
   const items: CheckItem[] = [
-    fromRugcheck("mint", "Mint authority", /mint authority/i, "Revoked: no new tokens can be made"),
-    fromRugcheck("freeze", "Freeze authority", /freeze authority/i, "Revoked: holders can't be frozen"),
+    fromRugcheck("mint", t("Mint authority"), /mint authority/i, t("Revoked: no new tokens can be made")),
+    fromRugcheck("freeze", t("Freeze authority"), /freeze authority/i, t("Revoked: holders can't be frozen")),
   ];
 
   // Locked liquidity: RugCheck's share, or its own flag.
-  if (!safety) items.push(noReport("lp", "Liquidity locked"));
+  const lpLabel = t("Liquidity locked");
+  if (!safety) items.push(noReport("lp", lpLabel));
   else {
     const unlocked = risk(/lp unlocked|liquidity.*unlocked|unlocked.*liquidity/i);
     const pct = safety.lpLockedPct;
-    if (unlocked || (pct != null && pct < LOW_LP_LOCK))
-      items.push({ id: "lp", label: "Liquidity locked", state: "warn", detail: pct != null ? `${Math.round(pct)}% locked` : unlocked!.name });
-    else items.push({ id: "lp", label: "Liquidity locked", state: pct != null ? "ok" : "unknown", detail: pct != null ? `${Math.round(pct)}% locked` : "RugCheck doesn't say" });
+    const locked = pct != null ? t("{pct}% locked", { pct: Math.round(pct) }) : null;
+    if (unlocked || (pct != null && pct < LOW_LP_LOCK)) items.push({ id: "lp", label: lpLabel, state: "warn", detail: locked ?? unlocked!.name });
+    else items.push({ id: "lp", label: lpLabel, state: pct != null ? "ok" : "unknown", detail: locked ?? t("RugCheck doesn't say") });
   }
 
-  items.push(fromRugcheck("holders", "Top holders", /holder/i, "No holder concentration flagged"));
+  items.push(fromRugcheck("holders", t("Top holders"), /holder/i, t("No holder concentration flagged")));
 
   const created = quote?.pairCreatedAt;
-  if (created == null) items.push({ id: "age", label: "Age", state: "unknown", detail: "Pair age unknown" });
-  else items.push({ id: "age", label: "Age", state: now - created < NEW_PAIR_MS ? "warn" : "ok", detail: `Pair created ${formatAge(created, now)} ago` });
+  if (created == null) items.push({ id: "age", label: t("Age"), state: "unknown", detail: t("Pair age unknown") });
+  else items.push({ id: "age", label: t("Age"), state: now - created < NEW_PAIR_MS ? "warn" : "ok", detail: t("Pair created {age} ago", { age: formatAge(created, now) }) });
 
-  if (!quote || quote.liquidityUsd == null) items.push({ id: "liquidity", label: "Real liquidity", state: "unknown", detail: "No liquidity figure yet" });
+  const liqLabel = t("Real liquidity");
+  if (!quote || quote.liquidityUsd == null) items.push({ id: "liquidity", label: liqLabel, state: "unknown", detail: t("No liquidity figure yet") });
   else if (quote.suspectLiquidity)
-    items.push({ id: "liquidity", label: "Real liquidity", state: "warn", detail: `Reported far above what backs it (${formatUsd(quote.liquidityUsd)} backed)` });
+    items.push({ id: "liquidity", label: liqLabel, state: "warn", detail: t("Reported far above what backs it ({usd} backed)", { usd: formatUsd(quote.liquidityUsd) }) });
   else
     items.push({
       id: "liquidity",
-      label: "Real liquidity",
+      label: liqLabel,
       state: quote.liquidityUsd < THIN_LIQUIDITY ? "warn" : "ok",
-      detail: `${formatUsd(quote.liquidityUsd)} backed by SOL / USDC`,
+      detail: t("{usd} backed by SOL / USDC", { usd: formatUsd(quote.liquidityUsd) }),
     });
   return items;
 }
 
 /** The lines still waiting on RugCheck once Candy has stopped waiting for it. */
 export function stopWaiting(items: CheckItem[]): CheckItem[] {
-  return items.map((i) => (i.waiting ? { id: i.id, label: i.label, state: "unknown", detail: "RugCheck didn't answer: check it yourself" } : i));
+  return items.map((i) => (i.waiting ? { id: i.id, label: i.label, state: "unknown", detail: t("RugCheck didn't answer: check it yourself") } : i));
 }
 
 export interface CheckSummary {
@@ -103,12 +107,15 @@ export function checklistSummary(items: CheckItem[], name: string): CheckSummary
   const flagged = items.filter((i) => i.state === "warn");
   const warn = flagged.length;
   const unknown = items.length - ok - warn;
+  // Each part stands on its own ("3 look fine"), so the line is a list of them.
   const parts: string[] = [];
-  if (ok === items.length) parts.push("nothing flagged");
-  else if (ok) parts.push(`${ok} ${ok === 1 ? "looks" : "look"} fine`);
-  if (warn) parts.push(`${warn} worth a closer look (${flagged.map((i) => i.label.toLowerCase()).join(", ")})`);
-  if (unknown) parts.push(`${unknown} he couldn't check`);
-  const line = `${name} checked ${items.length}: ${parts.join(", ")}.`;
-  const say = warn ? `${warn} to look at` : unknown ? `${unknown} I couldn't check` : "nothing flagged!";
+  if (ok === items.length) parts.push(t("nothing flagged"));
+  else if (ok) parts.push(tn(ok, "{n} looks fine", "{n} look fine"));
+  // English names them in lower case mid-sentence; other languages keep their own case (German nouns).
+  const named = flagged.map((i) => (currentLang() === "en" ? i.label.toLowerCase() : i.label));
+  if (warn) parts.push(tn(warn, "{n} worth a closer look ({labels})", "{n} worth a closer look ({labels})", { labels: named.join(", ") }));
+  if (unknown) parts.push(tn(unknown, "{n} he couldn't check", "{n} he couldn't check"));
+  const line = tn(items.length, "{name} checked {n}: {parts}.", "{name} checked {n}: {parts}.", { name, parts: parts.join(", ") });
+  const say = warn ? tn(warn, "{n} to look at", "{n} to look at") : unknown ? tn(unknown, "{n} I couldn't check", "{n} I couldn't check") : t("nothing flagged!");
   return { ok, warn, unknown, line, say, tone: warn ? "warn" : unknown ? "unknown" : "ok" };
 }

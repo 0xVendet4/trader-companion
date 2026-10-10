@@ -27,10 +27,12 @@ import {
 import { Companion } from "../companion";
 import { Bridge } from "../core/bridge";
 import { compact, formatAge, formatPct, formatUsd, valueCell, valueHead } from "../core/format";
+import { t } from "../core/i18n";
 import { MAX_ROWS, ROW_H } from "../core/layout";
 import { shareEntry, shareText } from "../core/share";
-import { MAX_NOTE, State, uid, type Quote, type Timeframe, type TrendingItem, type ValueColumn, type WatchToken } from "../core/state";
+import { MAX_NOTE, State, uid, type Quote, type Timeframe, type TrendingItem, type ValueColumn, type WatchSortKey, type WatchToken } from "../core/state";
 import { CHAINS } from "../market/chains";
+import { nextSort, sortWatchlist } from "../market/watchsort";
 import { parseInput } from "../market/dexscreener";
 import { folderMood, folderTokens } from "../market/folders";
 import { terminalLabel } from "../market/links";
@@ -64,13 +66,62 @@ const FRAME_LABEL: Record<Timeframe, string> = { m5: "5m", h1: "1h", h6: "6h", h
 
 const VALUE_MODES: ValueColumn[] = ["auto", "price", "mcap"];
 
+/** Trades over the volume window: the window's own count, or the 5-minute one; none for a major coin. */
+function tradesIn(q: Quote | undefined, frame: Timeframe): { buys: number; sells: number } | undefined {
+  return q?.major ? undefined : (q?.txns?.[frame] ?? (frame === "m5" ? q?.txnsM5 : undefined));
+}
+
+/** What a column sorts by for a token (see src/market/watchsort.ts). */
+function sortReading(tok: WatchToken, by: WatchSortKey): number | string | null {
+  const q = State.quotes[tok.key];
+  const frame = State.companion.volumeFrame;
+  switch (by) {
+    case "token":
+      return tok.symbol.toLowerCase();
+    case "value":
+      return (State.companion.valueColumn === "price" ? q?.priceUsd : q?.marketCap) ?? null;
+    case "volume":
+      return q?.major ? (frame === "h24" ? q.volume.h24 : null) : (q?.volume[frame] ?? null);
+    case "txns": {
+      const tx = tradesIn(q, frame);
+      return tx ? tx.buys + tx.sells : null;
+    }
+    default:
+      return q?.change[by] ?? null;
+  }
+}
+
 export function buildWatchlist(actions: ViewActions): ViewHost {
+  // Sorting: a click on a column head (or its arrow, for the two heads whose
+  // own click changes what they show) steps it through both ways and off.
+  const sortMarks: [WatchSortKey, HTMLElement][] = [];
+  const sortBy = (by: WatchSortKey) => {
+    Companion.setWatchlistSort(nextSort(State.companion.watchlistSort, by));
+    actions.blip();
+  };
+  const sortMark = (by: WatchSortKey, button: boolean) => {
+    const el = button
+      ? h("button", {
+          class: "sort-btn",
+          type: "button",
+          title: t("Sort by this column"),
+          onclick: (e: Event) => {
+            e.stopPropagation();
+            sortBy(by);
+          },
+        })
+      : h("span", { class: "sort-mark" });
+    sortMarks.push([by, el]);
+    return el;
+  };
+  const sortHead = (cls: string, label: string, by: WatchSortKey, title?: string) =>
+    h("span", { class: `${cls} sortable`, title: title ?? t("Sort by this column"), onclick: () => sortBy(by) }, label, sortMark(by, false));
   // The value column: price for major coins and market cap for the rest, or
   // one of them for all. A click on its head steps through the three.
   const valueHeadEl = () =>
     h("span", {
       class: "c-mc pick",
-      title: "Market cap, or price. Click to change: price for major coins and market cap for the rest, price for all, market cap for all.",
+      title: t("Market cap, or price. Click to change: price for major coins and market cap for the rest, price for all, market cap for all."),
       onclick: () => {
         const c = State.companion;
         c.valueColumn = VALUE_MODES[(VALUE_MODES.indexOf(c.valueColumn) + 1) % VALUE_MODES.length];
@@ -81,11 +132,12 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       },
     });
   const listValueHead = valueHeadEl();
+  listValueHead.className = "pick";
   const resultsValueHead = valueHeadEl();
   // The volume window: a click on the column head steps through them.
   const volHead = h("span", {
-    class: "c-vol pick",
-    title: "Volume over this window. Click to change it.",
+    class: "pick",
+    title: t("Volume over this window. Click to change it."),
     onclick: () => {
       const c = State.companion;
       c.volumeFrame = FRAMES[(FRAMES.indexOf(c.volumeFrame) + 1) % FRAMES.length];
@@ -96,7 +148,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   });
   // Folders: All, then the trader's own; "+" names a new one.
   const folders = h("div", { class: "folders" });
-  const folderField = field(actions, { class: "field folder-field", placeholder: "Folder name", maxlength: "16" });
+  const folderField = field(actions, { class: "field folder-field", placeholder: t("Folder name"), maxlength: "16" });
   folderField.style.display = "none";
   folderField.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -117,13 +169,13 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     const c = State.companion;
     const chip = (name: string, labelText: string, count: number) => {
       // A mini Candy in the folder's mood: its tokens' average move in the hour.
-      const mood = folderMood(name ? c.watchlist.filter((t) => t.folder === name) : c.watchlist, State.quotes);
+      const mood = folderMood(name ? c.watchlist.filter((tok) => tok.folder === name) : c.watchlist, State.quotes);
       const b = h(
         "button",
         {
           class: `folder ${c.activeFolder === name ? "on" : ""}`,
           type: "button",
-          title: mood.pct == null ? labelText : `${labelText}: ${formatPct(mood.pct)} in the hour, on average`,
+          title: mood.pct == null ? labelText : t("{folder}: {pct} in the hour, on average", { folder: labelText, pct: formatPct(mood.pct) }),
         },
         count ? miniCandy(mood.tone) : null,
         labelText,
@@ -137,9 +189,9 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       });
       return b;
     };
-    folders.append(chip("", "All", c.watchlist.length));
-    for (const f of c.folders) folders.append(chip(f, f, c.watchlist.filter((t) => t.folder === f).length));
-    const plus = h("button", { class: "folder add", type: "button", title: "New folder", text: "+" });
+    folders.append(chip("", t("All"), c.watchlist.length));
+    for (const f of c.folders) folders.append(chip(f, f, c.watchlist.filter((tok) => tok.folder === f).length));
+    const plus = h("button", { class: "folder add", type: "button", title: t("New folder"), text: "+" });
     plus.addEventListener("click", () => {
       folderField.style.display = "";
       folderField.dispatchEvent(new MouseEvent("mousedown"));
@@ -148,14 +200,14 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   }
 
   /** The row's "move to folder" picker, in place of its quick actions. */
-  function folderPicker(t: WatchToken, bar: HTMLElement, restore: () => void) {
+  function folderPicker(tok: WatchToken, bar: HTMLElement, restore: () => void) {
     clear(bar);
-    const choices: [string | undefined, string][] = [[undefined, "None"], ...State.companion.folders.map((f): [string, string] => [f, f])];
+    const choices: [string | undefined, string][] = [[undefined, t("None")], ...State.companion.folders.map((f): [string, string] => [f, f])];
     for (const [f, text] of choices) {
-      const b = h("button", { class: `folder mini ${t.folder === f ? "on" : ""}`, type: "button", text });
+      const b = h("button", { class: `folder mini ${tok.folder === f ? "on" : ""}`, type: "button", text });
       b.addEventListener("click", (e) => {
         e.stopPropagation();
-        Companion.moveToFolder(t.key, f);
+        Companion.moveToFolder(tok.key, f);
         actions.blip();
         actions.relayout();
       });
@@ -165,15 +217,15 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   }
 
   /** The row's note (why you're in, the exit plan), typed in place of its quick actions. */
-  function noteEditor(t: WatchToken, bar: HTMLElement, restore: () => void) {
+  function noteEditor(tok: WatchToken, bar: HTMLElement, restore: () => void) {
     clear(bar);
-    const input = field(actions, { class: "field note-field", placeholder: "Why you're in, the exit plan…", maxlength: String(MAX_NOTE), value: t.note ?? "" });
+    const input = field(actions, { class: "field note-field", placeholder: t("Why you're in, the exit plan…"), maxlength: String(MAX_NOTE), value: tok.note ?? "" });
     let done = false;
     const finish = (keep: boolean) => {
       if (done) return;
       done = true;
-      if (keep && input.value.trim() !== (t.note ?? "")) {
-        Companion.setNote(t.key, input.value);
+      if (keep && input.value.trim() !== (tok.note ?? "")) {
+        Companion.setNote(tok.key, input.value);
         actions.blip();
       }
       restore();
@@ -195,20 +247,20 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   const head = h(
     "div",
     { class: "row head" },
-    h("span", { class: "c-tok", text: "Token" }),
-    h("span", { class: "c-spark", text: "Chart" }),
-    listValueHead,
-    volHead,
-    h("span", { class: "c-txns", text: "Txns", title: "Buys / sells over the same window" }),
-    h("span", { class: "c-pct", text: "5m" }),
-    h("span", { class: "c-pct", text: "1h" }),
-    h("span", { class: "c-pct", text: "24h" }),
+    sortHead("c-tok", t("Token"), "token"),
+    h("span", { class: "c-spark", text: t("Chart") }),
+    h("span", { class: "c-mc" }, listValueHead, sortMark("value", true)),
+    h("span", { class: "c-vol" }, volHead, sortMark("volume", true)),
+    sortHead("c-txns", "Txns", "txns", t("Buys / sells over the same window. Click to sort.")),
+    sortHead("c-pct", "5m", "m5"),
+    sortHead("c-pct", "1h", "h1"),
+    sortHead("c-pct", "24h", "h24"),
   );
-  const empty = h("div", { class: "empty" }, "Search a token by name, or paste its address (CA) or a link, then hit Enter.");
+  const empty = h("div", { class: "empty" }, t("Search a token by name, or paste its address (CA) or a link, then hit Enter."));
 
   // Search results, shown in place of the list.
   const resultsTitle = h("span", { class: "results-title" });
-  const closeResults = iconBtn(ICONS.xmark, "Close the results", () => {
+  const closeResults = iconBtn(ICONS.xmark, t("Close the results"), () => {
     Companion.closeSearch();
     actions.relayout();
   });
@@ -216,11 +268,11 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   const resultsCols = h(
     "div",
     { class: "row head" },
-    h("span", { class: "c-tok", text: "Token" }),
+    h("span", { class: "c-tok", text: t("Token") }),
     resultsValueHead,
-    h("span", { class: "c-liq", text: "Liq", title: "Liquidity backed by SOL / USDC / ETH / BNB" }),
+    h("span", { class: "c-liq", text: "Liq", title: t("Liquidity backed by SOL / USDC / ETH / BNB") }),
     h("span", { class: "c-vol", text: "Vol 24h" }),
-    h("span", { class: "c-age", text: "Age" }),
+    h("span", { class: "c-age", text: t("Age") }),
     h("span", { class: "c-add" }),
   );
   const results = h("div", { class: "rows results" });
@@ -228,9 +280,9 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   results.style.maxHeight = `${(MAX_ROWS - 1) * ROW_H}px`;
   const resultsEl = h("div", { class: "results-pane" }, resultsHead, resultsCols, results);
 
-  const input = field(actions, { placeholder: "Search a token, or paste its address (CA) or link…" });
-  const add = btn("Add", "secondary", () => void submit());
-  const share = iconBtn(ICONS.link, "Copy a link to this watchlist", () => void shareList(), 2.2);
+  const input = field(actions, { placeholder: t("Search a token, or paste its address (CA) or link…") });
+  const add = btn(t("Add"), "secondary", () => void submit());
+  const share = iconBtn(ICONS.link, t("Copy a link to this watchlist"), () => void shareList(), 2.2);
   const note = h("span", { class: "note" });
   let busy = false;
   let noteTimer: number | null = null;
@@ -248,7 +300,7 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     busy = true;
     add.disabled = true;
     note.className = "note";
-    note.textContent = "Looking it up…";
+    note.textContent = t("Looking it up…");
     // An address (or a token link) pasted here is swallowed like a dropped one; a search is not.
     const byAddress = parseInput(text).kind === "address";
     if (byAddress) actions.mouth("open");
@@ -276,94 +328,105 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   async function shareList() {
     // Shares what is on screen: the folder shown, or everything under All.
     const entries = folderTokens(State.companion.watchlist, State.companion.activeFolder).map(shareEntry);
-    if (entries.length === 0) return flash("Add a token first.", false);
+    if (entries.length === 0) return flash(t("Add a token first."), false);
     const ok = await Bridge.copy(shareText(entries));
-    flash(ok ? "Token list copied: paste it into Import." : "Couldn't copy the list.", ok);
+    flash(ok ? t("Token list copied: paste it into Import.") : t("Couldn't copy the list."), ok);
     if (ok) actions.blip();
   }
 
   /** The chain tag is worth its room only once more than one chain is in play. */
-  const showChain = (t: WatchToken) => State.companion.chains.length > 1 || t.chainId !== "solana";
+  const showChain = (tok: WatchToken) => State.companion.chains.length > 1 || tok.chainId !== "solana";
 
-  function tokenCell(t: WatchToken, tag: HTMLElement | null): HTMLElement {
+  function tokenCell(tok: WatchToken, tag: HTMLElement | null): HTMLElement {
     return h(
       "span",
       { class: "c-tok" },
-      tokenImg(t.imageUrl, t.symbol),
-      h("span", { class: "sym", text: t.symbol }),
-      t.note ? h("span", { class: "note-mark", text: "✎", title: `Note: ${t.note}` }) : null,
+      tokenImg(tok.imageUrl, tok.symbol),
+      h("span", { class: "sym", text: tok.symbol }),
+      tok.pinned ? h("span", { class: "pin-mark", text: "★", title: t("Pinned to the top") }) : null,
+      tok.note ? h("span", { class: "note-mark", text: "✎", title: t("Note: {note}", { note: tok.note }) }) : null,
       tag,
-      safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
+      safetyFor(tok, () => actions.openUrl(rugcheckUrl(tok.address))),
     );
   }
 
   let key = "";
   let lastFolders = "";
+  /** The row order last drawn (see sync). */
+  let shownOrder = "";
+
+  /** The folder's tokens in the order to show them: pinned first, then the sort or the trader's order. */
+  const shownTokens = () => sortWatchlist(folderTokens(State.companion.watchlist, State.companion.activeFolder), State.companion.watchlistSort, sortReading);
 
   function renderList() {
     clear(rows);
     liveCells.clear();
     filledAt.clear();
-    for (const t of folderTokens(State.companion.watchlist, State.companion.activeFolder)) {
-      const q = State.quotes[t.key];
+    for (const tok of shownTokens()) {
+      const q = State.quotes[tok.key];
       const restoreBar = () => {
         actionsEl.classList.remove("editing");
         actionsEl.replaceChildren(...quick());
       };
       const quick = (): Node[] => [
-        iconBtn(ICONS.pencil, t.note ? `Note: ${t.note}` : "Add a note: why you're in, the exit plan", (e) => {
+        iconBtn(tok.pinned ? ICONS.star : ICONS.starOutline, tok.pinned ? t("Unpin") : t("Pin to the top"), (e) => {
           e.stopPropagation();
-          noteEditor(t, actionsEl, restoreBar);
+          Companion.togglePin(tok.key);
+          actions.blip();
         }, 2),
-        ...(t.coingecko
+        iconBtn(ICONS.pencil, tok.note ? t("Note: {note}", { note: tok.note }) : t("Add a note: why you're in, the exit plan"), (e) => {
+          e.stopPropagation();
+          noteEditor(tok, actionsEl, restoreBar);
+        }, 2),
+        ...(tok.coingecko
           ? []
           : [
-              iconBtn(ICONS.shield, "Checklist before an entry", (e) => {
+              iconBtn(ICONS.shield, t("Checklist before an entry"), (e) => {
                 e.stopPropagation();
                 actions.blip();
-                Companion.raise({ kind: "checklist", id: uid(), key: t.key });
+                Companion.raise({ kind: "checklist", id: uid(), key: tok.key });
               }),
             ]),
-        iconBtn(ICONS.folder, "Move to a folder", (e) => {
+        iconBtn(ICONS.folder, t("Move to a folder"), (e) => {
           e.stopPropagation();
-          folderPicker(t, actionsEl, restoreBar);
+          folderPicker(tok, actionsEl, restoreBar);
         }, 2),
-        iconBtn(ICONS.copy, "Copy the CA", (e) => {
+        iconBtn(ICONS.copy, t("Copy the CA"), (e) => {
           e.stopPropagation();
-          void Bridge.copy(t.address).then((ok) => flash(ok ? `${t.symbol} CA copied.` : "Couldn't copy.", ok));
+          void Bridge.copy(tok.address).then((ok) => flash(ok ? t("{symbol} CA copied.", { symbol: tok.symbol }) : t("Couldn't copy."), ok));
         }, 2),
         h(
           "button",
           {
             class: "icon-btn x2",
-            title: "Alert me at 2x market cap",
+            title: t("Alert me at 2x market cap"),
             onclick: (e: Event) => {
               e.stopPropagation();
-              const msg = Companion.addMultipleAlert(t.key, 2);
+              const msg = Companion.addMultipleAlert(tok.key, 2);
               if (msg) {
                 actions.blip();
-                flash(`${t.symbol}: ${msg}.`);
-              } else flash("No price yet. Try again in a moment.", false);
+                flash(`${tok.symbol}: ${msg}.`);
+              } else flash(t("No price yet. Try again in a moment."), false);
             },
           },
           "2x",
         ),
-        iconBtn(ICONS.bell, "Custom alert", (e) => {
+        iconBtn(ICONS.bell, t("Custom alert"), (e) => {
           e.stopPropagation();
-          State.alertDraftAddress = t.key;
+          State.alertDraftAddress = tok.key;
           actions.blip();
           actions.setView("alerts");
         }),
-        iconBtn(ICONS.xmark, "Remove", (e) => {
+        iconBtn(ICONS.xmark, t("Remove"), (e) => {
           e.stopPropagation();
-          Companion.removeToken(t.key);
+          Companion.removeToken(tok.key);
           actions.relayout();
         }),
       ];
       const actionsEl = h("span", { class: "row-actions" }, ...quick());
       const cells = {
         // A major's tag shows its rank, which comes with the quotes.
-        tag: tokenTag(t, showChain(t), q),
+        tag: tokenTag(tok, showChain(tok), q),
         spark: h("span", { class: "c-spark" }),
         mc: h("span", { class: "c-mc" }),
         vol: h("span", { class: "c-vol" }),
@@ -374,9 +437,13 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
       };
       const row = h(
         "div",
-        { class: "row", title: `Open ${t.symbol} on ${terminalLabel(State.companion.terminal, t)}${t.note ? `
-Note: ${t.note}` : ""}` },
-        tokenCell(t, cells.tag),
+        {
+          class: "row",
+          title:
+            t("Open {symbol} on {terminal}", { symbol: tok.symbol, terminal: terminalLabel(State.companion.terminal, tok) }) +
+            (tok.note ? `\n${t("Note: {note}", { note: tok.note })}` : ""),
+        },
+        tokenCell(tok, cells.tag),
         cells.spark,
         cells.mc,
         cells.vol,
@@ -386,10 +453,10 @@ Note: ${t.note}` : ""}` },
         cells.h24,
         actionsEl,
       );
-      row.addEventListener("click", () => actions.openToken(t.key));
+      row.addEventListener("click", () => actions.openToken(tok.key));
       rows.append(row);
-      liveCells.set(t.key, cells);
-      fillCells(t.key, q?.updatedAt ?? -1);
+      liveCells.set(tok.key, cells);
+      fillCells(tok.key, q?.updatedAt ?? -1);
     }
   }
 
@@ -404,19 +471,19 @@ Note: ${t.note}` : ""}` },
     if (!c || filledAt.get(key) === stampKey) return;
     filledAt.set(key, stampKey);
     const q = State.quotes[key];
-    const t = State.token(key);
-    if (c.tag && q?.major && t) setMajorTag(c.tag, t, q);
+    const tok = State.token(key);
+    if (c.tag && q?.major && tok) setMajorTag(c.tag, tok, q);
     c.spark.replaceChildren(sparkline(key));
     const value = valueCell(State.companion.valueColumn, q);
     c.mc.textContent = value.text;
     c.mc.title = value.title;
     // A major coin: only its 24 h volume (CoinGecko), and no trade count.
     c.vol.textContent = q?.major ? majorVolume(q, frame) : formatUsd(q?.volume[frame]);
-    const tx = q?.major ? undefined : (q?.txns?.[frame] ?? (frame === "m5" ? q?.txnsM5 : undefined));
+    const tx = tradesIn(q, frame);
     c.txns.replaceChildren();
     if (tx) {
       c.txns.append(h("span", { class: "buys", text: compact(tx.buys) }), "/", h("span", { class: "sells", text: compact(tx.sells) }));
-      c.txns.title = `${tx.buys} buys · ${tx.sells} sells, ${FRAME_LABEL[frame]}`;
+      c.txns.title = t("{buys} buys · {sells} sells, {window}", { buys: tx.buys, sells: tx.sells, window: FRAME_LABEL[frame] });
     } else c.txns.textContent = "—";
     c.m5.replaceChildren(pct(q?.change.m5));
     c.h1.replaceChildren(pct(q?.change.h1));
@@ -424,18 +491,18 @@ Note: ${t.note}` : ""}` },
   }
 
   function resultRow(item: TrendingItem, first: boolean): HTMLElement {
-    const t = item.token;
+    const tok = item.token;
     const q = item.quote;
-    const watched = !!State.token(t.key);
+    const watched = !!State.token(tok.key);
     const plus = h(
       "button",
       {
         class: `icon-btn add ${watched ? "done" : ""}`,
-        title: watched ? "On your watchlist" : `Add ${t.symbol} (${CHAINS[t.chainId].label})`,
+        title: watched ? t("On your watchlist") : t("Add {symbol} ({chain})", { symbol: tok.symbol, chain: CHAINS[tok.chainId].label }),
         onclick: (e: Event) => {
           e.stopPropagation();
           if (watched) return;
-          const res = Companion.addWatchToken(t);
+          const res = Companion.addWatchToken(tok);
           flash(res.message, res.ok);
           if (res.ok) {
             actions.blip();
@@ -449,23 +516,23 @@ Note: ${t.note}` : ""}` },
     );
     const el = h(
       "div",
-      { class: `row ${first ? "top" : ""}`, title: `${t.name} · ${t.address}\nClick to open its page; + to add it.` },
+      { class: `row ${first ? "top" : ""}`, title: `${tok.name} · ${tok.address}\n${t("Click to open its page; + to add it.")}` },
       h(
         "span",
         { class: "c-tok" },
-        tokenImg(t.imageUrl, t.symbol),
-        h("span", { class: "sym", text: t.symbol }),
-        tokenTag(t, true, q),
-        safetyFor(t, () => actions.openUrl(rugcheckUrl(t.address))),
-        h("span", { class: "tok-name", text: t.name }),
+        tokenImg(tok.imageUrl, tok.symbol),
+        h("span", { class: "sym", text: tok.symbol }),
+        tokenTag(tok, true, q),
+        safetyFor(tok, () => actions.openUrl(rugcheckUrl(tok.address))),
+        h("span", { class: "tok-name", text: tok.name }),
       ),
       h("span", { class: "c-mc", ...valueCell(State.companion.valueColumn, q) }),
       liquidityCell(q),
-      h("span", { class: "c-vol", text: q?.major ? majorVolume(q, "h24") : formatUsd(q?.volume.h24), title: "Volume, 24 h" }),
-      h("span", { class: "c-age", text: formatAge(item.pairCreatedAt), title: "Pair age" }),
+      h("span", { class: "c-vol", text: q?.major ? majorVolume(q, "h24") : formatUsd(q?.volume.h24), title: t("Volume, 24 h") }),
+      h("span", { class: "c-age", text: formatAge(item.pairCreatedAt), title: t("Pair age") }),
       h("span", { class: "c-add" }, plus),
     );
-    el.addEventListener("click", () => actions.openToken(t.key, t));
+    el.addEventListener("click", () => actions.openToken(tok.key, tok));
     return el;
   }
 
@@ -474,12 +541,12 @@ Note: ${t.note}` : ""}` },
     clear(results);
     const chains = State.companion.chains.map((c) => CHAINS[c].tag).join(" · ");
     resultsTitle.textContent = s.loading
-      ? `Searching “${s.query}” on ${chains}…`
+      ? t("Searching “{query}” on {chains}…", { query: s.query, chains })
       : s.error
-        ? `Search failed: ${s.error}`
+        ? t("Search failed: {error}", { error: s.error })
         : s.results.length
-          ? `“${s.query}” on ${chains} · real liquidity first · check the address before adding`
-          : `Nothing called “${s.query}” on ${chains}.`;
+          ? t("“{query}” on {chains} · real liquidity first · check the address before adding", { query: s.query, chains })
+          : t("Nothing called “{query}” on {chains}.", { query: s.query, chains });
     resultsCols.style.display = s.results.length ? "flex" : "none";
     s.results.forEach((item, i) => results.append(resultRow(item, i === 0)));
   }
@@ -501,19 +568,19 @@ Note: ${t.note}` : ""}` },
       volHead.textContent = `Vol ${FRAME_LABEL[State.companion.volumeFrame]}`;
       const c = State.companion;
       const list = folderTokens(c.watchlist, c.activeFolder);
-      listValueHead.textContent = valueHead(c.valueColumn, list.map((t) => State.quotes[t.key]));
+      listValueHead.textContent = valueHead(c.valueColumn, list.map((tok) => State.quotes[tok.key]));
       resultsValueHead.textContent = valueHead(c.valueColumn, State.search?.results.map((r) => r.quote) ?? []);
       const searching = State.search != null;
       folders.style.display = searching ? "none" : "";
-      const moods = ["", ...c.folders].map((f) => folderMood(f ? c.watchlist.filter((t) => t.folder === f) : c.watchlist, State.quotes).tone).join("");
-      const foldersKey = `${c.activeFolder}|${c.folders.join(",")}|${c.watchlist.map((t) => t.folder ?? "").join(",")}|${moods}`;
+      const moods = ["", ...c.folders].map((f) => folderMood(f ? c.watchlist.filter((tok) => tok.folder === f) : c.watchlist, State.quotes).tone).join("");
+      const foldersKey = `${c.activeFolder}|${c.folders.join(",")}|${c.watchlist.map((tok) => tok.folder ?? "").join(",")}|${moods}`;
       if (foldersKey !== lastFolders && document.activeElement !== folderField) {
         lastFolders = foldersKey;
         renderFolders();
       }
       empty.textContent = c.activeFolder && c.watchlist.length
-        ? `Nothing in ${c.activeFolder} yet. Add a token below, or move one here from All with the folder button on its row.`
-        : "Search a token by name, or paste its address (CA) or a link, then hit Enter.";
+        ? t("Nothing in {folder} yet. Add a token below, or move one here from All with the folder button on its row.", { folder: c.activeFolder })
+        : t("Search a token by name, or paste its address (CA) or a link, then hit Enter.");
       head.style.display = !searching && list.length ? "flex" : "none";
       rows.style.display = searching ? "none" : "";
       empty.style.display = !searching && !list.length ? "block" : "none";
@@ -535,22 +602,33 @@ Note: ${t.note}` : ""}` },
         return;
       }
 
+      for (const [by, mark] of sortMarks) {
+        const on = c.watchlistSort?.by === by;
+        mark.textContent = on ? (c.watchlistSort!.desc ? "▾" : "▴") : mark.tagName === "BUTTON" ? "↕" : "";
+        mark.classList.toggle("on", on);
+      }
+
       // The list itself (which tokens, in what order, how they're labelled) is
-      // rebuilt when it changes — that only follows a click or a setting. The
-      // numbers update in place on every poll, so prices never freeze under
-      // the mouse and the hover actions never flicker.
+      // rebuilt when it changes: a click, a setting, or a sorted column whose
+      // numbers moved. The numbers update in place on every poll, so prices
+      // never freeze under the mouse and the hover actions never flicker; a
+      // sorted list waits to reorder until the mouse is off it.
+      const shown = shownTokens();
+      const order = shown.map((tok) => tok.key).join("|");
       const structure =
         c.activeFolder +
-        list.map((t) => `${t.key}${t.note ?? ""}`).join("|") +
-        safety(list.map((t) => t.key)).join(",") +
+        shown.map((tok) => `${tok.key}${tok.note ?? ""}${tok.pinned ? "*" : ""}`).sort().join("|") +
+        safety(list.map((tok) => tok.key)).join(",") +
         State.companion.terminal +
-        State.companion.chains.join();
-      if (structure !== key) {
+        State.companion.chains.join() +
+        JSON.stringify(c.watchlistSort);
+      if (structure !== key || (order !== shownOrder && !rows.matches(":hover"))) {
         key = structure;
+        shownOrder = order;
         renderList();
         return;
       }
-      for (const t of list) fillCells(t.key, State.quotes[t.key]?.updatedAt ?? -1);
+      for (const tok of list) fillCells(tok.key, State.quotes[tok.key]?.updatedAt ?? -1);
     },
     tick() {
       this.sync();

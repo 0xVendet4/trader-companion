@@ -10,6 +10,7 @@
 // selling: the app shows numbers, the trader decides.
 
 import { formatPct, formatPrice, formatUsd } from "../core/format";
+import { N_, t } from "../core/i18n";
 import type { AlertKind, AlertRule, EventTone, Quote, Sample, WatchToken } from "../core/state";
 
 /** Minimum time between two firings of the same rule. */
@@ -28,13 +29,13 @@ export const HISTORY_MS = 65 * 60_000;
 export const WINDOW_CHOICES = [5, 15, 30, 60];
 
 export const KIND_LABELS: Record<AlertKind, string> = {
-  priceAbove: "Price above",
-  priceBelow: "Price below",
-  mcapAbove: "Market cap above",
-  mcapBelow: "Market cap below",
-  pctUp: "Up at least",
-  pctDown: "Down at least",
-  liqDrop: "Liquidity drops",
+  priceAbove: N_("Price above"),
+  priceBelow: N_("Price below"),
+  mcapAbove: N_("Market cap above"),
+  mcapBelow: N_("Market cap below"),
+  pctUp: N_("Up at least"),
+  pctDown: N_("Down at least"),
+  liqDrop: N_("Liquidity drops"),
 };
 
 export function usesWindow(kind: AlertKind): boolean {
@@ -47,16 +48,24 @@ export function usesPercent(kind: AlertKind): boolean {
 
 /** "Price above $0.0₅35", "Up at least 20% in 5 min". */
 export function describeRule(rule: AlertRule): string {
-  const label = KIND_LABELS[rule.kind];
+  const price = formatPrice(rule.value);
+  const level = formatUsd(rule.value);
+  const p = { pct: rule.value, minutes: rule.windowMin };
   switch (rule.kind) {
     case "priceAbove":
+      return t("Price above {price}", { price });
     case "priceBelow":
-      return `${label} ${formatPrice(rule.value)}`;
+      return t("Price below {price}", { price });
     case "mcapAbove":
+      return t("Market cap above {level}", { level });
     case "mcapBelow":
-      return `${label} ${formatUsd(rule.value)}`;
-    default:
-      return `${label} ${rule.value}% in ${rule.windowMin} min`;
+      return t("Market cap below {level}", { level });
+    case "pctUp":
+      return t("Up at least {pct}% in {minutes} min", p);
+    case "pctDown":
+      return t("Down at least {pct}% in {minutes} min", p);
+    case "liqDrop":
+      return t("Liquidity drops {pct}% in {minutes} min", p);
   }
 }
 
@@ -178,7 +187,7 @@ export function evaluateRules(
   for (const rule of rules) {
     if (!rule.enabled) continue;
     const quote = quotes[rule.address];
-    const token = tokens.find((t) => t.key === rule.address);
+    const token = tokens.find((tok) => tok.key === rule.address);
     if (!quote || !token) continue;
 
     const check = checkRule(rule, quote, history[rule.address] ?? [], now);
@@ -200,25 +209,29 @@ function firingText(
   quote: Quote,
   measured: number | null,
 ): { title: string; detail: string; tone: EventTone } {
-  const sym = token.symbol;
-  const detail = `MC ${formatUsd(quote.marketCap)} · ${formatPrice(quote.priceUsd)} · liq ${formatUsd(quote.liquidityUsd)}`;
+  const symbol = token.symbol;
+  const detail = t("MC {mcap} · {price} · liq {liq}", {
+    mcap: formatUsd(quote.marketCap),
+    price: formatPrice(quote.priceUsd),
+    liq: formatUsd(quote.liquidityUsd),
+  });
   switch (rule.kind) {
     case "priceAbove":
-      return { title: `${sym} hit ${formatPrice(quote.priceUsd)}`, detail, tone: "up" };
+      return { title: t("{symbol} hit {price}", { symbol, price: formatPrice(quote.priceUsd) }), detail, tone: "up" };
     case "priceBelow":
-      return { title: `${sym} fell to ${formatPrice(quote.priceUsd)}`, detail, tone: "down" };
+      return { title: t("{symbol} fell to {price}", { symbol, price: formatPrice(quote.priceUsd) }), detail, tone: "down" };
     case "mcapAbove":
-      return { title: `${sym} crossed ${formatUsd(rule.value)} market cap`, detail, tone: "up" };
+      return { title: t("{symbol} crossed {level} market cap", { symbol, level: formatUsd(rule.value) }), detail, tone: "up" };
     case "mcapBelow":
-      return { title: `${sym} dropped below ${formatUsd(rule.value)} market cap`, detail, tone: "down" };
+      return { title: t("{symbol} dropped below {level} market cap", { symbol, level: formatUsd(rule.value) }), detail, tone: "down" };
     case "pctUp":
-      return { title: `${sym} ${formatPct(measured)} in ${rule.windowMin} min`, detail, tone: "up" };
+      return { title: t("{symbol} {pct} in {minutes} min", { symbol, pct: formatPct(measured), minutes: rule.windowMin }), detail, tone: "up" };
     case "pctDown":
-      return { title: `${sym} ${formatPct(measured)} in ${rule.windowMin} min`, detail, tone: "down" };
+      return { title: t("{symbol} {pct} in {minutes} min", { symbol, pct: formatPct(measured), minutes: rule.windowMin }), detail, tone: "down" };
     case "liqDrop":
       return {
-        title: `${sym} liquidity down ${Math.round(measured ?? 0)}% in ${rule.windowMin} min`,
-        detail: `Could be liquidity being pulled. ${detail}`,
+        title: t("{symbol} liquidity down {pct}% in {minutes} min", { symbol, pct: Math.round(measured ?? 0), minutes: rule.windowMin }),
+        detail: t("Could be liquidity being pulled. {detail}", { detail }),
         tone: "warn",
       };
   }
@@ -287,9 +300,111 @@ export function volumeAlerts(
     out.push({
       token,
       ratio,
-      title: `${token.symbol} volume ${Math.round(ratio)}x the hour's pace`,
-      detail: `${formatUsd(q.volume.m5)} traded in 5 min (${formatUsd(q.volume.h1)} in the hour) · price ${formatPct(q.change.m5)} in 5 min`,
+      title: t("{symbol} volume {ratio}x the hour's pace", { symbol: token.symbol, ratio: Math.round(ratio) }),
+      detail: t("{m5} traded in 5 min ({h1} in the hour) · price {pct} in 5 min", {
+        m5: formatUsd(q.volume.m5),
+        h1: formatUsd(q.volume.h1),
+        pct: formatPct(q.change.m5),
+      }),
       tone: q.change.m5 < 0 ? "down" : "up",
+    });
+  }
+  return out;
+}
+
+// ── Market-cap milestones ─────────────────────────────────────────────────────
+
+/** Round market caps worth a word when a watched token crosses them, either way. */
+export const MCAP_MILESTONES = [1e6, 5e6, 10e6, 50e6, 100e6, 500e6, 1e9];
+/** The same token and milestone stay quiet this long after firing: a cap hovering on the line. */
+export const MILESTONE_COOLDOWN_MS = 60 * 60_000;
+
+/** "$5M", "$1B": a round milestone, written round. */
+const milestoneLabel = (level: number) => (level >= 1e9 ? `$${level / 1e9}B` : `$${level / 1e6}M`);
+
+/**
+ * The milestone a market cap crossed between two readings: going up, the
+ * highest one passed; going down, the lowest one lost. Null when none was.
+ */
+export function crossedMilestone(prev: number | null | undefined, next: number | null | undefined): { level: number; up: boolean } | null {
+  if (prev == null || next == null || !(prev > 0) || !(next > 0) || prev === next) return null;
+  const up = next > prev;
+  const crossed = MCAP_MILESTONES.filter((m) => (up ? prev < m && next >= m : prev >= m && next < m));
+  if (!crossed.length) return null;
+  return { level: up ? crossed[crossed.length - 1] : crossed[0], up };
+}
+
+/**
+ * The milestone alert for one token between its previous quote and this one,
+ * at most once per MILESTONE_COOLDOWN_MS for the same level (`last`, by key
+ * and level, is updated). Major coins are left out.
+ */
+export function milestoneAlert(token: WatchToken, prev: Quote | undefined, q: Quote, last: Map<string, number>, now: number): VolumeFiring | null {
+  if (q.major || !prev) return null;
+  const hit = crossedMilestone(prev.marketCap, q.marketCap);
+  if (!hit) return null;
+  const id = `${token.key}:${hit.level}`;
+  if (now - (last.get(id) ?? 0) < MILESTONE_COOLDOWN_MS) return null;
+  last.set(id, now);
+  const p = { symbol: token.symbol, level: milestoneLabel(hit.level) };
+  return {
+    token,
+    ratio: hit.level,
+    title: hit.up ? t("{symbol} passed {level} market cap", p) : t("{symbol} fell below {level} market cap", p),
+    detail: t("MC {mcap} · price {pct} in 1 h · liq {liq}", {
+      mcap: formatUsd(q.marketCap),
+      pct: formatPct(q.change.h1),
+      liq: formatUsd(q.liquidityUsd),
+    }),
+    tone: hit.up ? "up" : "down",
+  };
+}
+
+// ── Sell pressure ─────────────────────────────────────────────────────────────
+
+/** Sells per buy over 5 minutes that make it pressure. */
+export const SELL_PRESSURE_RATIO = 2.5;
+/** Fewer trades than this in 5 minutes never count: too little to read anything into. */
+export const SELL_PRESSURE_MIN_TXNS = 40;
+export const SELL_PRESSURE_COOLDOWN_MS = 30 * 60_000;
+
+/** Sells per buy over the last 5 minutes; null for a major coin or too few trades. */
+export function sellPressure(q: Quote): number | null {
+  if (q.major) return null;
+  const { buys, sells } = q.txnsM5;
+  if (buys + sells < SELL_PRESSURE_MIN_TXNS) return null;
+  return sells / Math.max(1, buys);
+}
+
+/**
+ * The watched tokens where sells far outnumber buys over 5 minutes, each at
+ * most once per SELL_PRESSURE_COOLDOWN_MS. Off: none.
+ */
+export function sellPressureAlerts(
+  tokens: WatchToken[],
+  quotes: Record<string, Quote>,
+  on: boolean,
+  last: Map<string, number>,
+  now: number,
+): VolumeFiring[] {
+  if (!on) return [];
+  const out: VolumeFiring[] = [];
+  for (const token of tokens) {
+    const q = quotes[token.key];
+    const ratio = q ? sellPressure(q) : null;
+    if (!q || ratio == null || ratio < SELL_PRESSURE_RATIO) continue;
+    if (now - (last.get(token.key) ?? 0) < SELL_PRESSURE_COOLDOWN_MS) continue;
+    last.set(token.key, now);
+    out.push({
+      token,
+      ratio,
+      title: t("{symbol}: {sells} sells and {buys} buys in 5 min", { symbol: token.symbol, sells: q.txnsM5.sells, buys: q.txnsM5.buys }),
+      detail: t("Price {pct} in 5 min · {volume} traded · liq {liq}", {
+        pct: formatPct(q.change.m5),
+        volume: formatUsd(q.volume.m5),
+        liq: formatUsd(q.liquidityUsd),
+      }),
+      tone: "down",
     });
   }
   return out;

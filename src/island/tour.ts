@@ -4,6 +4,7 @@
 // (Companion.hold), and no system notification goes out for a fictional coin.
 
 import { Companion } from "../companion";
+import { t } from "../core/i18n";
 import { State, uid, type AlertRule, type IslandViewName, type Settings } from "../core/state";
 import { DEMO_TOKENS, demoQuotes, driftLive, freshLive, type Live } from "../demo/market";
 import type { MascotState } from "../mascot/mascot";
@@ -72,7 +73,7 @@ export class Tour {
       { id: `demo-${uid()}`, address: candle.key, kind: "pctUp", value: 30, windowMin: 5, enabled: true },
       { id: `demo-${uid()}`, address: froge.key, kind: "liqDrop", value: 30, windowMin: 10, enabled: true },
     ];
-    s.companion.watchlist = DEMO_TOKENS.map((t) => ({ ...t }));
+    s.companion.watchlist = DEMO_TOKENS.map((tok) => ({ ...tok }));
     s.companion.alerts = rules;
     s.companion.activeFolder = "";
     s.companion.notifications = false;
@@ -92,8 +93,8 @@ export class Tour {
 
     this.host.setView("watchlist");
     this.host.react("wave", 1800);
-    this.host.say("A demo with made-up coins. Nothing here is saved.", 4200);
-    this.at(BEATS.alertNote, () => this.host.say("I'm watching CANDLE for +30% in 5 min, and FROGE's liquidity.", 4000));
+    this.host.say(t("A demo with made-up coins. Nothing here is saved."), 4200);
+    this.at(BEATS.alertNote, () => this.host.say(t("I'm watching CANDLE for +30% in 5 min, and FROGE's liquidity."), 4000));
     this.at(BEATS.fold, () => this.host.collapse());
     this.at(BEATS.pump, () => {
       const l = this.live.CANDLE;
@@ -109,7 +110,7 @@ export class Tour {
       l.m5 = -38.4;
       Companion.feed(demoQuotes(this.live));
     });
-    this.at(BEATS.bye, () => this.host.say("That was the demo. Your own list is back.", 3500));
+    this.at(BEATS.bye, () => this.host.say(t("That was the demo. Your own list is back."), 3500));
     this.at(TOUR_MS, () => this.stop());
   }
 

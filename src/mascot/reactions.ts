@@ -1,8 +1,11 @@
 // What the mascot does when poked. Pure: the island hands in the click streak,
 // the mood and a random pick; this hands back the reaction. Lines are playful
-// or state a number — never a tip to buy or sell.
+// or state a number — never a tip to buy or sell. The lines are English, marked
+// with N_: the island translates them where Candy says them (a market fact
+// comes already in the trader's language).
 
 import { formatPct } from "../core/format";
+import { N_, t } from "../core/i18n";
 import type { SoundName } from "../core/sound";
 import type { Quote, WatchToken } from "../core/state";
 import type { MascotState, Motion } from "./mascot";
@@ -36,28 +39,28 @@ export const HOLD_MS = 350;
 export const MAX_SQUEEZE_MS = 4000;
 
 /** Pressed and held. */
-export const SQUEEZE: Reaction = { state: "shocked", motion: "squeeze", sound: "eep", say: "eep!", ms: MAX_SQUEEZE_MS };
+export const SQUEEZE: Reaction = { state: "shocked", motion: "squeeze", sound: "eep", say: N_("eep!"), ms: MAX_SQUEEZE_MS };
 /** Let go after a squeeze. */
-export const RELEASE: Reaction = { state: "happy", motion: "spring", sound: "boing", say: "boing!", ms: 1200 };
+export const RELEASE: Reaction = { state: "happy", motion: "spring", sound: "boing", say: N_("boing!"), ms: 1200 };
 
 /** Single pokes, rotated so the same one never comes twice in a row. */
 export const POKES: Reaction[] = [
-  { state: "happy", motion: "hop", sound: "boing", say: "boop!", ms: 1200 },
-  { state: "love", motion: "squish", sound: "squeak", say: "hehe", ms: 1400 },
-  { state: "wave", motion: "wiggle", sound: "greet", say: "gm!", ms: 1500 },
-  { state: "shocked", motion: "jump", sound: "eep", say: "ah! you scared me", ms: 1300 },
-  { state: "happy", motion: "flip", sound: "whee", say: "watching the charts 👀", ms: 1600 },
-  { state: "love", motion: "hop", sound: "pop", say: "hydrate 💧", ms: 1500 },
+  { state: "happy", motion: "hop", sound: "boing", say: N_("boop!"), ms: 1200 },
+  { state: "love", motion: "squish", sound: "squeak", say: N_("hehe"), ms: 1400 },
+  { state: "wave", motion: "wiggle", sound: "greet", say: N_("gm!"), ms: 1500 },
+  { state: "shocked", motion: "jump", sound: "eep", say: N_("ah! you scared me"), ms: 1300 },
+  { state: "happy", motion: "hop", sound: "whee", say: N_("watching the charts 👀"), ms: 1600 },
+  { state: "love", motion: "hop", sound: "pop", say: N_("hydrate 💧"), ms: 1500 },
   { state: "idle", motion: "squish", sound: "squeak", say: "😉", ms: 1200, special: "wink" },
-  { state: "happy", motion: "squish", sound: "pop", say: "brb, counting candles", ms: 1700 },
-  { state: "sleepy", motion: "droop", sound: "hover", say: "five more minutes…", ms: 1600 },
-  { state: "confused", motion: "flip", sound: "blip", say: "hm?", ms: 1100 },
-  { state: "celebrate", motion: "dance", sound: "whee", say: "♪ la la la ♪", ms: 1900 },
-  { state: "shocked", motion: "sneeze", sound: "achoo", say: "achoo! 🤧", ms: 1200 },
-  { state: "love", motion: "shrink", sound: "squeak", say: "s-stop it 😳", ms: 1500 },
-  { state: "happy", motion: "backflip", sound: "tada", say: "ta-da!", ms: 1300 },
-  { state: "confused", motion: "sway", sound: "hmm", say: "hmm… 🤔", ms: 1700 },
-  { state: "wave", motion: "peek", sound: "pop", say: "peekaboo!", ms: 1500 },
+  { state: "happy", motion: "squish", sound: "pop", say: N_("brb, counting candles"), ms: 1700 },
+  { state: "sleepy", motion: "droop", sound: "hover", say: N_("five more minutes…"), ms: 1600 },
+  { state: "confused", motion: "squish", sound: "blip", say: N_("hm?"), ms: 1100 },
+  { state: "celebrate", motion: "dance", sound: "whee", say: N_("♪ la la la ♪"), ms: 1900 },
+  { state: "shocked", motion: "sneeze", sound: "achoo", say: N_("achoo! 🤧"), ms: 1200 },
+  { state: "love", motion: "shrink", sound: "squeak", say: N_("s-stop it 😳"), ms: 1500 },
+  { state: "happy", motion: "backflip", sound: "tada", say: N_("ta-da!"), ms: 1300 },
+  { state: "confused", motion: "sway", sound: "hmm", say: N_("hmm… 🤔"), ms: 1700 },
+  { state: "wave", motion: "peek", sound: "pop", say: N_("peekaboo!"), ms: 1500 },
 ];
 
 export interface PokeContext {
@@ -80,14 +83,14 @@ export function nextStreak(streak: number, lastClickAt: number, now: number): nu
 /** The watchlist token that moved most over 24h, as a plain fact. */
 export function topMoverFact(tokens: WatchToken[], quotes: Record<string, Quote>): { text: string; up: boolean } | null {
   let best: { t: WatchToken; pct: number } | null = null;
-  for (const t of tokens) {
-    const pct = quotes[t.key]?.change.h24;
+  for (const tok of tokens) {
+    const pct = quotes[tok.key]?.change.h24;
     if (pct == null || !Number.isFinite(pct)) continue;
-    if (!best || Math.abs(pct) > Math.abs(best.pct)) best = { t, pct };
+    if (!best || Math.abs(pct) > Math.abs(best.pct)) best = { t: tok, pct };
   }
   if (!best || Math.abs(best.pct) < 1) return null;
   const symbol = best.t.symbol.length > 12 ? `${best.t.symbol.slice(0, 11)}…` : best.t.symbol;
-  return { text: `${symbol} ${formatPct(best.pct)} today`, up: best.pct > 0 };
+  return { text: t("{symbol} {pct} today", { symbol, pct: formatPct(best.pct) }), up: best.pct > 0 };
 }
 
 /** The reaction to a poke, plus the index of the single poke used (or -1). */
@@ -95,55 +98,55 @@ export function pokeReaction(ctx: PokeContext): { reaction: Reaction; poke: numb
   // A streak escalates, whatever the mood.
   switch (ctx.streak) {
     case 2:
-      return { reaction: { state: "wave", motion: "wiggle", sound: "greet", say: "hi hi!", ms: 1300 }, poke: -1 };
+      return { reaction: { state: "wave", motion: "wiggle", sound: "greet", say: N_("hi hi!"), ms: 1300 }, poke: -1 };
     case 3:
-      return { reaction: { state: "celebrate", motion: "spin", sound: "whee", say: "wheee!", ms: 1300 }, poke: -1 };
+      return { reaction: { state: "celebrate", motion: "spin", sound: "whee", say: N_("wheee!"), ms: 1300 }, poke: -1 };
     case 5:
       return { reaction: { state: "dizzy", motion: "dizzy", sound: "dizzy", say: "@_@", ms: 2200 }, poke: -1 };
     case 8:
       return {
-        reaction: { state: "angry", motion: "shake", sound: "grumble", say: "ok ok, that's enough 😤", ms: ANNOYED_MS, special: "annoyed" },
+        reaction: { state: "angry", motion: "shake", sound: "grumble", say: N_("ok ok, that's enough 😤"), ms: ANNOYED_MS, special: "annoyed" },
         poke: -1,
       };
     case SECRET_STREAK:
       return {
-        reaction: { state: "celebrate", motion: "spin", sound: "alertUp", say: "new fit! ✨", ms: COSTUME_MS, special: "costume" },
+        reaction: { state: "celebrate", motion: "spin", sound: "alertUp", say: N_("new fit! ✨"), ms: COSTUME_MS, special: "costume" },
         poke: -1,
       };
   }
   if (ctx.streak > 3) {
     // Between the milestones: keep giggling, a little more fed up each time.
     const fed = ctx.streak > 5;
-    return { reaction: { state: fed ? "worried" : "happy", motion: "wiggle", sound: "blip", say: fed ? "hey…" : "hehe", ms: 900 }, poke: -1 };
+    return { reaction: { state: fed ? "worried" : "happy", motion: "wiggle", sound: "blip", say: fed ? N_("hey…") : N_("hehe"), ms: 900 }, poke: -1 };
   }
 
   // A lone click: the mood speaks first.
   switch (ctx.mood) {
     case "sleepy":
-      return { reaction: { state: "shocked", motion: "jump", sound: "eep", say: "huh? I'm up!", ms: 1500 }, poke: -1 };
+      return { reaction: { state: "shocked", motion: "jump", sound: "eep", say: N_("huh? I'm up!"), ms: 1500 }, poke: -1 };
     case "stop":
-      return { reaction: { state: "stop", motion: "wiggle", sound: "blip", say: "rules are rules 🛑", ms: 1600 }, poke: -1 };
+      return { reaction: { state: "stop", motion: "wiggle", sound: "blip", say: N_("rules are rules 🛑"), ms: 1600 }, poke: -1 };
     case "tired":
-      return { reaction: { state: "tired", motion: "squish", sound: "hover", say: "easy… breathe first 🧘", ms: 1600 }, poke: -1 };
+      return { reaction: { state: "tired", motion: "squish", sound: "hover", say: N_("easy… breathe first 🧘"), ms: 1600 }, poke: -1 };
     case "worried":
-      return { reaction: { state: "worried", motion: "wiggle", sound: "hover", say: "deep breaths…", ms: 1500 }, poke: -1 };
+      return { reaction: { state: "worried", motion: "wiggle", sound: "hover", say: N_("deep breaths…"), ms: 1500 }, poke: -1 };
     case "celebrate":
       return { reaction: { state: "celebrate", motion: "hop", sound: "alertUp", say: "🎉", ms: 1500 }, poke: -1 };
     case "sick":
-      return { reaction: { state: "sick", motion: "wiggle", sound: "hover", say: "ugh, rough hour 🤢", ms: 1600 }, poke: -1 };
+      return { reaction: { state: "sick", motion: "wiggle", sound: "hover", say: N_("ugh, rough hour 🤢"), ms: 1600 }, poke: -1 };
     case "excited":
-      return { reaction: { state: "excited", motion: "hop", sound: "whee", say: "so much going on!", ms: 1500 }, poke: -1 };
+      return { reaction: { state: "excited", motion: "hop", sound: "whee", say: N_("so much going on!"), ms: 1500 }, poke: -1 };
     case "dizzy":
-      return { reaction: { state: "dizzy", motion: "flip", sound: "dizzy", say: "whoa, too much moving", ms: 1600 }, poke: -1 };
+      return { reaction: { state: "dizzy", motion: "woozy", sound: "dizzy", say: N_("whoa, too much moving"), ms: 1600 }, poke: -1 };
     case "bored":
-      return { reaction: { state: "happy", motion: "hop", sound: "pop", say: "oh hi! finally, company", ms: 1600 }, poke: -1 };
+      return { reaction: { state: "happy", motion: "hop", sound: "pop", say: N_("oh hi! finally, company"), ms: 1600 }, poke: -1 };
     case "nervous":
-      return { reaction: { state: "nervous", motion: "shake", sound: "eep", say: "eek, scary out there 😬", ms: 1600 }, poke: -1 };
+      return { reaction: { state: "nervous", motion: "shake", sound: "eep", say: N_("eek, scary out there 😬"), ms: 1600 }, poke: -1 };
     case "focused":
-      return { reaction: { state: "focused", motion: "wiggle", sound: "blip", say: "shh, watching 👀", ms: 1400 }, poke: -1 };
+      return { reaction: { state: "focused", motion: "wiggle", sound: "blip", say: N_("shh, watching 👀"), ms: 1400 }, poke: -1 };
     case "happy":
       // A green watchlist: celebrate about half the time.
-      if (ctx.random < 0.5) return { reaction: { state: "celebrate", motion: "hop", sound: "alertUp", say: "green day! 🎉", ms: 1500 }, poke: -1 };
+      if (ctx.random < 0.5) return { reaction: { state: "celebrate", motion: "hop", sound: "alertUp", say: N_("green day! 🎉"), ms: 1500 }, poke: -1 };
       break;
   }
 

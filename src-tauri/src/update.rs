@@ -13,7 +13,8 @@ use std::path::Path;
 pub const REPO: &str = "0xVendet4/trader-companion";
 const BRANCH: &str = "main";
 
-fn client() -> &'static reqwest::Client {
+/// Candy's own client, named in its user agent (also for the calendar, see calendar.rs).
+pub(crate) fn client() -> &'static reqwest::Client {
     static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()

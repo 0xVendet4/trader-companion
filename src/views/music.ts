@@ -7,6 +7,7 @@ import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { type ViewActions, type ViewHost } from "./shared";
 import { Bridge } from "../core/bridge";
+import { t } from "../core/i18n";
 import { coverFor, formatTime, musicPosition, volumeLevel, withPlaying, type NowPlaying } from "../core/music";
 import { State } from "../core/state";
 
@@ -67,18 +68,18 @@ export function buildMusic(actions: ViewActions): ViewHost {
     const b = h("button", { class: "np-btn", title, onclick: () => onClick() }, svg(icon, 15, stroke ? { stroke } : {}));
     return b as HTMLButtonElement;
   };
-  const shuffle = button(ICONS.shuffle, "Shuffle", () => control("shuffle", State.nowPlaying?.shuffle ? 0 : 1, (p) => ({ ...p, shuffle: !p.shuffle })), 1.8);
-  const previous = button(ICONS.previous, "Previous", () => control("previous"));
-  const play = button(ICONS.play, "Play", () => {
+  const shuffle = button(ICONS.shuffle, t("Shuffle"), () => control("shuffle", State.nowPlaying?.shuffle ? 0 : 1, (p) => ({ ...p, shuffle: !p.shuffle })), 1.8);
+  const previous = button(ICONS.previous, t("Previous"), () => control("previous"));
+  const play = button(ICONS.play, t("Play"), () => {
     actions.blip();
     control("playPause", undefined, (p) => withPlaying(p, !p.playing, Date.now()));
   });
   play.classList.add("np-play");
-  const next = button(ICONS.next, "Next", () => control("next"));
-  const repeat = button(ICONS.repeat, "Repeat", () => control("repeat", State.nowPlaying?.repeat ? 0 : 1, (p) => ({ ...p, repeat: !p.repeat })), 1.8);
+  const next = button(ICONS.next, t("Next"), () => control("next"));
+  const repeat = button(ICONS.repeat, t("Repeat"), () => control("repeat", State.nowPlaying?.repeat ? 0 : 1, (p) => ({ ...p, repeat: !p.repeat })), 1.8);
 
   // Volume, where the player lets it be read (Linux players; not Windows).
-  const volume = h("input", { type: "range", min: 0, max: 1, step: 0.01, class: "range np-volume", title: "Volume" }) as HTMLInputElement;
+  const volume = h("input", { type: "range", min: 0, max: 1, step: 0.01, class: "range np-volume", title: t("Volume") }) as HTMLInputElement;
   const volumeIcon = h("span", { class: "np-vol-icon" });
   let volumeAt = 0;
   volume.addEventListener("input", () => {
@@ -95,7 +96,7 @@ export function buildMusic(actions: ViewActions): ViewHost {
   volume.addEventListener("change", () => void Bridge.mediaControl("volume", Number(volume.value)));
   const volumeRow = h("div", { class: "np-volume-row" }, volumeIcon, volume);
 
-  const empty = h("div", { class: "np-empty", text: "Nothing is playing on this PC right now." });
+  const empty = h("div", { class: "np-empty", text: t("Nothing is playing on this PC right now.") });
   const card = h(
     "div",
     { class: "np-card" },
@@ -138,7 +139,7 @@ export function buildMusic(actions: ViewActions): ViewHost {
     total.textContent = np.duration > 0 ? formatTime(np.duration) : "";
     clear(play);
     play.append(svg(np.playing ? ICONS.pause : ICONS.play, 17));
-    play.title = np.playing ? "Pause" : "Play";
+    play.title = np.playing ? t("Pause") : t("Play");
     previous.disabled = !np.canPrevious;
     next.disabled = !np.canNext;
     shuffle.style.display = np.shuffle == null ? "none" : "";

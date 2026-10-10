@@ -56,7 +56,9 @@ set "ASKED=1"
 echo.
 if not defined NODE call :install "Node.js" OpenJS.NodeJS.LTS
 if not defined RUST call :install "Rust" Rustlang.Rustup
-if not defined VC call :install "C++ build tools (a few GB, this one takes a while)" Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+rem --passive: Microsoft's installer shows its own progress bar (nothing to
+rem click), so this long step doesn't look stuck.
+if not defined VC call :install "C++ build tools (a few GB: often 10 to 30 minutes; Microsoft's window shows the progress)" Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 goto check
 
 :toolchain
@@ -77,6 +79,10 @@ if "%MODE%"=="--update" (
 echo.
 echo   Done. This window closes by itself.
 timeout /t 4 /nobreak >nul
+rem Candy's update opens this in its own window, which would otherwise stay
+rem open (cmd /k): exit closes it. Run by hand from a terminal, /b leaves that
+rem terminal alone.
+if "%MODE%"=="--update" exit 0
 exit /b 0
 
 rem Installs one tool with winget, quietly: call :install "label" id [args]
@@ -129,5 +135,6 @@ echo   %LOG%
 :end
 echo.
 if not "%MODE%"=="--build-only" pause
+if "%MODE%"=="--update" exit 1
 if defined FAILED exit /b 1
 exit /b 0

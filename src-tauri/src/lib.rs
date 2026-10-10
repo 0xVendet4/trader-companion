@@ -5,6 +5,7 @@
 // mascot shows is computed in the page from public market data; Rust only
 // places windows, stores preferences and opens links.
 
+mod calendar;
 mod desktop;
 mod identity;
 mod island;
@@ -237,6 +238,30 @@ fn fullscreen_busy() -> bool {
     platform::fullscreen_busy()
 }
 
+#[derive(Serialize, Clone)]
+struct ToastAction {
+    /// "open", "mute" or "show".
+    action: String,
+    key: String,
+}
+
+/// An alert's system notification with Open and Mute 1 h (Windows; see
+/// src/core/notify.ts). Its buttons come back to the island as "toast-action"
+/// with the token's key. False where there is none: the page sends the plain one.
+#[tauri::command]
+fn notify_alert(app: AppHandle, title: String, body: String, key: String, buttons: Option<(String, String)>) -> bool {
+    let cut = |s: &str, n: usize| s.chars().filter(|c| !c.is_control()).take(n).collect::<String>();
+    let (title, body, key) = (cut(&title, 120), cut(&body, 240), cut(&key, 100));
+    // The buttons' words in the trader's language, else English.
+    let (open, mute) = buttons.map(|(o, m)| (cut(&o, 24), cut(&m, 24))).unwrap_or_default();
+    let open = if open.is_empty() { "Open".to_owned() } else { open };
+    let mute = if mute.is_empty() { "Mute 1 h".to_owned() } else { mute };
+    let identifier = app.config().identifier.clone();
+    platform::alert_toast(&identifier, &title, &body, (&open, &mute), move |action| {
+        let _ = app.emit_to(island::WINDOW_LABEL, "toast-action", ToastAction { action: action.to_string(), key: key.clone() });
+    })
+}
+
 /// The clipboard's text for the paste shortcut (src/core/hotkey.ts). Whatever
 /// the user last copied: handed to the page as is, never logged.
 #[tauri::command]
@@ -281,6 +306,23 @@ fn set_tray_icon(app: AppHandle, rgba: Vec<u8>, width: u32, height: u32) {
     tray::set_icon(&app, rgba, width, height);
 }
 
+/// The tray icon's hover text: today's result and the top mover (see tray::set_tooltip).
+#[tauri::command]
+fn set_tray_tooltip(app: AppHandle, text: String) {
+    tray::set_tooltip(&app, &text);
+}
+
+/// The words Rust shows, in the trader's language (src/core/i18n.ts): the
+/// tray menu's six items (see tray::set_labels) and the settings window's title.
+#[tauri::command]
+fn set_ui_labels(app: AppHandle, tray: Vec<String>, settings_title: String) {
+    tray::set_labels(&app, &tray);
+    let title: String = settings_title.chars().filter(|c| !c.is_control()).take(60).collect();
+    if let (false, Some(win)) = (title.is_empty(), app.get_webview_window("settings")) {
+        let _ = win.set_title(&title);
+    }
+}
+
 /// Lets the pages write to the same log as the Rust side.
 #[tauri::command]
 fn log_line(message: String) {
@@ -292,6 +334,18 @@ fn log_line(message: String) {
 async fn check_update() -> Result<String, String> {
     update::latest_version().await.map_err(|e| {
         log::line(format!("update check: {e}"));
+        e
+    })
+}
+
+/// This week's economic calendar (see calendar.rs); the page checks each line.
+#[tauri::command]
+async fn economic_calendar() -> Result<serde_json::Value, String> {
+    calendar::this_week().await.map_err(|e| {
+        // A refusal still being waited out was logged when it happened.
+        if !e.ends_with("(not asked again yet)") {
+            log::line(format!("calendar: {e}"));
+        }
         e
     })
 }
@@ -742,6 +796,7 @@ pub fn run() {
             open_url,
             read_clipboard,
             fullscreen_busy,
+            notify_alert,
             set_media_watch,
             media_control,
             sounds::custom_sounds,
@@ -761,13 +816,19 @@ pub fn run() {
             shortcuts::shortcut_types,
             quit_app,
             set_tray_icon,
+            set_tray_tooltip,
+            set_ui_labels,
             log_line,
             check_update,
+            economic_calendar,
             start_update,
             solana_rpc,
             open_settings_window,
         ])
         .setup(move |app| {
+            // A menu bar app on a Mac: no Dock icon, no menu bar of its own (Info.plist says so too).
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let handle = app.handle().clone();
             tray::build(&handle)?;
             // Before the island: see create_settings_window. Candy's desktop

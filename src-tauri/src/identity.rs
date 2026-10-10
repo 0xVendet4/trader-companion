@@ -14,8 +14,8 @@ pub fn first_name() -> Option<&'static str> {
         .as_deref()
 }
 
-/// "Chris Silva" gives "Chris"; a login handle such as "chrissilva" or
-/// "c.silva2" gives nothing, because "Hey chrissilva!" reads worse than a
+/// "Ana Souza" gives "Ana"; a login handle such as "anasouza" or
+/// "a.souza2" gives nothing, because "Hey anasouza!" reads worse than a
 /// greeting with no name at all.
 pub fn first_name_from(full_name: &str) -> Option<String> {
     let full = full_name.trim();
@@ -23,7 +23,13 @@ pub fn first_name_from(full_name: &str) -> Option<String> {
         return None;
     }
     let first = full.split(' ').find(|p| !p.is_empty())?;
-    first.chars().all(is_name_part).then(|| first.to_string())
+    first.chars().all(is_name_part).then(|| capitalized(first))
+}
+
+/// "mariana" (an account named all in lowercase) is greeted as "Mariana".
+fn capitalized(word: &str) -> String {
+    let mut chars = word.chars();
+    chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
 }
 
 /// Where no full name is set the OS hands back the account name, so a single
@@ -46,19 +52,22 @@ mod tests {
     #[test]
     fn a_real_full_name_gives_its_first_word() {
         assert_eq!(first_name_from("Théodore Riant").as_deref(), Some("Théodore"));
-        assert_eq!(first_name_from("  Chris Silva ").as_deref(), Some("Chris"));
+        assert_eq!(first_name_from("  Ana Souza ").as_deref(), Some("Ana"));
         assert_eq!(first_name_from("Jean-Luc Picard").as_deref(), Some("Jean-Luc"));
         assert_eq!(first_name_from("O'Brien Miles").as_deref(), Some("O'Brien"));
         assert_eq!(first_name_from("João").as_deref(), Some("João"));
+        // Typed all in lowercase in the account: the greeting still capitalizes it.
+        assert_eq!(first_name_from("mariana souza").as_deref(), Some("Mariana"));
+        assert_eq!(first_name_from("élodie martin").as_deref(), Some("Élodie"));
     }
 
     #[test]
     fn login_handles_and_odd_names_give_nothing() {
-        for name in ["", "   ", "chrissilva", "c.silva2", "Chris2", "chris_s", "me@example", "Admin_01"] {
+        for name in ["", "   ", "anasouza", "a.souza2", "Ana2", "ana_s", "me@example", "Admin_01"] {
             assert_eq!(first_name_from(name), None, "{name}");
         }
         assert_eq!(first_name_from("R2-D2 Unit"), None);
         assert_eq!(first_name_from("Dr. Who"), None);
-        assert_eq!(first_name_from(&format!("Chris {}", "a".repeat(40))), None);
+        assert_eq!(first_name_from(&format!("Ana {}", "a".repeat(40))), None);
     }
 }

@@ -1,6 +1,8 @@
 // The crypto Fear & Greed index (alternative.me, public, no key). It moves
 // once a day, so it is read at most once an hour.
 
+import { N_ } from "../core/i18n";
+
 export interface FearGreed {
   /** 0 (extreme fear) to 100 (extreme greed). */
   value: number;
@@ -21,13 +23,17 @@ export function parseFearGreed(json: unknown, now: number): FearGreed | null {
   return { value: Math.round(value), label, fetchedAt: now };
 }
 
-/** Words for a value, when the API sends none. */
+/**
+ * Words for a value, when the API sends none. They are alternative.me's own
+ * five, kept in English (the label is data); marked so that t(label) shows
+ * them in the trader's language, whichever side they came from.
+ */
 export function fngWords(value: number): string {
-  if (value < 25) return "Extreme Fear";
-  if (value < 45) return "Fear";
-  if (value <= 55) return "Neutral";
-  if (value <= 75) return "Greed";
-  return "Extreme Greed";
+  if (value < 25) return N_("Extreme Fear");
+  if (value < 45) return N_("Fear");
+  if (value <= 55) return N_("Neutral");
+  if (value <= 75) return N_("Greed");
+  return N_("Extreme Greed");
 }
 
 /** Colour band for the header chip. */

@@ -11,13 +11,15 @@
 //          a first install and for Candy's own update (src-tauri/src/update.rs).
 // Linux:   builds the app and installs it for your user only: ~/.local/bin/candy,
 //          its app-menu entry and icon in ~/.local/share.
+// macOS:   builds Candy.app and puts it in ~/Applications, then starts it. Not
+//          tried on a Mac yet: CI builds it on GitHub's macOS runners.
 //
 // What Rust compiles is kept outside this folder, so an update from a new ZIP
-// only rebuilds what changed: %LOCALAPPDATA%\Candy-build, ~/.cache/candy/build.
-// Delete it to free a few GB.
+// only rebuilds what changed: %LOCALAPPDATA%\Candy-build, ~/.cache/candy/build,
+// ~/Library/Caches/Candy/build. Delete it to free a few GB.
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statfsSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,8 +53,9 @@ function run(line, env) {
 }
 const quiet = (line) => spawnSync(line, { shell: true, encoding: "utf8" });
 
-if (process.platform !== "win32" && process.platform !== "linux") {
-  fail("Candy builds on Windows and Linux for now.");
+const mac = process.platform === "darwin";
+if (process.platform !== "win32" && process.platform !== "linux" && !mac) {
+  fail("Candy builds on Windows, Linux and macOS.");
 }
 
 const env = { ...process.env };
@@ -61,7 +64,9 @@ if (!env.CARGO_TARGET_DIR) {
   env.CARGO_TARGET_DIR =
     process.platform === "win32"
       ? join(env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "Candy-build")
-      : join(env.XDG_CACHE_HOME || join(homedir(), ".cache"), "candy", "build");
+      : mac
+        ? join(homedir(), "Library", "Caches", "Candy", "build")
+        : join(env.XDG_CACHE_HOME || join(homedir(), ".cache"), "candy", "build");
 }
 
 step("Checking the tools (README → Install)");
@@ -77,6 +82,10 @@ if (process.platform === "win32") {
     }
     env.RUSTUP_TOOLCHAIN = "stable-x86_64-pc-windows-msvc";
   }
+} else if (mac) {
+  // Apple's compilers and the macOS SDK come with the Command Line Tools.
+  if (quiet("xcode-select -p").status !== 0) fail("Apple's Command Line Tools are missing: xcode-select --install");
+  say("Xcode Command Line Tools");
 } else {
   const libs = "webkit2gtk-4.1 gtk-layer-shell-0 librsvg-2.0 openssl";
   if (quiet(`pkg-config --exists ${libs}`).status !== 0) {
@@ -100,6 +109,8 @@ if (free !== null && free < needGB) {
 step("Building Candy from this source (10-20 minutes the first time, a few after)");
 if (process.platform === "win32") {
   if (!run("npm run pack", env)) fail("The build failed: the compiler's messages say why.");
+} else if (mac) {
+  if (!run("npx tauri build --bundles app", env)) fail("The build failed: the compiler's messages say why.");
 } else {
   if (!run("npx tauri build --no-bundle", env)) fail("The build failed: the compiler's messages say why.");
 }
@@ -118,6 +129,21 @@ if (process.platform === "win32") {
   const res = spawnSync(setup, ["/S", "/R"], { stdio: "inherit" });
   if (res.status !== 0) fail(`The installer stopped (exit code ${res.status}).`);
   say("Done: Candy is starting, and it's in your Start menu.");
+} else if (mac) {
+  const built = join(env.CARGO_TARGET_DIR, "release", "bundle", "macos", "Candy.app");
+  if (!existsSync(built)) fail(`No app at ${built}.`);
+  // For this user only: no password asked.
+  const app = join(homedir(), "Applications", "Candy.app");
+  mkdirSync(dirname(app), { recursive: true });
+  // A running Candy is closed first ([C]: the pattern doesn't match the shell
+  // running it); ditto copies the bundle as it is.
+  quiet("pkill -f '[C]andy.app/Contents/MacOS/'");
+  rmSync(`${app}.new`, { recursive: true, force: true });
+  if (!run(`ditto "${built}" "${app}.new"`)) fail(`Couldn't copy the app to ${dirname(app)}.`);
+  rmSync(app, { recursive: true, force: true });
+  renameSync(`${app}.new`, app);
+  quiet(`open "${app}"`);
+  say(`Done: Candy is starting (in the menu bar), and it's in ${dirname(app)}.`);
 } else {
   const home = homedir();
   const bin = join(env.CARGO_TARGET_DIR, "release", "trader-companion");

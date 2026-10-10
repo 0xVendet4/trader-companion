@@ -250,22 +250,95 @@ export function drawParticles(c: CanvasRenderingContext2D, particles: Particle[]
       c.lineTo(-r * 0.1, r * 0.35);
       c.lineTo(r * 0.5, -r * 0.35);
       c.stroke();
-    } else if (p.kind === "sweat") {
+    } else if (p.kind === "sweat" || p.kind === "tear" || p.kind === "rain") {
+      // A drop: sweat off the temple, a tear down the cheek, rain from the cloud.
+      const s = p.kind === "rain" ? 0.55 : p.kind === "tear" ? 0.8 * p.size : 1;
+      c.scale(s, s);
       c.beginPath();
       c.moveTo(0, -6);
       c.quadraticCurveTo(6, 2.5, 0, 6);
       c.quadraticCurveTo(-6, 2.5, 0, -6);
-      c.fillStyle = "#7dd3fc";
+      c.fillStyle = p.kind === "rain" ? "#93c5fd" : "#7dd3fc";
       c.fill();
+      if (p.kind !== "rain") c.stroke();
+    } else if (p.kind === "confetti" || p.kind === "firework") {
+      // A paper strip turning over as it falls, or a firework's spark.
+      const color = CONFETTI[Math.floor(p.rot * 10) % CONFETTI.length];
+      if (p.kind === "confetti") {
+        c.rotate(p.rot + p.age * 6);
+        c.scale(1, Math.abs(Math.cos(p.age * 9 + p.rot)) + 0.15);
+        c.fillStyle = color;
+        c.fillRect(-3 * p.size, -1.6 * p.size, 6 * p.size, 3.2 * p.size);
+      } else {
+        starPath(c, 0, 0, 3.6 * p.size, p.rot, 4);
+        c.fillStyle = color;
+        c.fill();
+      }
+    } else if (p.kind === "coin") {
+      // A gold coin spinning on itself.
+      c.scale(Math.abs(Math.cos(p.age * 8 + p.rot)) * 0.85 + 0.15, 1);
+      c.beginPath();
+      c.arc(0, 0, 6 * p.size, 0, Math.PI * 2);
+      c.fillStyle = "#facc15";
+      c.fill();
+      c.lineWidth = 1.4;
+      c.strokeStyle = "#a16207";
       c.stroke();
+      c.beginPath();
+      c.arc(0, 0, 3.4 * p.size, 0, Math.PI * 2);
+      c.strokeStyle = "#ca8a04";
+      c.lineWidth = 1;
+      c.stroke();
+    } else if (p.kind === "cloud") {
+      // A little grey cloud, bobbing.
+      c.translate(0, Math.sin(p.age * 3) * 0.8);
+      c.fillStyle = "#94a3b8";
+      c.beginPath();
+      c.arc(-8, 2, 6, 0, Math.PI * 2);
+      c.arc(0, -2, 8, 0, Math.PI * 2);
+      c.arc(8, 2, 6, 0, Math.PI * 2);
+      c.rect(-8, 2, 16, 6);
+      c.fill();
+    } else if (p.kind === "smoke") {
+      // A puff that spreads and greys as it rises.
+      const k = Math.max(0, p.age) / p.life;
+      c.fillStyle = `rgba(148,163,184,${0.55 * (1 - k)})`;
+      c.beginPath();
+      c.arc(0, 0, (2.5 + k * 6) * p.size, 0, Math.PI * 2);
+      c.fill();
+    } else if (p.kind === "flame") {
+      // The wick lit: a flame that flickers, `size` big.
+      c.rotate(-sway(p));
+      const f = 1 + Math.sin(p.age * 23) * 0.08 + Math.sin(p.age * 37) * 0.05;
+      const h = 11 * p.size * f;
+      const w = 4.5 * p.size;
+      const glow = c.createRadialGradient(0, -h * 0.35, 0, 0, -h * 0.35, h * 0.9);
+      glow.addColorStop(0, "rgba(253,224,71,0.35)");
+      glow.addColorStop(1, "rgba(253,224,71,0)");
+      c.fillStyle = glow;
+      c.fillRect(-h, -h * 1.3, h * 2, h * 1.6);
+      const flame = (fw: number, fh: number, color: string) => {
+        c.beginPath();
+        c.moveTo(0, -fh);
+        c.bezierCurveTo(fw * 1.1, -fh * 0.45, fw, 0, 0, 0);
+        c.bezierCurveTo(-fw, 0, -fw * 1.1, -fh * 0.45, 0, -fh);
+        c.fillStyle = color;
+        c.fill();
+      };
+      flame(w, h, "#fb923c");
+      flame(w * 0.55, h * 0.62, "#fde047");
     } else {
-      c.fillStyle = "#cbd5e1";
+      // A z asleep, "…" bored, a note while dancing.
+      c.fillStyle = p.kind === "note" ? "#c4b5fd" : "#cbd5e1";
       c.font = `800 ${13 * p.size}px system-ui, sans-serif`;
-      c.fillText("z", 0, 0);
+      c.fillText(p.kind === "note" ? (p.rot > 3 ? "♫" : "♪") : p.kind === "dots" ? "…" : "z", 0, 0);
     }
     c.restore();
   }
 }
+
+/** Confetti and firework colours: Candy's green, the up and down of the market, gold and two more. */
+const CONFETTI = ["#4ade80", "#f87171", "#facc15", "#60a5fa", "#c084fc", "#fb923c"];
 
 function heartPath(c: CanvasRenderingContext2D, x: number, y: number, s: number) {
   c.beginPath();

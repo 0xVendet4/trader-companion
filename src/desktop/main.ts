@@ -7,7 +7,8 @@
 // while the window is off screen or he sleeps.
 
 import "../style.css";
-import { Bridge, emitToWindow, onEvent, type DesktopMode } from "../core/bridge";
+import { Bridge, emitToWindow, onEvent, onSettingsChanged, type DesktopMode } from "../core/bridge";
+import { pickLang, systemLangs, useLang } from "../core/i18n";
 import { Sound } from "../core/sound";
 import {
   DESKTOP_EVENTS,
@@ -81,8 +82,6 @@ class DesktopCandy {
   async start() {
     this.manifest = await loadManifest();
     this.mascot.use(dressed(this.manifest, "none"));
-    const info = await Bridge.desktopInfo();
-    if (info) this.mode = info.mode;
 
     await onEvent<DesktopSnapshot>(DESKTOP_EVENTS.state, (s) => this.onSnapshot(s));
     await onEvent<Point>(DESKTOP_EVENTS.cursor, (p) => this.notePointer(p));
@@ -102,6 +101,13 @@ class DesktopCandy {
       this.stage.style.transition = "";
       this.stage.style.opacity = "1";
     });
+    // Asked once everything listens: a window shown while this page was still
+    // loading (at launch, or after a reload) would otherwise stay blank.
+    const info = await Bridge.desktopInfo();
+    if (info) {
+      this.mode = info.mode;
+      if (info.shown && !this.visible) this.setVisible(true);
+    }
     await emitToWindow(ISLAND, DESKTOP_EVENTS.ready);
   }
 
@@ -339,5 +345,19 @@ class DesktopCandy {
   }
 }
 
+/** The trader's language first (his speech bubble's words), then Candy; a language picked in Settings follows. */
+async function boot(stage: HTMLElement) {
+  const { settings } = await Bridge.boot();
+  let lang = pickLang(settings.companion.language, systemLangs());
+  await useLang(lang);
+  await onSettingsChanged((s) => {
+    const next = pickLang(s.companion.language, systemLangs());
+    if (next === lang) return;
+    lang = next;
+    void useLang(next);
+  });
+  await new DesktopCandy(stage).start();
+}
+
 const stage = document.getElementById("stage");
-if (stage) void new DesktopCandy(stage).start();
+if (stage) void boot(stage);

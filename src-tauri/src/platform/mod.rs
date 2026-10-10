@@ -1,6 +1,7 @@
 // Everything that differs between operating systems, behind one set of names:
-// the rest of the app calls `platform::…` and never touches Win32 or a Linux
-// API directly. Each OS file exposes the same functions; the compiler picks one.
+// the rest of the app calls `platform::…` and never touches Win32, a Linux or
+// a macOS API directly. Each OS file exposes the same functions; the compiler
+// picks one.
 
 #[cfg(windows)]
 mod windows;
@@ -11,6 +12,11 @@ pub use self::windows::*;
 mod linux;
 #[cfg(target_os = "linux")]
 pub use self::linux::*;
+
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use self::macos::*;
 
 /// Wall-clock time in the user's time zone, for log lines.
 pub struct LocalTime {
@@ -54,7 +60,7 @@ impl DesktopMode {
 
 /// Which part of the desktop Candy's window takes the mouse.
 #[derive(Clone, Copy, PartialEq, Debug)]
-#[cfg_attr(windows, allow(dead_code))]
+#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
 pub enum MouseShape {
     /// Nothing: every click goes to what is underneath (during a flight).
     Empty,

@@ -4,8 +4,14 @@ import { join, resolve, sep } from "node:path";
 
 // The public Solana RPC refuses calls carrying a web page's Origin. In the
 // browser (npm run dev) /api/rpc is forwarded without it; in the app the call
-// goes through Rust.
-const solanaProxy = {
+// goes through Rust. The economic calendar (src/market/calendar.ts) sends no
+// CORS headers: the same, at /api/calendar.
+const proxies = {
+  "/api/calendar": {
+    target: "https://nfs.faireconomy.media",
+    changeOrigin: true,
+    rewrite: () => "/ff_calendar_thisweek.json",
+  },
   "/api/rpc": {
     target: "https://api.mainnet-beta.solana.com",
     changeOrigin: true,
@@ -73,7 +79,7 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     host: "127.0.0.1",
-    proxy: solanaProxy,
+    proxy: proxies,
     // Rust's build output (a cargo test in another terminal locks its files,
     // and watching them crashed the server) and the recorded videos.
     watch: { ignored: ["**/target/**", "**/src-tauri/**", "**/release/**"] },

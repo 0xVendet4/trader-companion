@@ -4356,7 +4356,7 @@ dependencies = [
 
 [[package]]
 name = "trader-companion"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "dbus",
  "gtk",
@@ -4370,6 +4370,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-notification",
  "tauri-plugin-single-instance",
+ "tauri-winrt-notification",
  "windows 0.61.3",
 ]
 

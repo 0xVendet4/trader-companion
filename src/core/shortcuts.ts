@@ -5,24 +5,27 @@
 // layouts; the app also asks Windows what each Ctrl+Alt combination types on
 // the layouts installed, and leaves alone one that types something.
 
+import { N_, t } from "./i18n";
+
 export type ShortcutId = "toggle" | "paste" | "alert" | "nextTab" | "prevTab" | "mute" | "wardrobe" | "desktop";
 
 export interface ShortcutDef {
   id: ShortcutId;
+  /** In English (N_): t(label) where it is shown. */
   label: string;
   /** Its keys out of the box ("" = off until set). */
   dflt: string;
 }
 
 export const SHORTCUTS: ShortcutDef[] = [
-  { id: "toggle", label: "Show / hide the island", dflt: "CommandOrControl+Shift+Space" },
-  { id: "paste", label: "Add the copied token", dflt: "CommandOrControl+Alt+V" },
-  { id: "alert", label: "Open the waiting alert", dflt: "CommandOrControl+Alt+A" },
-  { id: "nextTab", label: "Next tab", dflt: "CommandOrControl+Alt+Right" },
-  { id: "prevTab", label: "Previous tab", dflt: "CommandOrControl+Alt+Left" },
-  { id: "mute", label: "Mute / unmute", dflt: "CommandOrControl+Alt+S" },
-  { id: "wardrobe", label: "Wardrobe", dflt: "CommandOrControl+Alt+G" },
-  { id: "desktop", label: "Candy to the desktop, or home", dflt: "CommandOrControl+Alt+D" },
+  { id: "toggle", label: N_("Show / hide the island"), dflt: "CommandOrControl+Shift+Space" },
+  { id: "paste", label: N_("Add the copied token"), dflt: "CommandOrControl+Alt+V" },
+  { id: "alert", label: N_("Open the waiting alert"), dflt: "CommandOrControl+Alt+A" },
+  { id: "nextTab", label: N_("Next tab"), dflt: "CommandOrControl+Alt+Right" },
+  { id: "prevTab", label: N_("Previous tab"), dflt: "CommandOrControl+Alt+Left" },
+  { id: "mute", label: N_("Mute / unmute"), dflt: "CommandOrControl+Alt+S" },
+  { id: "wardrobe", label: N_("Wardrobe"), dflt: "CommandOrControl+Alt+G" },
+  { id: "desktop", label: N_("Candy to the desktop, or home"), dflt: "CommandOrControl+Alt+D" },
 ];
 
 /** What a shortcut's registration came to, for Settings. */
@@ -86,7 +89,7 @@ export function recordPress(e: { ctrlKey: boolean; altKey: boolean; shiftKey: bo
 
 /** How keys read in Settings: "Ctrl + Alt + V". */
 export function keysLabel(accel: string): string {
-  if (!accel) return "Off";
+  if (!accel) return t("Off");
   return accel
     .split("+")
     .map((p) => ({ CommandOrControl: "Ctrl", Super: "Win", Left: "←", Right: "→", Up: "↑", Down: "↓", Comma: ",", Period: ".", Slash: "/", Minus: "-", Equal: "=" })[p] ?? p)
@@ -140,10 +143,10 @@ export function statusLabel(s: ShortcutStatus | undefined): string {
     case "off":
       return "";
     case "inUse":
-      return "In use by another app";
+      return t("In use by another app");
     case "twice":
-      return "Used twice";
+      return t("Used twice");
     case "types":
-      return `Types “${s.char}” on your keyboard`;
+      return t("Types “{char}” on your keyboard", { char: s.char });
   }
 }

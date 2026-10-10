@@ -1,6 +1,7 @@
 // Number formatting the way memecoin traders read it: market caps in K/M/B,
 // tiny prices with the zero count in subscript ($0.0₅3924), signed percentages.
 
+import { t } from "./i18n";
 import type { Quote, ValueColumn } from "./state";
 
 const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
@@ -14,15 +15,15 @@ type Valued = Pick<Quote, "priceUsd" | "marketCap" | "major"> | null | undefined
 export function valueCell(mode: ValueColumn, q: Valued): { text: string; title: string } {
   const price = mode === "price" || (mode === "auto" && !!q?.major);
   return price
-    ? { text: formatPrice(q?.priceUsd), title: `Price · market cap ${formatUsd(q?.marketCap)}` }
-    : { text: formatUsd(q?.marketCap), title: `Market cap · price ${formatPrice(q?.priceUsd)}` };
+    ? { text: formatPrice(q?.priceUsd), title: t("Price · market cap {mcap}", { mcap: formatUsd(q?.marketCap) }) }
+    : { text: formatUsd(q?.marketCap), title: t("Market cap · price {price}", { price: formatPrice(q?.priceUsd) }) };
 }
 
 /** The value column's head, for the rows under it. */
 export function valueHead(mode: ValueColumn, quotes: Valued[]): string {
-  if (mode !== "auto") return mode === "price" ? "Price" : "MC";
+  if (mode !== "auto") return mode === "price" ? t("Price") : t("MC");
   const majors = quotes.filter((q) => q?.major).length;
-  return majors === 0 ? "MC" : majors === quotes.length ? "Price" : "MC / Price";
+  return majors === 0 ? t("MC") : majors === quotes.length ? t("Price") : t("MC / Price");
 }
 
 function subscript(n: number): string {

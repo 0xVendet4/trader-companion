@@ -3,6 +3,7 @@
 // logged trade.
 
 import { formatPct } from "../core/format";
+import { t } from "../core/i18n";
 import type { MarketStatus, Quote, WatchToken } from "../core/state";
 import type { MascotState } from "../mascot/mascot";
 
@@ -52,11 +53,11 @@ export const WHIPSAW_PCT = 8;
 /** The watchlist token swinging hardest both ways (up in the hour, down in 5 min, or the reverse). */
 export function whipsaw(quoted: { t: WatchToken; q: Quote }[]): { t: WatchToken; q: Quote } | null {
   let best: { t: WatchToken; q: Quote; size: number } | null = null;
-  for (const { t, q } of quoted) {
+  for (const { t: tok, q } of quoted) {
     const { m5, h1 } = q.change;
     if (Math.abs(m5) < WHIPSAW_PCT || Math.abs(h1) < WHIPSAW_PCT || Math.sign(m5) === Math.sign(h1)) continue;
     const size = Math.abs(m5) + Math.abs(h1);
-    if (!best || size > best.size) best = { t, q, size };
+    if (!best || size > best.size) best = { t: tok, q, size };
   }
   return best && { t: best.t, q: best.q };
 }
@@ -64,11 +65,11 @@ export function whipsaw(quoted: { t: WatchToken; q: Quote }[]): { t: WatchToken;
 /** The watchlist token whose 5-minute volume jumped the most, if any did. */
 export function volumeSpike(quoted: { t: WatchToken; q: Quote }[]): { t: WatchToken; ratio: number } | null {
   let best: { t: WatchToken; ratio: number } | null = null;
-  for (const { t, q } of quoted) {
+  for (const { t: tok, q } of quoted) {
     const avg = q.volume.h1 / 12;
     if (!(avg > 0) || q.volume.m5 < VOLUME_SPIKE_MIN) continue;
     const ratio = q.volume.m5 / avg;
-    if (ratio >= VOLUME_SPIKE_X && (!best || ratio > best.ratio)) best = { t, ratio };
+    if (ratio >= VOLUME_SPIKE_X && (!best || ratio > best.ratio)) best = { t: tok, ratio };
   }
   return best;
 }
@@ -89,13 +90,20 @@ export const POSITION_DOWN_PCT = -30;
 /** The trader's own positions: the deepest drawdown first, then the best run. */
 function positionMood(list: PositionMood[] | undefined): Mood | null {
   if (!list?.length) return null;
-  const since = (p: PositionMood) => (p.fromTracking ? "since tracking" : "from entry");
   const down = list
     .filter((p) => p.pnlPct != null && p.pnlPct <= POSITION_DOWN_PCT)
     .sort((a, b) => a.pnlPct! - b.pnlPct!)[0];
-  if (down) return { state: "worried", text: `Your ${down.symbol}: ${formatPct(down.pnlPct)} ${since(down)}.`, lasting: "position", subject: down.symbol };
+  if (down) {
+    const p = { symbol: down.symbol, pct: formatPct(down.pnlPct) };
+    const text = down.fromTracking ? t("Your {symbol}: {pct} since tracking.", p) : t("Your {symbol}: {pct} from entry.", p);
+    return { state: "worried", text, lasting: "position", subject: down.symbol };
+  }
   const up = list.filter((p) => p.multiple != null && p.multiple >= POSITION_UP_X).sort((a, b) => b.multiple! - a.multiple!)[0];
-  if (up) return { state: "celebrate", text: `Your ${up.symbol}: ${(Math.floor(up.multiple! * 10) / 10).toFixed(1)}x ${since(up)}!`, lasting: "position", subject: up.symbol };
+  if (up) {
+    const p = { symbol: up.symbol, multiple: (Math.floor(up.multiple! * 10) / 10).toFixed(1) };
+    const text = up.fromTracking ? t("Your {symbol}: {multiple}x since tracking!", p) : t("Your {symbol}: {multiple}x from entry!", p);
+    return { state: "celebrate", text, lasting: "position", subject: up.symbol };
+  }
   return null;
 }
 
@@ -145,30 +153,31 @@ export function moodKey(mood: Mood): string {
 }
 
 export function computeMood(input: MoodInput): Mood {
-  if (input.stopped) return { state: "stop", text: "Daily loss limit hit. Tomorrow's another day." };
-  if (input.paused) return { state: "sleepy", text: "Paused. Use the tray icon to resume." };
+  if (input.stopped) return { state: "stop", text: t("Daily loss limit hit. Tomorrow's another day.") };
+  if (input.paused) return { state: "sleepy", text: t("Paused. Use the tray icon to resume.") };
   const own = positionMood(input.positions);
-  if (input.tokens.length === 0) return own ?? { state: "idle", text: "Add a token below and I'll watch it." };
-  if (input.status === "error") return { state: "confused", text: "DexScreener isn't answering. Retrying…" };
+  if (input.tokens.length === 0) return own ?? { state: "idle", text: t("Add a token below and I'll watch it.") };
+  if (input.status === "error") return { state: "confused", text: t("DexScreener isn't answering. Retrying…") };
 
   const quoted = input.tokens
-    .map((t) => ({ t, q: input.quotes[t.key] }))
+    .map((tok) => ({ t: tok, q: input.quotes[tok.key] }))
     .filter((x): x is { t: WatchToken; q: Quote } => x.q != null);
-  if (quoted.length === 0) return own ?? { state: "idle", text: "Fetching prices…" };
+  if (quoted.length === 0) return own ?? { state: "idle", text: t("Fetching prices…") };
 
   const warned = quoted.find((x) => input.liquidityWarnings.has(x.t.key));
-  if (warned) return { state: "shocked", text: `${warned.t.symbol} liquidity dropped. Heads up.`, lasting: "liquidity", subject: warned.t.key };
+  if (warned) return { state: "shocked", text: t("{symbol} liquidity dropped. Heads up.", { symbol: warned.t.symbol }), lasting: "liquidity", subject: warned.t.key };
 
-  if (input.coolingDown) return { state: "tired", text: "Post-loss cooldown. Breathe." };
+  if (input.coolingDown) return { state: "tired", text: t("Post-loss cooldown. Breathe.") };
 
   // The biggest 5-minute mover, either way.
   let mover = quoted[0];
   for (const x of quoted) if (Math.abs(x.q.change.m5) > Math.abs(mover.q.change.m5)) mover = x;
+  const move = { symbol: mover.t.symbol, pct: formatPct(mover.q.change.m5) };
   if (mover.q.change.m5 >= BIG_MOVE_M5) {
-    return { state: "celebrate", text: `${mover.t.symbol} ${formatPct(mover.q.change.m5)} in 5 min!`, lasting: "move", subject: mover.t.key };
+    return { state: "celebrate", text: t("{symbol} {pct} in 5 min!", move), lasting: "move", subject: mover.t.key };
   }
   if (mover.q.change.m5 <= -BIG_MOVE_M5) {
-    return { state: "shocked", text: `${mover.t.symbol} ${formatPct(mover.q.change.m5)} in 5 min.`, lasting: "move", subject: mover.t.key };
+    return { state: "shocked", text: t("{symbol} {pct} in 5 min.", move), lasting: "move", subject: mover.t.key };
   }
 
   // Up and down at once: the world is spinning.
@@ -176,7 +185,11 @@ export function computeMood(input: MoodInput): Mood {
   if (swing) {
     return {
       state: "dizzy",
-      text: `${swing.t.symbol} is all over the place: ${formatPct(swing.q.change.h1)} 1h, ${formatPct(swing.q.change.m5)} 5m.`,
+      text: t("{symbol} is all over the place: {h1} 1h, {m5} 5m.", {
+        symbol: swing.t.symbol,
+        h1: formatPct(swing.q.change.h1),
+        m5: formatPct(swing.q.change.m5),
+      }),
       lasting: "move",
       subject: swing.t.key,
     };
@@ -187,7 +200,7 @@ export function computeMood(input: MoodInput): Mood {
   if (spike) {
     return {
       state: "focused",
-      text: `${spike.t.symbol} volume is heating up: ${Math.round(spike.ratio)}x the hour's pace.`,
+      text: t("{symbol} volume is heating up: {ratio}x the hour's pace.", { symbol: spike.t.symbol, ratio: Math.round(spike.ratio) }),
       lasting: "move",
       subject: spike.t.key,
     };
@@ -195,32 +208,37 @@ export function computeMood(input: MoodInput): Mood {
 
   // Late at night only a big move (above) wakes it up.
   if (input.nightSleep && input.hour != null && input.hour >= NIGHT_FROM && input.hour < NIGHT_TO) {
-    return { state: "sleepy", text: "It's late. Sleep is part of the strategy." };
+    return { state: "sleepy", text: t("It's late. Sleep is part of the strategy.") };
   }
 
   // The trader's own money comes before the watchlist's average.
   if (own) return own;
 
   const avgH1 = quoted.reduce((s, x) => s + x.q.change.h1, 0) / quoted.length;
-  if (avgH1 <= ROUGH_H1) return { state: "sick", text: `Rough hour: watchlist ${formatPct(avgH1)} avg (1h).`, lasting: "trend" };
-  if (avgH1 >= TREND_H1) return { state: "happy", text: `Watchlist is green: ${formatPct(avgH1)} avg (1h).`, lasting: "trend" };
-  if (avgH1 <= -TREND_H1) return { state: "worried", text: `Watchlist is red: ${formatPct(avgH1)} avg (1h).`, lasting: "trend" };
+  const avg = { pct: formatPct(avgH1) };
+  if (avgH1 <= ROUGH_H1) return { state: "sick", text: t("Rough hour: watchlist {pct} avg (1h).", avg), lasting: "trend" };
+  if (avgH1 >= TREND_H1) return { state: "happy", text: t("Watchlist is green: {pct} avg (1h).", avg), lasting: "trend" };
+  if (avgH1 <= -TREND_H1) return { state: "worried", text: t("Watchlist is red: {pct} avg (1h).", avg), lasting: "trend" };
 
   const sol = input.sol;
-  if (sol && sol.change.h1 >= SOL_MOVE_H1) return { state: "happy", text: `SOL ${formatPct(sol.change.h1)} in the last hour. Good vibes.`, lasting: "sol" };
-  if (sol && sol.change.h1 <= -SOL_MOVE_H1) return { state: "worried", text: `SOL ${formatPct(sol.change.h1)} in the last hour. Careful out there.`, lasting: "sol" };
+  if (sol && sol.change.h1 >= SOL_MOVE_H1) {
+    return { state: "happy", text: t("SOL {pct} in the last hour. Good vibes.", { pct: formatPct(sol.change.h1) }), lasting: "sol" };
+  }
+  if (sol && sol.change.h1 <= -SOL_MOVE_H1) {
+    return { state: "worried", text: t("SOL {pct} in the last hour. Careful out there.", { pct: formatPct(sol.change.h1) }), lasting: "sol" };
+  }
 
   if (input.fearGreed != null && input.fearGreed >= EXTREME_GREED) {
-    return { state: "excited", text: `Extreme greed in crypto: ${input.fearGreed}/100.`, lasting: "trend" };
+    return { state: "excited", text: t("Extreme greed in crypto: {value}/100.", { value: input.fearGreed }), lasting: "trend" };
   }
   if (input.fearGreed != null && input.fearGreed <= EXTREME_FEAR) {
-    return { state: "nervous", text: `Extreme fear in crypto: ${input.fearGreed}/100.`, lasting: "trend" };
+    return { state: "nervous", text: t("Extreme fear in crypto: {value}/100.", { value: input.fearGreed }), lasting: "trend" };
   }
 
   const quiet = quoted.every(
     (x) => Math.abs(x.q.change.m5) < QUIET_M5 && x.q.volume.m5 < QUIET_VOLUME_M5,
   );
-  if (quiet) return { state: "bored", text: "Market's quiet. Nothing moving…", lasting: "trend" };
+  if (quiet) return { state: "bored", text: t("Market's quiet. Nothing moving…"), lasting: "trend" };
 
-  return { state: "idle", text: "Watching the market." };
+  return { state: "idle", text: t("Watching the market.") };
 }

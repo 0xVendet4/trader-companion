@@ -6,7 +6,9 @@ import { Bridge } from "../core/bridge";
 import { State } from "../core/state";
 import { artUrl, dressed } from "../mascot/mascot";
 import { lookFilter } from "../mascot/skins";
-import { trayKey, trayLook, type TrayLook } from "../mascot/tray";
+import { trayKey, trayLook, trayTooltip, type TrayLook } from "../mascot/tray";
+import { topMoverFact } from "../mascot/reactions";
+import { currentLog, summarize } from "../discipline/discipline";
 
 /** Windows scales it down to the tray's 16–24 px. */
 const SIZE = 32;
@@ -27,8 +29,22 @@ function image(src: string): Promise<HTMLImageElement> {
   return p;
 }
 
-/** Redraws the tray icon if Candy's look changed since the last one. */
+let tip = "";
+
+/** Redraws the tray icon if Candy's look changed since the last one, and its hover text if that did. */
 export function syncTrayIcon() {
+  const c = State.companion;
+  const day = summarize(currentLog(c.log));
+  const text = trayTooltip(
+    State.version,
+    day.count || day.total ? { total: day.total, count: day.count, unit: c.discipline.unit } : null,
+    topMoverFact(c.watchlist, State.quotes)?.text ?? null,
+    State.paused,
+  );
+  if (text !== tip) {
+    tip = text;
+    void Bridge.setTrayTooltip(text);
+  }
   const art = State.art;
   if (!art) return;
   const look = trayLook(

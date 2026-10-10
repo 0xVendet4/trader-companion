@@ -9,9 +9,11 @@ import { Companion } from "../companion";
 import { APP_NAME, MASCOT_NAME } from "../core/brand";
 import { formatDuration, formatPct, formatPnl, pctClass } from "../core/format";
 import { Bridge, IS_TAURI } from "../core/bridge";
+import { t, tn } from "../core/i18n";
 import { State, type CompanionEvent, type TradePlan } from "../core/state";
 import { WHATS_NEW_URL } from "../core/update";
 import { TERMINALS } from "../market/links";
+import { headsUpTitle } from "../market/calendar";
 import { RUGCHECK_WAIT_MS, checklistFor, checklistSummary, stopWaiting, type CheckItem, type CheckSummary } from "../market/checklist";
 import type { AwayMove } from "../away/away";
 import type { CardFormat } from "../share/card";
@@ -54,88 +56,107 @@ const SUMMARY_FACE: Record<CheckSummary["tone"], MascotState> = { ok: "proud", w
 function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail: string; tone: string } {
   switch (e.kind) {
     case "alert":
-      return { eyebrow: "Alert", title: e.title, detail: e.detail, tone: e.tone };
+      return { eyebrow: t("Alert"), title: e.title, detail: e.detail, tone: e.tone };
     case "break":
       return {
-        eyebrow: "Break",
-        title: `${formatDuration(e.minutes * 60_000)} of screen time. How about 5 minutes away from the charts?`,
-        detail: "Water, stretch, look out the window. The market will still be there.",
+        eyebrow: t("Break"),
+        title: t("{duration} of screen time. How about 5 minutes away from the charts?", { duration: formatDuration(e.minutes * 60_000) }),
+        detail: t("Water, stretch, look out the window. The market will still be there."),
         tone: "calm",
       };
     case "lossLimit":
       return {
-        eyebrow: "Discipline",
-        title: `Daily loss limit hit (${formatPnl(e.total, e.unit)}).`,
-        detail: `You set ${formatPnl(-e.limit, e.unit)} as your limit. Time to stop for today.`,
+        eyebrow: t("Discipline"),
+        title: t("Daily loss limit hit ({pnl}).", { pnl: formatPnl(e.total, e.unit) }),
+        detail: t("You set {limit} as your limit. Time to stop for today.", { limit: formatPnl(-e.limit, e.unit) }),
         tone: "down",
       };
     case "maxTrades":
       return {
-        eyebrow: "Discipline",
-        title: `${e.count} trades today: the max you set.`,
-        detail: "Overtrading gets expensive. Worth a review before the next one.",
+        eyebrow: t("Discipline"),
+        title: tn(e.count, "{n} trades today: the max you set.", "{n} trades today: the max you set."),
+        detail: t("Overtrading gets expensive. Worth a review before the next one."),
         tone: "warn",
       };
     case "cooldown":
       return {
-        eyebrow: "Cooldown",
-        title: `Loss logged. Breathe: ${e.minutes} min before the next trade.`,
-        detail: "Revenge trades are the most expensive losses.",
+        eyebrow: t("Cooldown"),
+        title: t("Loss logged. Breathe: {minutes} min before the next trade.", { minutes: e.minutes }),
+        detail: t("Revenge trades are the most expensive losses."),
         tone: "calm",
       };
     case "tilt":
       return {
-        eyebrow: "Tilt check",
-        title: `${e.losses} losses in a row. Time for a longer break: ${e.minutes} min.`,
-        detail: "Streaks feed on themselves. Step away, come back with a clear head.",
+        eyebrow: t("Tilt check"),
+        title: tn(
+          e.losses,
+          "{n} losses in a row. Time for a longer break: {minutes} min.",
+          "{n} losses in a row. Time for a longer break: {minutes} min.",
+          { minutes: e.minutes },
+        ),
+        detail: t("Streaks feed on themselves. Step away, come back with a clear head."),
         tone: "warn",
       };
     case "sessionEnd":
       return {
-        eyebrow: "Session",
-        title: `The ${formatDuration(e.minutes * 60_000)} session you set is over.`,
-        detail: "That was the plan. Log off, or set a new end in Discipline.",
+        eyebrow: t("Session"),
+        title: t("The {duration} session you set is over.", { duration: formatDuration(e.minutes * 60_000) }),
+        detail: t("That was the plan. Log off, or set a new end in Discipline."),
         tone: "calm",
       };
     case "checklist": {
-      const t = State.token(e.key);
-      return { eyebrow: "Checklist", title: `Before an entry on ${t?.symbol ?? "this token"}`, detail: "", tone: "calm" };
+      const symbol = State.token(e.key)?.symbol;
+      return {
+        eyebrow: t("Checklist"),
+        title: symbol != null ? t("Before an entry on {symbol}", { symbol }) : t("Before an entry on this token"),
+        detail: "",
+        tone: "calm",
+      };
     }
     case "checkin":
       return {
-        eyebrow: "Check-in",
-        title: `Closed${e.symbol ? ` ${e.symbol}` : " a trade"} at ${formatPnl(e.pnl, e.unit)}. Did you follow your plan?`,
-        detail: "Your answer goes into the journal, next to the trade.",
+        eyebrow: t("Check-in"),
+        title: e.symbol
+          ? t("Closed {symbol} at {pnl}. Did you follow your plan?", { symbol: e.symbol, pnl: formatPnl(e.pnl, e.unit) })
+          : t("Closed a trade at {pnl}. Did you follow your plan?", { pnl: formatPnl(e.pnl, e.unit) }),
+        detail: t("Your answer goes into the journal, next to the trade."),
         tone: e.pnl >= 0 ? "up" : "down",
       };
     case "weekRecap": {
       const c = State.companion;
       const r = buildWeekRecap({ range: e, hideMoney: c.recapHideMoney, unit: c.discipline.unit, trades: c.journal }, "");
       return {
-        eyebrow: `Your week · ${e.label}`,
+        eyebrow: e.period === "month" ? t("Your month · {label}", { label: e.label }) : t("Your week · {label}", { label: e.label }),
         title: r.headline,
         detail: r.tiles
           .slice(0, 3)
-          .map((t) => `${t.label}: ${t.value}${t.sub ? ` (${t.sub})` : ""}`)
+          .map((tile) => `${tile.label}: ${tile.value}${tile.sub ? ` (${tile.sub})` : ""}`)
           .join("\n"),
         tone: r.total > 0 ? "up" : r.total < 0 ? "down" : "calm",
       };
     }
     case "away":
       return {
-        eyebrow: "Welcome back",
-        title: `While you were away (${e.away}):`,
+        eyebrow: t("Welcome back"),
+        title: t("While you were away ({away}):", { away: e.away }),
         detail: e.lines.join("\n"),
         tone: "calm",
       };
+    case "macro":
+      return {
+        eyebrow: t("Calendar"),
+        title: headsUpTitle(e.label, e.at - Date.now()),
+        detail: [...e.lines, t("The whole market often moves around it.")].join("\n"),
+        tone: "warn",
+      };
     case "update":
       return {
-        eyebrow: "Update",
-        title: `${APP_NAME} ${e.version} is out (you have ${State.version}).`,
+        eyebrow: t("Update"),
+        title: t("{app} {version} is out (you have {current}).", { app: APP_NAME, version: e.version, current: State.version }),
         detail:
           IS_TAURI && State.os === "windows"
-            ? "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay."
-            : "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.",
+            ? t("Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.")
+            : t("To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay."),
         tone: "calm",
       };
   }
@@ -148,7 +169,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
   const more = h("span", { class: "more" });
   const buttons = h("div", { class: "buttons" });
   // ⌃ folds the card away for later; opening the island shows it again.
-  const fold = h("button", { class: "event-fold", title: "Later: fold it into the ticker", onclick: () => actions.foldEvent() }, svg(ICONS.chevronUp, 12, { stroke: 2.2 }));
+  const fold = h("button", { class: "event-fold", title: t("Later: fold it into the ticker"), onclick: () => actions.foldEvent() }, svg(ICONS.chevronUp, 12, { stroke: 2.2 }));
   // What some cards add under the words: the checklist's lines, the tokens
   // that moved while the trader was away.
   const extra = h("div", { class: "event-extra" });
@@ -191,7 +212,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
       p.lines.push(line);
       extra.append(line.row);
     }
-    detail.textContent = `${MASCOT_NAME} is going over it…`;
+    detail.textContent = t("{name} is going over it…", { name: MASCOT_NAME });
     paintPass(p);
     later(p, PASS_START_MS);
   }
@@ -217,7 +238,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
       line.row.classList.add(state);
       line.row.title = read ? item.detail : "";
       line.mark.textContent = read ? CHECK_MARK[item.state] : "";
-      line.detail.textContent = read ? item.detail : state === "looking" && p.waitSince != null ? "Asking RugCheck…" : "";
+      line.detail.textContent = read ? item.detail : state === "looking" && p.waitSince != null ? t("Asking RugCheck…") : "";
     });
     if (!p.finished) return;
     const s = checklistSummary(items, MASCOT_NAME);
@@ -247,7 +268,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
       if (p.waitSince == null) {
         p.waitSince = now;
         paintPass(p);
-        actions.candy({ react: "focused", say: "asking RugCheck…", ms: RUGCHECK_WAIT_MS });
+        actions.candy({ react: "focused", say: t("asking RugCheck…"), ms: RUGCHECK_WAIT_MS });
       }
       // sync() comes back sooner if the report comes in.
       if (now - p.waitSince < RUGCHECK_WAIT_MS) return later(p, p.waitSince + RUGCHECK_WAIT_MS - now);
@@ -279,7 +300,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
     clear(extra);
     extra.className = "event-extra moves";
     if (!moves.length) return;
-    extra.append(h("span", { class: "moves-label", text: "Moves:" }));
+    extra.append(h("span", { class: "moves-label", text: t("Moves:") }));
     for (const m of moves) {
       extra.append(
         h(
@@ -287,7 +308,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
           {
             class: `move-chip ${pctClass(m.pct)}`,
             type: "button",
-            title: `Open ${m.symbol}`,
+            title: t("Open {symbol}", { symbol: m.symbol }),
             onclick: () => actions.openToken(m.key),
           },
           h("b", { text: m.symbol }),
@@ -303,7 +324,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
       const e = State.events[0];
       if (!e) return;
       const pending = State.events.length - 1;
-      more.textContent = pending > 0 ? `+${pending} more` : "";
+      more.textContent = pending > 0 ? tn(pending, "+{n} more", "+{n} more") : "";
       if (shown === e.id) {
         const p = pass;
         if (e.kind === "checklist" && p?.id === e.id) {
@@ -333,36 +354,36 @@ export function buildEvent(actions: ViewActions): ViewHost {
       switch (e.kind) {
         case "alert": {
           const watched = !!State.token(e.address);
-          const x2 = btn("2x alert", "secondary", () => {
+          const x2 = btn(t("2x alert"), "secondary", () => {
             const msg = Companion.addMultipleAlert(e.address, 2);
             actions.blip();
-            x2.replaceWith(h("span", { class: "done-note", text: msg ?? "No price yet" }));
+            x2.replaceWith(h("span", { class: "done-note", text: msg ?? t("No price yet") }));
           });
-          x2.title = "An alert at twice the market cap";
-          const mute = btn("Mute 1 h", "secondary", () => {
+          x2.title = t("An alert at twice the market cap");
+          const mute = btn(t("Mute 1 h"), "secondary", () => {
             Companion.muteToken(e.address, 60);
             actions.dismissEvent();
           });
-          mute.title = "No alerts for this token for an hour";
+          mute.title = t("No alerts for this token for an hour");
           buttons.append(
-            btn(`Open on ${terminal}`, "primary", () => {
+            btn(t("Open on {terminal}", { terminal }), "primary", () => {
               actions.openToken(e.address, e.token);
               actions.dismissEvent();
             }),
             ...(watched ? [x2] : []),
             mute,
-            btn("OK", "secondary", () => actions.dismissEvent()),
+            btn(t("OK"), "secondary", () => actions.dismissEvent()),
           );
           break;
         }
         case "checklist":
           startPass(e.id, e.key);
           buttons.append(
-            btn("Done", "primary", () => {
+            btn(t("Done"), "primary", () => {
               stopPass();
               actions.dismissEvent();
             }),
-            btn(`Open on ${terminal}`, "secondary", () => actions.openToken(e.key)),
+            btn(t("Open on {terminal}", { terminal }), "secondary", () => actions.openToken(e.key)),
           );
           break;
         case "checkin": {
@@ -371,66 +392,71 @@ export function buildEvent(actions: ViewActions): ViewHost {
               Companion.setPlan(e.entryId, plan);
               actions.dismissEvent();
             });
-          buttons.append(answer("yes", "Yes", "primary"), answer("partly", "Partly", "secondary"), answer("no", "No", "secondary"), btn("Skip", "ghost", () => actions.dismissEvent()));
+          buttons.append(
+            answer("yes", t("Yes"), "primary"),
+            answer("partly", t("Partly"), "secondary"),
+            answer("no", t("No"), "secondary"),
+            btn(t("Skip"), "ghost", () => actions.dismissEvent()),
+          );
           break;
         }
         case "weekRecap": {
           const share = (format: CardFormat, label: string) => {
             const b = btn(label, format === "story" ? "primary" : "secondary", async () => {
               b.disabled = true;
-              detail.textContent = "Drawing…";
+              detail.textContent = t("Drawing…");
               try {
                 detail.textContent = await actions.shareWeek(e, format);
                 actions.blip();
               } catch (err) {
-                detail.textContent = `Couldn't make the image: ${err instanceof Error ? err.message : String(err)}`;
+                detail.textContent = t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) });
               } finally {
                 b.disabled = false;
               }
             });
             return b;
           };
-          buttons.append(share("story", "Share as a story"), share("wide", "Wide image"), btn("Got it", "secondary", () => actions.dismissEvent()));
+          buttons.append(share("story", t("Share as a story")), share("wide", t("Wide image")), btn(t("Got it"), "secondary", () => actions.dismissEvent()));
           break;
         }
         case "away":
           renderMoves(e.moves ?? []);
-          buttons.append(btn("Got it", "primary", () => actions.dismissEvent()));
+          buttons.append(btn(t("Got it"), "primary", () => actions.dismissEvent()));
           break;
         case "break":
           buttons.append(
-            btn("Took a break", "primary", () => {
+            btn(t("Took a break"), "primary", () => {
               Companion.ackBreak();
               actions.dismissEvent();
             }),
-            btn("15 more min", "secondary", () => {
+            btn(t("15 more min"), "secondary", () => {
               Companion.snoozeBreak(15);
               actions.dismissEvent();
             }),
           );
           break;
         case "update": {
-          const whatsNew = btn("What's new", "secondary", () => actions.openUrl(WHATS_NEW_URL));
+          const whatsNew = btn(t("What's new"), "secondary", () => actions.openUrl(WHATS_NEW_URL));
           if (IS_TAURI && State.os === "windows") {
-            const go = btn("Update now", "primary", async () => {
+            const go = btn(t("Update now"), "primary", async () => {
               go.disabled = true;
-              detail.textContent = "Downloading the new code…";
+              detail.textContent = t("Downloading the new code…");
               const failed = await Bridge.startUpdate();
               if (failed) {
                 go.disabled = false;
-                detail.textContent = `The update didn't start: ${failed}`;
+                detail.textContent = t("The update didn't start: {error}", { error: failed });
                 return;
               }
-              detail.textContent = "Building in its own window: Candy starts again when it's done.";
+              detail.textContent = t("Building in its own window: Candy starts again when it's done.");
             });
-            buttons.append(go, whatsNew, btn("Later", "secondary", () => actions.dismissEvent()));
+            buttons.append(go, whatsNew, btn(t("Later"), "secondary", () => actions.dismissEvent()));
           } else {
-            buttons.append(whatsNew, btn("OK", "primary", () => actions.dismissEvent()));
+            buttons.append(whatsNew, btn(t("OK"), "primary", () => actions.dismissEvent()));
           }
           break;
         }
         default:
-          buttons.append(btn("Got it", "primary", () => actions.dismissEvent()));
+          buttons.append(btn(t("Got it"), "primary", () => actions.dismissEvent()));
       }
     },
   };
@@ -447,14 +473,16 @@ export function buildGreeting(): ViewHost {
     title,
     h(
       "div",
-      { class: "detail", text: "I live up here and keep an eye on your memecoins. Hover here to open me." },
+      { class: "detail", text: t("I live up here and keep an eye on your memecoins. Hover here to open me.") },
     ),
-    h("div", { class: "fine", text: `${APP_NAME} only reads public data. It never asks for your wallet or private key.` }),
+    h("div", { class: "fine", text: t("{app} only reads public data. It never asks for your wallet or private key.", { app: APP_NAME }) }),
   );
   return {
     el,
     sync() {
-      title.textContent = `Hi${State.firstName ? ` ${State.firstName}` : ""}! I'm ${MASCOT_NAME}.`;
+      title.textContent = State.firstName
+        ? t("Hi {name}! I'm {mascot}.", { name: State.firstName, mascot: MASCOT_NAME })
+        : t("Hi! I'm {mascot}.", { mascot: MASCOT_NAME });
     },
   };
 }

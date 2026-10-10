@@ -3,6 +3,8 @@
 // names where a token's best pair lives (its dexId): a change from a launchpad
 // to a DEX is the graduation, the moment many traders look at the token.
 
+import { t } from "../core/i18n";
+
 /** DexScreener's ids for bonding curves, and how to name them. */
 export const LAUNCHPADS: Record<string, string> = {
   pumpfun: "pump.fun",
@@ -22,7 +24,7 @@ const DEX_NAMES: Record<string, string> = {
   pancakeswap: "PancakeSwap",
 };
 
-export const dexName = (id: string) => DEX_NAMES[id] ?? LAUNCHPADS[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : "a DEX");
+export const dexName = (id: string) => DEX_NAMES[id] ?? LAUNCHPADS[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : t("a DEX"));
 
 /** The token left its launchpad for a DEX pool: from where to where; null otherwise. */
 export function graduation(prevDex: string | undefined, nextDex: string | undefined): { from: string; to: string } | null {

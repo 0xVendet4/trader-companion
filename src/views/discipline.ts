@@ -10,6 +10,7 @@ import { btn, field, iconBtn, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
 import { Bridge, IS_TAURI } from "../core/bridge";
 import { formatClock, formatDuration, formatPnl, parseAmount } from "../core/format";
+import { N_, currentLang, t, tn } from "../core/i18n";
 import { State, type JournalEntry } from "../core/state";
 import {
   currentLog,
@@ -28,7 +29,7 @@ import { weekRange } from "../share/recap";
 const RECENT = 4;
 /** The check-in's answer, next to a trade in the journal. */
 const PLAN_MARK = { yes: "✓", partly: "~", no: "✗" } as const;
-const PLAN_WORDS = { yes: "Followed the plan", partly: "Partly followed the plan", no: "Didn't follow the plan" } as const;
+const PLAN_WORDS = { yes: N_("Followed the plan"), partly: N_("Partly followed the plan"), no: N_("Didn't follow the plan") } as const;
 /** Weeks in the green and red days grid. */
 const GRID_WEEKS = 16;
 
@@ -43,7 +44,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const bar = h("div", { class: "limit-bar" }, barFill);
   const barLabel = h("span", { class: "limit-label" });
   const amount = field(actions, { placeholder: "0.5", class: "field small" });
-  const noteIn = field(actions, { placeholder: "Note (optional)", class: "field note-in" });
+  const noteIn = field(actions, { placeholder: t("Note (optional)"), class: "field note-in" });
   const unit = h("span", { class: "unit" });
   const status = h("div", { class: "line status" });
 
@@ -70,9 +71,10 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const autoLine = h(
     "div",
     { class: "line auto-line" },
-    "Counted from My wallet: each sale adds its profit, each closed position is a trade. ",
+    t("Counted from My wallet: each sale adds its profit, each closed position is a trade."),
+    " ",
     h("a", {
-      text: "Log one by hand",
+      text: t("Log one by hand"),
       onclick: () => {
         byHand = true;
         actions.blip();
@@ -81,15 +83,15 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     }),
   );
 
-  const win = btn("+ Win", "secondary", () => log(1));
+  const win = btn(t("+ Win"), "secondary", () => log(1));
   win.classList.add("win");
-  const loss = btn("− Loss", "secondary", () => log(-1));
+  const loss = btn(t("− Loss"), "secondary", () => log(-1));
   loss.classList.add("loss");
-  const undo = iconBtn(ICONS.undo, "Undo last", () => {
+  const undo = iconBtn(ICONS.undo, t("Undo last"), () => {
     Companion.undoTrade();
     actions.blip();
   }, 2);
-  const endCooldown = btn("End", "ghost", () => Companion.endCooldown());
+  const endCooldown = btn(t("End"), "ghost", () => Companion.endCooldown());
 
   const logBar = h("div", { class: "log-bar" }, amount, unit, noteIn, win, loss, undo);
 
@@ -97,23 +99,23 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   // Built once: the line repaints every second, and a link redrawn under the
   // pointer would lose its click.
   const endLeft = h("span");
-  const endOff = h("a", { text: "✕", title: "No end", onclick: () => Companion.setSessionEnd(null) });
+  const endOff = h("a", { text: "✕", title: t("No end"), onclick: () => Companion.setSessionEnd(null) });
   const endSet = h("span", {}, endLeft, " ", endOff);
-  const endChoices = h("span", {}, " · end in ");
+  const endChoices = h("span", {}, ` · ${t("end in")} `);
   ([[30, "30m"], [60, "1h"], [120, "2h"]] as const).forEach(([min, label], i) => {
     if (i) endChoices.append(" ");
-    endChoices.append(h("a", { text: label, title: `An alert in ${label}`, onclick: () => (actions.blip(), Companion.setSessionEnd(min)) }));
+    endChoices.append(h("a", { text: label, title: t("An alert in {time}", { time: label }), onclick: () => (actions.blip(), Companion.setSessionEnd(min)) }));
   });
   const sessionEnd = h("span", { class: "session-end" }, endSet, endChoices);
   function paintSessionEnd() {
     const on = State.sessionEndAt > 0;
     endSet.style.display = on ? "" : "none";
     endChoices.style.display = on ? "none" : "";
-    if (on) endLeft.textContent = ` · ends in ${formatDuration(Math.max(0, State.sessionEndAt - Date.now()))}`;
+    if (on) endLeft.textContent = ` · ${t("ends in {duration}", { duration: formatDuration(Math.max(0, State.sessionEndAt - Date.now())) })}`;
   }
 
   // How much to put in: the bank and the share risked are kept, the stop is per trade.
-  const bankIn = field(actions, { class: "field tiny", placeholder: "bank" });
+  const bankIn = field(actions, { class: "field tiny", placeholder: t("bank") });
   const riskIn = field(actions, { class: "field tiny", placeholder: "1" });
   const stopIn = field(actions, { class: "field tiny", placeholder: "20" });
   const sizeOut = h("span", { class: "size-out" });
@@ -135,18 +137,22 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     sizeUnit.textContent = u;
     const r = positionSize(s.bank, s.riskPct, parseAmount(stopIn.value) ?? 0);
     sizeOut.className = `size-out ${r ? "" : "dim"}`;
-    sizeOut.textContent = r ? `→ ${trimAmount(r.size)} ${u} (risking ${trimAmount(r.risk)})` : s.bank > 0 ? "→ type your stop" : "→ set your bank";
+    sizeOut.textContent = r
+      ? t("→ {size} {unit} (risking {risk})", { size: trimAmount(r.size), unit: u, risk: trimAmount(r.risk) })
+      : s.bank > 0
+        ? t("→ type your stop")
+        : t("→ set your bank");
   }
   const sizer = h(
     "div",
-    { class: "line sizer", title: "Bank × risk ÷ stop: what to put in so that the stop loses only the share you risk" },
-    h("span", { class: "lbl", text: "Size:" }),
+    { class: "line sizer", title: t("Bank × risk ÷ stop: what to put in so that the stop loses only the share you risk") },
+    h("span", { class: "lbl", text: t("Size:") }),
     bankIn,
     sizeUnit,
-    h("span", { class: "lbl", text: "risk" }),
+    h("span", { class: "lbl", text: t("risk") }),
     riskIn,
     "%",
-    h("span", { class: "lbl", text: "stop" }),
+    h("span", { class: "lbl", text: t("stop") }),
     stopIn,
     "%",
     sizeOut,
@@ -170,7 +176,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const grid = h("div", { class: "day-grid" });
   const stats = h("div", { class: "line week-stats" });
   const recent = h("div", { class: "recent" });
-  const exportBtn = btn("Export CSV", "secondary", () => void exportCsv());
+  const exportBtn = btn(t("Export CSV"), "secondary", () => void exportCsv());
   const exportNote = h("span", { class: "note" });
   const journalEl = h(
     "div",
@@ -184,14 +190,14 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   async function exportCsv() {
     const c = State.companion;
     if (c.journal.length === 0) {
-      exportNote.textContent = "Nothing to export yet.";
+      exportNote.textContent = t("Nothing to export yet.");
       return;
     }
     const csv = journalCsv(c.journal, c.discipline.unit);
     if (IS_TAURI) {
       // No save dialog in the app yet: the CSV goes to the clipboard instead.
       const ok = await Bridge.copy(csv);
-      exportNote.textContent = ok ? "CSV copied. Paste it into a spreadsheet." : "Couldn't copy the CSV.";
+      exportNote.textContent = ok ? t("CSV copied. Paste it into a spreadsheet.") : t("Couldn't copy the CSV.");
     } else {
       const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
       const a = h("a", { href: url, download: `trades-${new Date().toISOString().slice(0, 10)}.csv` });
@@ -199,7 +205,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      exportNote.textContent = "Downloaded.";
+      exportNote.textContent = t("Downloaded.");
     }
     actions.blip();
     window.setTimeout(() => (exportNote.textContent = ""), 3500);
@@ -233,7 +239,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
       chart.append(
         h(
           "div",
-          { class: "day", title: `${d.label}: ${formatPnl(d.pnl, unitTxt)} · ${d.count} trade${d.count === 1 ? "" : "s"}` },
+          { class: "day", title: tn(d.count, "{day}: {pnl} · {n} trade", "{day}: {pnl} · {n} trades", { day: d.label, pnl: formatPnl(d.pnl, unitTxt) }) },
           h("div", { class: "half up" }, d.pnl > 0 ? h("i", { style: `height:${hPct}%` }) : null),
           h("div", { class: "half down" }, d.pnl < 0 ? h("i", { style: `height:${hPct}%` }) : null),
           h("span", { class: "lbl", text: d.label }),
@@ -254,7 +260,11 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
         col.append(
           h("i", {
             class: `sq ${tone} l${level}`,
-            title: d.future ? "" : `${d.day}: ${d.count ? `${formatPnl(d.pnl, unitTxt)} · ${d.count} trade${d.count === 1 ? "" : "s"}` : "no trades"}`,
+            title: d.future
+              ? ""
+              : d.count
+                ? tn(d.count, "{day}: {pnl} · {n} trade", "{day}: {pnl} · {n} trades", { day: d.day, pnl: formatPnl(d.pnl, unitTxt) })
+                : t("{day}: no trades", { day: d.day }),
           }),
         );
       }
@@ -263,26 +273,26 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
 
     clear(stats);
     stats.append(
-      "7 days: ",
+      `${t("7 days:")} `,
       h("span", { class: w.total > 0 ? "up" : w.total < 0 ? "down" : "", text: formatPnl(w.total, unitTxt) }),
-      ` · ${w.count} trade${w.count === 1 ? "" : "s"}`,
-      w.count ? ` · ${Math.round(w.winRate * 100)}% wins` : "",
-      w.best > 0 ? ` · best ${formatPnl(w.best, unitTxt)}` : "",
-      w.worst < 0 ? ` · worst ${formatPnl(w.worst, unitTxt)}` : "",
+      ` · ${tn(w.count, "{n} trade", "{n} trades")}`,
+      w.count ? ` · ${t("{pct}% wins", { pct: Math.round(w.winRate * 100) })}` : "",
+      w.best > 0 ? ` · ${t("best {pnl}", { pnl: formatPnl(w.best, unitTxt) })}` : "",
+      w.worst < 0 ? ` · ${t("worst {pnl}", { pnl: formatPnl(w.worst, unitTxt) })}` : "",
     );
 
     clear(recent);
     const last = [...c.journal].sort((a, b) => b.t - a.t).slice(0, RECENT);
     if (last.length === 0) {
       const text = fromWallet()
-        ? "Positions your wallet closes land here, with notes."
-        : "Log trades in Today and they land here, with notes.";
+        ? t("Positions your wallet closes land here, with notes.")
+        : t("Log trades in Today and they land here, with notes.");
       recent.append(h("div", { class: "empty", text }));
     }
     for (const e of last) {
       const d = new Date(e.t);
-      const when = `${d.toLocaleDateString("en-US", { weekday: "short" })} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-      const noteSpan = h("span", { class: `j-note ${e.note ? "" : "dim"}`, text: e.note || "add a note…", title: "Click to edit" });
+      const when = `${d.toLocaleDateString(currentLang(), { weekday: "short" })} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      const noteSpan = h("span", { class: `j-note ${e.note ? "" : "dim"}`, text: e.note || t("add a note…"), title: t("Click to edit") });
       noteSpan.addEventListener("click", () => editNote(e, noteSpan));
       recent.append(
         h(
@@ -290,7 +300,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
           { class: "j-row" },
           h("span", { class: "j-when", text: when }),
           h("span", { class: `j-pnl ${e.pnl > 0 ? "up" : e.pnl < 0 ? "down" : ""}`, text: formatPnl(e.pnl, unitTxt) }),
-          e.plan ? h("span", { class: `j-plan ${e.plan}`, text: PLAN_MARK[e.plan], title: PLAN_WORDS[e.plan] }) : null,
+          e.plan ? h("span", { class: `j-plan ${e.plan}`, text: PLAN_MARK[e.plan], title: t(PLAN_WORDS[e.plan]) }) : null,
           noteSpan,
         ),
       );
@@ -298,8 +308,8 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   }
 
   // ── Shared ────────────────────────────────────────────────────────────────
-  const segToday = h("button", { class: "seg-btn", text: "Today" });
-  const segJournal = h("button", { class: "seg-btn", text: "Journal" });
+  const segToday = h("button", { class: "seg-btn", text: t("Today") });
+  const segJournal = h("button", { class: "seg-btn", text: t("Journal") });
   const setMode = (journal: boolean) => {
     if (State.journalOpen === journal) return;
     State.journalOpen = journal;
@@ -315,17 +325,17 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   let sharing = false;
   const shareLink = h("a", {
     class: "share",
-    text: "Share my day",
-    title: "A recap image of today, copied to paste on X or Telegram",
+    text: t("Share my day"),
+    title: t("A recap image of today, copied to paste on X or Telegram"),
     onclick: async () => {
       if (sharing) return;
       sharing = true;
-      shareNote.textContent = "Drawing…";
+      shareNote.textContent = t("Drawing…");
       try {
         shareNote.textContent = await actions.shareDay();
         actions.blip();
       } catch (err) {
-        shareNote.textContent = `Couldn't make the image: ${err instanceof Error ? err.message : String(err)}`;
+        shareNote.textContent = t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) });
       } finally {
         sharing = false;
         window.setTimeout(() => (shareNote.textContent = ""), 4000);
@@ -335,17 +345,17 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   // Share my week: this week so far, as a 9:16 story.
   const shareWeekLink = h("a", {
     class: "share",
-    text: "my week",
-    title: "This week so far as a story image (9:16), copied for Instagram, TikTok or Telegram",
+    text: t("my week"),
+    title: t("This week so far as a story image (9:16), copied for Instagram, TikTok or Telegram"),
     onclick: async () => {
       if (sharing) return;
       sharing = true;
-      shareNote.textContent = "Drawing…";
+      shareNote.textContent = t("Drawing…");
       try {
         shareNote.textContent = await actions.shareWeek(weekRange(new Date(), "this"), "story");
         actions.blip();
       } catch (err) {
-        shareNote.textContent = `Couldn't make the image: ${err instanceof Error ? err.message : String(err)}`;
+        shareNote.textContent = t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) });
       } finally {
         sharing = false;
         window.setTimeout(() => (shareNote.textContent = ""), 4000);
@@ -354,7 +364,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   });
   const moneyToggle = h("a", {
     class: "money",
-    title: "Show or hide amounts on the image (signs and % stay)",
+    title: t("Show or hide amounts on the image (signs and % stay)"),
     onclick: () => {
       State.companion.recapHideMoney = !State.companion.recapHideMoney;
       Companion.save();
@@ -378,12 +388,12 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
       shareWeekLink,
       " ",
       moneyToggle,
-      " · Your rules. ",
-      h("a", { onclick: () => actions.openSettings(), text: "Edit" }),
+      ` · ${t("Your rules.")} `,
+      h("a", { onclick: () => actions.openSettings(), text: t("Edit") }),
       " · ",
       h("a", {
-        text: "Turn off",
-        title: "Hides this tab and stops every reminder; Settings → Discipline turns it back on. Trades are still kept.",
+        text: t("Turn off"),
+        title: t("Hides this tab and stops every reminder; Settings → Discipline turns it back on. Trades are still kept."),
         onclick: () => {
           actions.blip();
           Companion.setDiscipline(false);
@@ -396,7 +406,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   let journalKey = "";
 
   function update() {
-    moneyToggle.textContent = State.companion.recapHideMoney ? "($ hidden)" : "($ shown)";
+    moneyToggle.textContent = State.companion.recapHideMoney ? t("($ hidden)") : t("($ shown)");
     segToday.classList.toggle("on", !State.journalOpen);
     segJournal.classList.toggle("on", State.journalOpen);
     todayEl.style.display = State.journalOpen ? "none" : "";
@@ -417,8 +427,12 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     const now = Date.now();
     const brk = nextBreakIn(rules, State.lastBreakAt, now);
     session.textContent =
-      `Session: ${formatDuration(now - State.sessionStart)}` +
-      (brk == null ? " · breaks off" : brk > 0 ? ` · next break in ${formatDuration(brk)}` : " · break time");
+      t("Session: {duration}", { duration: formatDuration(now - State.sessionStart) }) +
+      (brk == null
+        ? ` · ${t("breaks off")}`
+        : brk > 0
+          ? ` · ${t("next break in {duration}", { duration: formatDuration(brk) })}`
+          : ` · ${t("break time")}`);
     paintSessionEnd();
     const sizing = c.sizing;
     if (document.activeElement !== bankIn) bankIn.value = sizing.bank > 0 ? String(sizing.bank) : "";
@@ -428,10 +442,10 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     const s = summarize(currentLog(c.log));
     clear(today);
     today.append(
-      `Today: ${s.count} trade${s.count === 1 ? "" : "s"} · `,
+      `${tn(s.count, "Today: {n} trade", "Today: {n} trades")} · `,
       h("span", { class: s.total > 0 ? "up" : s.total < 0 ? "down" : "", text: formatPnl(s.total, rules.unit) }),
-      ` · ${s.wins}W / ${s.losses}L`,
-      rules.maxTradesPerDay > 0 ? ` · max ${rules.maxTradesPerDay}` : "",
+      ` · ${t("{wins}W / {losses}L", { wins: s.wins, losses: s.losses })}`,
+      rules.maxTradesPerDay > 0 ? ` · ${t("max {n}", { n: rules.maxTradesPerDay })}` : "",
     );
 
     const used = lossLimitUsed(rules, s);
@@ -439,7 +453,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     barFill.style.width = `${used * 100}%`;
     barFill.className = used >= 1 ? "full" : used >= 0.7 ? "high" : "";
     barLabel.textContent =
-      rules.dailyLossLimit > 0 ? `loss limit: ${formatPnl(-rules.dailyLossLimit, rules.unit)}` : "no daily loss limit";
+      rules.dailyLossLimit > 0 ? t("loss limit: {pnl}", { pnl: formatPnl(-rules.dailyLossLimit, rules.unit) }) : t("no daily loss limit");
     unit.textContent = rules.unit;
     undo.disabled = lastTypedTrade(c.log) == null;
     const auto = fromWallet();
@@ -449,10 +463,10 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     clear(status);
     if (Companion.stoppedToday) {
       status.className = "line status stop";
-      status.append("Daily loss limit hit. Time to stop for today.");
+      status.append(t("Daily loss limit hit. Time to stop for today."));
     } else if (State.cooldownUntil > now) {
       status.className = "line status cool";
-      status.append(`Cooldown: ${formatClock(State.cooldownUntil - now)} `, endCooldown);
+      status.append(`${t("Cooldown: {time}", { time: formatClock(State.cooldownUntil - now) })} `, endCooldown);
     } else {
       status.className = "line status";
     }

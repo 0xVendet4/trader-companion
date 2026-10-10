@@ -5,6 +5,7 @@
 import { h, svg } from "./dom";
 import { ICONS } from "./icons";
 import { formatPct, formatUsd, pctClass } from "../core/format";
+import { t } from "../core/i18n";
 import { State, type Companion, type IslandViewName, type Quote, type WatchToken } from "../core/state";
 import type { CardFormat } from "../share/card";
 import type { WeekRange } from "../share/recap";
@@ -127,8 +128,8 @@ export function pct(p: number | null | undefined): HTMLElement {
 export function liquidityCell(q: { liquidityUsd: number | null; suspectLiquidity?: boolean } | null | undefined): HTMLElement {
   const el = h("span", { class: `c-liq ${q?.suspectLiquidity ? "suspect" : ""}` }, formatUsd(q?.liquidityUsd));
   el.title = q?.suspectLiquidity
-    ? "Fake-looking liquidity: the pool reports far more than the SOL / USDC / ETH actually in it. This shows the real part."
-    : "Liquidity backed by SOL / USDC / ETH / BNB in the pool";
+    ? t("Fake-looking liquidity: the pool reports far more than the SOL / USDC / ETH actually in it. This shows the real part.")
+    : t("Liquidity backed by SOL / USDC / ETH / BNB in the pool");
   if (q?.suspectLiquidity) el.prepend("⚠ ");
   return el;
 }
@@ -146,27 +147,29 @@ type Tagged = Pick<WatchToken, "key" | "chainId"> & Partial<Pick<WatchToken, "co
  * token's chain would mislead: BTC is not an Ethereum coin), else its chain
  * when that helps.
  */
-export function tokenTag(t: Tagged, showChain: boolean, q?: Quote | null): HTMLElement | null {
-  if (majorFor(t)) {
+export function tokenTag(tok: Tagged, showChain: boolean, q?: Quote | null): HTMLElement | null {
+  if (majorFor(tok)) {
     const el = h("span", { class: "chain-tag major" });
-    setMajorTag(el, t, q);
+    setMajorTag(el, tok, q);
     return el;
   }
-  return showChain ? chainTag(t.chainId) : null;
+  return showChain ? chainTag(tok.chainId) : null;
 }
 
 /** A major's tag as its quote has it: the rank once CoinGecko gave it, MAJOR until then. */
-export function setMajorTag(el: HTMLElement, t: Pick<WatchToken, "chainId">, q?: Quote | null) {
+export function setMajorTag(el: HTMLElement, tok: Pick<WatchToken, "chainId">, q?: Quote | null) {
   const rank = q?.rank;
-  el.textContent = rank ? `#${rank}` : "MAJOR";
+  el.textContent = rank ? `#${rank}` : t("MAJOR");
   el.title =
-    (rank ? `#${rank} by market cap right now (CoinGecko). ` : "") +
-    `A major coin: priced from a token that tracks it on ${CHAINS[t.chainId].label} (DexScreener); market cap and 24 h volume from CoinGecko.`;
+    (rank ? `${t("#{rank} by market cap right now (CoinGecko).", { rank })} ` : "") +
+    t("A major coin: priced from a token that tracks it on {chain} (DexScreener); market cap and 24 h volume from CoinGecko.", {
+      chain: CHAINS[tok.chainId].label,
+    });
 }
 
 /** The RugCheck shield, or nothing for a major coin (no rug to check). */
-export function safetyFor(t: Tagged, onOpen: () => void): HTMLElement | null {
-  return majorFor(t) ? null : safetyBadge(t, onOpen);
+export function safetyFor(tok: Tagged, onOpen: () => void): HTMLElement | null {
+  return majorFor(tok) ? null : safetyBadge(tok, onOpen);
 }
 
 /** The RugCheck shield next to a symbol. Click → the full report. */
@@ -174,7 +177,7 @@ export function safetyBadge(token: Pick<WatchToken, "key" | "chainId">, onOpen: 
   if (!CHAINS[token.chainId].rugcheck) {
     return h(
       "span",
-      { class: "safe unknown", title: `No safety check on ${CHAINS[token.chainId].label} yet (RugCheck covers Solana only).` },
+      { class: "safe unknown", title: t("No safety check on {chain} yet (RugCheck covers Solana only).", { chain: CHAINS[token.chainId].label }) },
       svg(ICONS.shield, 11),
     );
   }
@@ -182,11 +185,11 @@ export function safetyBadge(token: Pick<WatchToken, "key" | "chainId">, onOpen: 
   const level = r == null || r === "loading" ? "pending" : r === "error" ? "unknown" : r.level;
   const title =
     r == null || r === "loading"
-      ? "Checking with RugCheck…"
+      ? t("Checking with RugCheck…")
       : r === "error"
-        ? "RugCheck didn't answer. Will retry."
+        ? t("RugCheck didn't answer. Will retry.")
         : describeSafety(r);
-  const el = h("button", { class: `safe ${level}`, title, "aria-label": r && typeof r === "object" ? SAFETY_LABEL[r.level] : "Safety" }, svg(ICONS.shield, 11));
+  const el = h("button", { class: `safe ${level}`, title, "aria-label": r && typeof r === "object" ? t(SAFETY_LABEL[r.level]) : t("Safety") }, svg(ICONS.shield, 11));
   el.addEventListener("click", (e) => {
     e.stopPropagation();
     if (r && typeof r === "object") onOpen();
@@ -227,14 +230,19 @@ export function sparkline(mint: string, w = 56, h0 = 18): SVGSVGElement {
     line.setAttribute("points", path.d);
     line.setAttribute("class", path.up ? "up" : "down");
     el.append(line);
-    const t = document.createElementNS(ns, "title");
+    const tip = document.createElementNS(ns, "title");
     const sym = token ? CHAINS[token.chainId].native.symbol : "";
     const rel = pair && coin ? relativeStrength(q!.change.h24, coin.change.h24) : null;
-    t.textContent =
+    tip.textContent =
       rel != null
-        ? `Last 24 h: ${formatPct(q!.change.h24)} · ${sym} ${formatPct(coin!.change.h24)} (the faint line) · ${formatPct(rel)} against ${sym}`
-        : "Last 24 h (recent hours stretched)";
-    el.append(t);
+        ? t("Last 24 h: {change} · {coin} {coinChange} (the faint line) · {rel} against {coin}", {
+            change: formatPct(q!.change.h24),
+            coin: sym,
+            coinChange: formatPct(coin!.change.h24),
+            rel: formatPct(rel),
+          })
+        : t("Last 24 h (recent hours stretched)");
+    el.append(tip);
   }
   return el;
 }

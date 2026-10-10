@@ -6,6 +6,7 @@ import { h, clear } from "./dom";
 import { ICONS } from "./icons";
 import { iconBtn, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
+import { N_, t } from "../core/i18n";
 import { EDITION_NAME, FACE_IDS, OFFERED_COSTUMES, OUTFIT_IDS, SKIN_IDS, State, THEME_IDS, type Companion as Look, type Costume, type Face, type Outfit, type Skin } from "../core/state";
 import { ISLAND_THEMES } from "../core/themes";
 import { accessory, dressed, miniCandy } from "../mascot/mascot";
@@ -14,21 +15,21 @@ import { lookFilter, skinFilter } from "../mascot/skins";
 
 type Shelf = "hat" | "face" | "colour" | "costume" | "island";
 const SHELVES: [Shelf, string][] = [
-  ["hat", "Hat"],
-  ["face", "Face"],
-  ["colour", "Colour"],
-  ["costume", "Costume"],
-  ["island", "Island"],
+  ["hat", N_("Hat")],
+  ["face", N_("Face")],
+  ["colour", N_("Colour")],
+  ["costume", N_("Costume")],
+  ["island", N_("Island")],
 ];
 
 /** A little island in a background, with a token on it, for the Island shelf. */
 function islandSwatch(id: (typeof THEME_IDS)[number]): HTMLElement {
-  const t = ISLAND_THEMES[id];
+  const theme = ISLAND_THEMES[id];
   const el = h("span", { class: "island-swatch" }, h("i", { class: "sw-dot" }), h("i", { class: "sw-line" }), h("i", { class: "sw-up" }));
-  el.style.background = t.background;
-  if (t.ring) el.style.boxShadow = t.ring;
+  el.style.background = theme.background;
+  if (theme.ring) el.style.boxShadow = theme.ring;
   // Its own accent, not the one the island wears now.
-  el.style.setProperty("--accent", t.accent ?? "#4ade80");
+  el.style.setProperty("--accent", theme.accent ?? "#4ade80");
   return el;
 }
 
@@ -42,35 +43,94 @@ const COSTUME_NAMES: Record<Costume, string> = {
   edition: EDITION_NAME,
 };
 
-const label = (id: string) =>
-  ({
-    none: "None",
-    tophat: "Top hat",
-    party: "Party hat",
-    grad: "Grad cap",
-    flowers: "Flower crown",
-    bunny: "Bunny ears",
-    laser: "Laser eyes",
-    starglasses: "Star glasses",
-    threed: "3D glasses",
-    eyepatch: "Eye patch",
-    heartglasses: "Heart glasses",
-    clownnose: "Clown nose",
-    domino: "Hero mask",
-    vr: "VR headset",
-    catears: "Cat ears",
-    pixel: "Pixel shades",
-    bandaid: "Band-aid",
-    bubblegum: "Bubble gum",
-    warpaint: "War paint",
-    dollareyes: "Dollar eyes",
-    facemask: "Face mask",
-  })[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
+/** Hat, face and colour names (the same as Settings'), translated where shown. */
+const NAMES: Partial<Record<string, string>> = {
+  none: N_("None"),
+  // Hats.
+  cap: N_("Cap"),
+  crown: N_("Crown"),
+  party: N_("Party hat"),
+  headphones: N_("Headphones"),
+  tophat: N_("Top hat"),
+  cowboy: N_("Cowboy"),
+  beanie: N_("Beanie"),
+  halo: N_("Halo"),
+  horns: N_("Horns"),
+  wizard: N_("Wizard"),
+  viking: N_("Viking"),
+  bow: N_("Bow"),
+  chef: N_("Chef"),
+  pirate: N_("Pirate"),
+  santa: N_("Santa"),
+  grad: N_("Grad cap"),
+  beret: N_("Beret"),
+  propeller: N_("Propeller"),
+  flowers: N_("Flower crown"),
+  bunny: N_("Bunny ears"),
+  pumpkin: N_("Pumpkin"),
+  catears: N_("Cat ears"),
+  rocket: N_("Rocket"),
+  // Faces.
+  shades: N_("Shades"),
+  laser: N_("Laser eyes"),
+  glasses: N_("Glasses"),
+  monocle: N_("Monocle"),
+  mustache: N_("Mustache"),
+  starglasses: N_("Star glasses"),
+  threed: N_("3D glasses"),
+  eyepatch: N_("Eye patch"),
+  heartglasses: N_("Heart glasses"),
+  clownnose: N_("Clown nose"),
+  beard: N_("Beard"),
+  domino: N_("Hero mask"),
+  vr: N_("VR headset"),
+  pixel: N_("Pixel shades"),
+  goggles: N_("Goggles"),
+  whiskers: N_("Whiskers"),
+  freckles: N_("Freckles"),
+  bandaid: N_("Band-aid"),
+  lollipop: N_("Lollipop"),
+  bubblegum: N_("Bubble gum"),
+  warpaint: N_("War paint"),
+  dollareyes: N_("Dollar eyes"),
+  facemask: N_("Face mask"),
+  scarf: N_("Scarf"),
+  // Colours.
+  mint: N_("Mint"),
+  neon: N_("Neon"),
+  forest: N_("Forest"),
+  lime: N_("Lime"),
+  lemon: N_("Lemon"),
+  gold: N_("Gold"),
+  sunset: N_("Sunset"),
+  peach: N_("Peach"),
+  cherry: N_("Cherry"),
+  ruby: N_("Ruby"),
+  rose: N_("Rose"),
+  magenta: N_("Magenta"),
+  grape: N_("Grape"),
+  lavender: N_("Lavender"),
+  violet: N_("Violet"),
+  teal: N_("Teal"),
+  sky: N_("Sky"),
+  ice: N_("Ice"),
+  ocean: N_("Ocean"),
+  navy: N_("Navy"),
+  ghost: N_("Ghost"),
+  slate: N_("Slate"),
+  charcoal: N_("Charcoal"),
+  custom: N_("Custom"),
+};
+
+const label = (id: string) => {
+  const name = NAMES[id];
+  return name ? t(name) : id.charAt(0).toUpperCase() + id.slice(1);
+};
 
 export function buildWardrobe(actions: ViewActions): ViewHost {
   let shelf: Shelf = "hat";
   const tabs = SHELVES.map(([s, text]) => {
-    const b = h("button", { class: "seg-btn", text });
+    const b = h("button", { class: "seg-btn", text: t(text) });
     b.addEventListener("click", () => {
       shelf = s;
       actions.blip();
@@ -80,8 +140,8 @@ export function buildWardrobe(actions: ViewActions): ViewHost {
     return b;
   });
   const grid = h("div", { class: "wardrobe-grid" });
-  const back = iconBtn(ICONS.xmark, "Close the wardrobe", () => actions.setView(State.lastTab));
-  const more = h("a", { class: "wardrobe-more", text: "Custom colour and more in Settings", onclick: () => actions.openSettings() });
+  const back = iconBtn(ICONS.xmark, t("Close the wardrobe"), () => actions.setView(State.lastTab));
+  const more = h("a", { class: "wardrobe-more", text: t("Custom colour and more in Settings"), onclick: () => actions.openSettings() });
   const el = h(
     "div",
     { class: "view wardrobe" },
@@ -109,7 +169,7 @@ export function buildWardrobe(actions: ViewActions): ViewHost {
     const c = State.companion;
     const art = State.art;
     clear(grid);
-    tabs.forEach((t, i) => t.classList.toggle("on", SHELVES[i][0] === shelf));
+    tabs.forEach((b, i) => b.classList.toggle("on", SHELVES[i][0] === shelf));
     if (!art) return;
     // Hats and faces are shown on the costume being worn.
     const body = dressed(art, c.costume);
@@ -155,7 +215,7 @@ export function buildWardrobe(actions: ViewActions): ViewHost {
                 }))
               : THEME_IDS.map((id) => ({
                   id,
-                  name: ISLAND_THEMES[id].name,
+                  name: t(ISLAND_THEMES[id].name),
                   on: c.theme === id,
                   look: () => islandSwatch(id),
                   apply: (now) => (now.theme = id),
