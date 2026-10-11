@@ -1139,8 +1139,11 @@ export class Island {
     const hh = this.height.value;
     const r = this.radius.value;
     const rect = this.islandRect();
+    const band = this.band();
     this.islandEl.style.width = `${w}px`;
-    this.islandEl.style.height = `${hh}px`;
+    // The band over a notch is the island's top border: what it holds sits under it.
+    this.islandEl.style.height = `${hh + band}px`;
+    this.islandEl.style.borderTopWidth = `${band}px`;
     this.islandEl.style.left = `${rect.x}px`;
     this.islandEl.style.top = `${rect.y}px`;
     this.islandEl.style.borderRadius = islandCorners(this.placement(), r);
@@ -1161,10 +1164,27 @@ export class Island {
     }
   }
 
+  /** The island's box in the window, the band over a notch included (it is black, and it takes the mouse). */
   private islandRect() {
     const w = this.width.value;
     const h = this.height.value;
-    return { ...islandOrigin(this.placement(), w, h, floatsUp(State.settings.floatY)), w, h };
+    return { ...islandOrigin(this.placement(), w, h, floatsUp(State.settings.floatY)), w, h: h + this.band() };
+  }
+
+  /**
+   * At the top of a MacBook with a notch the island starts at the screen's top
+   * edge: a black band as tall as the notch, over the menu bar around it, then
+   * the island as anywhere else. 0 elsewhere.
+   */
+  private band(): number {
+    return this.placement() === "top" ? State.notch : 0;
+  }
+
+  /** The island's display changed, or Rust placed it again: its notch (logical px), or 0. */
+  setNotch(notch: number) {
+    if (Math.abs(notch - State.notch) < 0.5) return;
+    State.notch = notch;
+    this.applyGeometry();
   }
 
   /** Hidden → let the island retract, then drop the window to the wake strip. */
@@ -1576,7 +1596,7 @@ export class Island {
     }
     const rect = this.islandRect();
     const mx = rect.x + this.mCx.value;
-    const my = rect.y + this.mCy.value;
+    const my = rect.y + this.band() + this.mCy.value;
     this.mascot.lookAt(gazeAt(mx, my, x, y));
 
     const dist = Math.hypot(x - mx, y - my);
@@ -1624,7 +1644,7 @@ export class Island {
     if (State.mascotAway) return false;
     const rect = this.islandRect();
     const cx = rect.x + this.mCx.value;
-    const cy = rect.y + this.mCy.value;
+    const cy = rect.y + this.band() + this.mCy.value;
     const r = this.mSize.value * 0.42;
     return (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
   }

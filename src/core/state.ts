@@ -828,6 +828,12 @@ class AppState {
    * the mouse is"). See src-tauri/src/platform/linux.rs.
    */
   cursorPoll = true;
+  /**
+   * The notch's height (logical px) on a MacBook that has one, else 0. At the
+   * top there, the island grows out of the notch: a black band that tall over
+   * the menu bar, then the island (see Island.band, window_frame in island.rs).
+   */
+  notch = 0;
   view: IslandViewName = "watchlist";
 
   settings: Settings = normalizeSettings(null);

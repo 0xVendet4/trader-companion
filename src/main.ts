@@ -34,6 +34,7 @@ async function main() {
   State.version = boot.version;
   State.os = boot.os ?? "browser";
   State.cursorPoll = boot.cursorPoll ?? true;
+  State.notch = boot.screen.notch ?? 0;
   State.firstName = boot.firstName ?? null;
   // No cursor poll (Linux): the page's own mouse events stand in for it.
   if (IS_TAURI && !State.cursorPoll) island.followPage();
@@ -66,6 +67,8 @@ async function main() {
   });
 
   await onEvent<null>("screen-changed", () => void Bridge.reposition());
+  // The island's display, or its placement, changed: a notch there or not.
+  await onEvent<number>("notch", (notch) => island.setNotch(notch));
 
   // Rust saw the mouse pressed outside the island (the window lets those
   // clicks through, so the page never sees them).

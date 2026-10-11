@@ -371,7 +371,9 @@ fn island_rect(app: &AppHandle) -> Option<(Rect, f64)> {
 fn island_spot(app: &AppHandle) -> Option<(f64, f64)> {
     let (r, scale) = island_rect(app)?;
     let s = SIZE * scale;
-    Some((r.x + ISLAND_MASCOT.0 * scale - s / 2.0, r.y + ISLAND_MASCOT.1 * scale - s / 2.0))
+    // Under the band over a notch, if the island has one.
+    let band = app.try_state::<crate::Shared>().map_or(0.0, |sh| *sh.gate.band.lock().unwrap());
+    Some((r.x + ISLAND_MASCOT.0 * scale - s / 2.0, r.y + (band + ISLAND_MASCOT.1) * scale - s / 2.0))
 }
 
 /// The window side in physical pixels.

@@ -291,8 +291,10 @@ removing the tools too.
    own `~/Applications` and starts it. It lives in the menu bar, with no Dock
    icon.
 
-On a Mac there is no music card or dance yet (no public way to know what
-plays), no buttons on notifications and no quiet mode for fullscreen apps.
+On a MacBook with a notch, the island at the top of the screen grows out of
+the notch, over the menu bar. On a Mac there is no music card or dance yet
+(no public way to know what plays), no buttons on notifications and no quiet
+mode for fullscreen apps.
 The shortcuts use ⌘ where Windows has Ctrl (⌘ ⌥ V adds the copied token),
 and holding ⌃ Control over the island clicks through it.
 

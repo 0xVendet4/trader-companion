@@ -65,6 +65,8 @@ pub struct ScreenInfo {
     pub width: f64,
     pub height: f64,
     pub scale: f64,
+    /// The notch's height (logical px) on a MacBook that has one, else 0.
+    pub notch: f64,
 }
 
 /// The island shape in window-logical coordinates, pushed by the front end.
@@ -88,6 +90,9 @@ pub struct PollGate {
     ignoring: AtomicBool,
     /// Set while the floating island is being dragged.
     drag: Mutex<Option<Drag>>,
+    /// The band over a notch at the top of the island (logical px), else 0:
+    /// the island's contents, and Candy's seat in the ticker, sit under it.
+    pub band: Mutex<f64>,
 }
 
 impl PollGate {
@@ -99,6 +104,7 @@ impl PollGate {
             rect: Mutex::new(IslandRect::default()),
             ignoring: AtomicBool::new(false),
             drag: Mutex::new(None),
+            band: Mutex::new(0.0),
         }
     }
 
@@ -193,13 +199,16 @@ pub fn screen_info(app: &AppHandle, s: &Settings) -> ScreenInfo {
                 width: s.width as f64 / scale,
                 height: s.height as f64 / scale,
                 scale,
+                notch: platform::notch_height(&m),
             }
         }
-        None => ScreenInfo { x: 0.0, y: 0.0, width: 1920.0, height: 1080.0, scale: 1.0 },
+        None => ScreenInfo { x: 0.0, y: 0.0, width: 1920.0, height: 1080.0, scale: 1.0, notch: 0.0 },
     }
 }
 
-/// A display's work area (physical px) and its scale.
+/// A display's work area (physical px) and its scale; on a MacBook with a
+/// notch, also the notch's height (logical px) and the whole screen's left
+/// edge, top and width (physical px).
 #[derive(Clone, Copy)]
 pub struct Display {
     pub x: i32,
@@ -207,16 +216,28 @@ pub struct Display {
     pub w: i32,
     pub h: i32,
     pub scale: f64,
+    pub notch: f64,
+    pub screen: (i32, i32, i32),
 }
 
 impl Display {
     /// The display's work area: the screen without the taskbar. The taskbar is
     /// always on top too, and Windows brings it forward on any click outside,
-    /// so an island over it would vanish behind it.
+    /// so an island over it would vanish behind it. (A Mac's menu bar is left
+    /// out too, unless a notch is in it: see window_frame.)
     fn of(m: &Monitor) -> Self {
         let a = m.work_area();
         let (p, s) = (a.position, a.size);
-        Self { x: p.x, y: p.y, w: s.width as i32, h: s.height as i32, scale: m.scale_factor() }
+        let (sp, ss) = (m.position(), m.size());
+        Self {
+            x: p.x,
+            y: p.y,
+            w: s.width as i32,
+            h: s.height as i32,
+            scale: m.scale_factor(),
+            notch: platform::notch_height(m),
+            screen: (sp.x, sp.y, ss.width as i32),
+        }
     }
 }
 
@@ -234,17 +255,31 @@ fn float_pill(scale: f64) -> f64 {
     (FLOAT_MARGIN + COMPACT_H / 2.0) * scale
 }
 
+/// The band the top island adds over a notch (logical px): the notch's height
+/// at the top of a display that has one, else nothing.
+fn notch_band(d: Display, s: &Settings) -> f64 {
+    if s.placement == "top" {
+        d.notch
+    } else {
+        0.0
+    }
+}
+
 /// Where the window goes and how big it is (x, y, width, height; physical px)
 /// for the placement. Collapsed, it is the wake strip on its edge; a floating
 /// island never collapses. In the lower half of the display a floating island
 /// hangs from the window's bottom (and opens upwards), as the page draws it.
+/// At the top of a MacBook with a notch the window starts at the screen's top
+/// edge, over the menu bar, centred on the notch, and is taller by the band the
+/// page draws there (the island grows out of the notch).
 pub fn window_frame(d: Display, s: &Settings, collapsed: bool) -> (i32, i32, u32, u32) {
     let side = s.placement == "left" || s.placement == "right";
+    let band = notch_band(d, s);
     let (lw, lh) = match (collapsed && s.placement != "float", side) {
         (true, true) => (STRIP_H, STRIP_W),
         (true, false) => (STRIP_W, STRIP_H),
         (false, true) => (SIDE_PANEL_W, SIDE_PANEL_H),
-        (false, false) => (PANEL_W, PANEL_H),
+        (false, false) => (PANEL_W, PANEL_H + band),
     };
     let pw = (lw * d.scale).round().max(1.0) as u32;
     let ph = (lh * d.scale).round().max(1.0) as u32;
@@ -263,6 +298,7 @@ pub fn window_frame(d: Display, s: &Settings, collapsed: bool) -> (i32, i32, u32
                 clamp_i(top.round() as i32, d.y, d.y + d.h - hi),
             )
         }
+        _ if band > 0.0 => (d.screen.0 + (d.screen.2 - wi) / 2, d.screen.1),
         _ => (d.x + (d.w - wi) / 2, d.y),
     };
     (x, y, pw, ph)
@@ -309,7 +345,13 @@ pub fn apply_geometry(app: &AppHandle, s: &Settings, collapsed: bool) {
     let Some(win) = window(app) else { return };
     let s = &effective(s);
     let Some(m) = placement_monitor(app, s) else { return };
-    let (x, y, pw, ph) = window_frame(Display::of(&m), s, collapsed);
+    let d = Display::of(&m);
+    let (x, y, pw, ph) = window_frame(d, s, collapsed);
+    // The page draws the band over the notch (State.notch).
+    let _ = app.emit_to(WINDOW_LABEL, "notch", d.notch);
+    if let Some(shared) = app.try_state::<crate::Shared>() {
+        *shared.gate.band.lock().unwrap() = notch_band(d, s);
+    }
 
     // GTK never sizes a non-resizable window below its natural size (200 px),
     // so on Linux the 6 px wake strip would stay a 200 px block. tao re-applies
@@ -322,6 +364,7 @@ pub fn apply_geometry(app: &AppHandle, s: &Settings, collapsed: bool) {
     // Moving across displays can rescale the window: re-assert the physical size.
     let _ = win.set_size(PhysicalSize::new(pw, ph));
     let _ = win.set_always_on_top(true);
+    platform::raise_island(&win);
 }
 
 /// Position, size and scale of the monitor the island lives on. Any change here
@@ -497,7 +540,7 @@ mod tests {
     use super::{input_region, window_frame, Display, IslandRect, STRIP_H, STRIP_W};
     use crate::settings::Settings;
 
-    const D: Display = Display { x: 0, y: 0, w: 1920, h: 1080, scale: 1.0 };
+    const D: Display = Display { x: 0, y: 0, w: 1920, h: 1080, scale: 1.0, notch: 0.0, screen: (0, 0, 1920) };
 
     fn with(placement: &str, fx: f64, fy: f64) -> Settings {
         Settings { placement: placement.into(), float_x: fx, float_y: fy, ..Settings::default() }
@@ -516,9 +559,25 @@ mod tests {
     #[test]
     fn keeps_the_sidebar_top_on_a_short_display() {
         // 1280×720 at 125%: the 640-logical sidebar (800 px) is taller than the display.
-        let short = Display { x: 0, y: 0, w: 1280, h: 720, scale: 1.25 };
+        let short = Display { x: 0, y: 0, w: 1280, h: 720, scale: 1.25, notch: 0.0, screen: (0, 0, 1280) };
         assert_eq!(window_frame(short, &with("left", 0.5, 0.1), false), (0, 0, 500, 800));
         assert_eq!(window_frame(short, &with("right", 0.5, 0.1), false), (780, 0, 500, 800));
+    }
+
+    #[test]
+    fn grows_out_of_a_notch() {
+        // A 1512 × 982 MacBook at 2×: a 37-point notch in the menu bar, the
+        // Dock on the left (the work area starts 120 px in, under the menu bar).
+        let mac = Display { x: 120, y: 74, w: 2904, h: 1890, scale: 2.0, notch: 37.0, screen: (0, 0, 3024) };
+        // At the very top, centred on the notch, taller by the band.
+        assert_eq!(window_frame(mac, &with("top", 0.5, 0.1), false), (792, 0, 1440, 754));
+        assert_eq!(window_frame(mac, &with("top", 0.5, 0.1), true), (1272, 0, 480, 12));
+        // Anywhere else, the work area as before.
+        assert_eq!(window_frame(mac, &with("left", 0.5, 0.1), false).1, 74 + (1890 - 1280) / 2);
+        assert_eq!(window_frame(mac, &with("float", 0.5, 0.0), false).1, 74);
+        // Without a notch, under the menu bar.
+        let plain = Display { notch: 0.0, ..mac };
+        assert_eq!(window_frame(plain, &with("top", 0.5, 0.1), false), (120 + (2904 - 1440) / 2, 74, 1440, 680));
     }
 
     #[test]

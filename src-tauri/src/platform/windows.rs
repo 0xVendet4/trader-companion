@@ -585,6 +585,14 @@ pub fn make_non_activating(win: &WebviewWindow) {
     }
 }
 
+/// Always on top is all it takes here.
+pub fn raise_island(_win: &WebviewWindow) {}
+
+/// No notch: the top island sits on the work area's top edge.
+pub fn notch_height(_m: &tauri::Monitor) -> f64 {
+    0.0
+}
+
 /// Temporarily allow activation so a text field inside the island can be typed in.
 pub fn set_activating(win: &WebviewWindow, activating: bool) {
     let Some(hwnd) = hwnd_of(win) else { return };

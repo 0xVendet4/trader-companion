@@ -47,7 +47,7 @@ export async function emitToWindow(label: string, event: string, payload?: unkno
 export interface BootInfo {
   settings: Settings;
   /** Logical screen rect of the monitor the island lives on. */
-  screen: { x: number; y: number; width: number; height: number; scale: number };
+  screen: { x: number; y: number; width: number; height: number; scale: number; notch?: number };
   version: string;
   /** The OS the app runs on (absent in a browser). */
   os?: string;

@@ -2,7 +2,7 @@
 //
 // It works like Windows — the cursor can be read anywhere, so the island polls
 // it for hover, click-through, Ctrl, clicks elsewhere and dragging — with less
-// around it:
+// around it (and, on a MacBook with a notch, the top island around the notch):
 //   * no music card or dance (no public API says what plays);
 //   * no buttons on notifications, no fullscreen quiet, no in-app update;
 //   * the island takes focus when clicked (an NSWindow, not a panel).
@@ -242,7 +242,12 @@ pub fn user_full_name() -> Option<String> {
 #[link(name = "objc")]
 extern "C" {
     fn sel_registerName(name: *const c_char) -> *const c_void;
+    fn objc_getClass(name: *const c_char) -> *mut c_void;
     fn objc_msgSend();
+}
+
+fn sel(name: &CStr) -> *const c_void {
+    unsafe { sel_registerName(name.as_ptr()) }
 }
 
 /// NSWindowCollectionBehavior: on every Space, stays put when Spaces switch,
@@ -261,6 +266,124 @@ pub fn make_non_activating(win: &WebviewWindow) {
         let behaviour = CAN_JOIN_ALL_SPACES | STATIONARY | IGNORES_CYCLE | FULL_SCREEN_AUXILIARY;
         send(ns as *mut c_void, sel_registerName(c"setCollectionBehavior:".as_ptr()), behaviour);
     });
+}
+
+/// NSMainMenuWindowLevel (24) + 3: over the menu bar and its icons, under the
+/// menus that open from it (101), as the apps that live in the notch do.
+const OVER_MENU_BAR: isize = 27;
+
+/// `[window setLevel:…]`: at the top of the screen the island covers the menu
+/// bar around the notch. Asked after every always-on-top, which sets its own.
+pub fn raise_island(win: &WebviewWindow) {
+    let Ok(ns) = win.ns_window() else { return };
+    let ns = ns as usize;
+    let _ = win.run_on_main_thread(move || unsafe {
+        let send: unsafe extern "C" fn(*mut c_void, *const c_void, isize) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
+        send(ns as *mut c_void, sel(c"setLevel:"), OVER_MENU_BAR);
+    });
+}
+
+// AppKit's layouts, field for field (not all of them are read).
+#[cfg(target_arch = "aarch64")]
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct NSRect {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+}
+
+#[cfg(target_arch = "aarch64")]
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct NSEdgeInsets {
+    top: f64,
+    left: f64,
+    bottom: f64,
+    right: f64,
+}
+
+/// Each screen's left edge, width and height, and its notch's height (points).
+/// AppKit is read on the main thread only; other threads get the last reading.
+static NOTCHES: std::sync::Mutex<Vec<[f64; 4]>> = std::sync::Mutex::new(Vec::new());
+
+fn on_main_thread() -> bool {
+    unsafe {
+        let class = objc_getClass(c"NSThread".as_ptr());
+        if class.is_null() {
+            return false;
+        }
+        let send: unsafe extern "C" fn(*mut c_void, *const c_void) -> bool = std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
+        send(class, sel(c"isMainThread"))
+    }
+}
+
+/// `[NSScreen screens]`, each with its frame and `safeAreaInsets.top`: the
+/// notch's height on a MacBook that has one (macOS 12 and later), 0 elsewhere.
+#[cfg(target_arch = "aarch64")]
+fn read_notches() -> Vec<[f64; 4]> {
+    type Id = *mut c_void;
+    type Sel = *const c_void;
+    unsafe {
+        let msg = objc_msgSend as unsafe extern "C" fn();
+        let send_id: unsafe extern "C" fn(Id, Sel) -> Id = std::mem::transmute(msg);
+        let send_count: unsafe extern "C" fn(Id, Sel) -> usize = std::mem::transmute(msg);
+        let send_at: unsafe extern "C" fn(Id, Sel, usize) -> Id = std::mem::transmute(msg);
+        let send_responds: unsafe extern "C" fn(Id, Sel, Sel) -> bool = std::mem::transmute(msg);
+        // Four doubles come back in registers on Apple silicon: plain objc_msgSend.
+        let send_rect: unsafe extern "C" fn(Id, Sel) -> NSRect = std::mem::transmute(msg);
+        let send_insets: unsafe extern "C" fn(Id, Sel) -> NSEdgeInsets = std::mem::transmute(msg);
+
+        let class = objc_getClass(c"NSScreen".as_ptr());
+        if class.is_null() {
+            return Vec::new();
+        }
+        let screens = send_id(class, sel(c"screens"));
+        if screens.is_null() {
+            return Vec::new();
+        }
+        let insets = sel(c"safeAreaInsets");
+        let mut found = Vec::new();
+        for i in 0..send_count(screens, sel(c"count")) {
+            let screen = send_at(screens, sel(c"objectAtIndex:"), i);
+            if screen.is_null() {
+                continue;
+            }
+            let f = send_rect(screen, sel(c"frame"));
+            // safeAreaInsets came with macOS 12: on 11 the screen has no notch.
+            let top = if send_responds(screen, sel(c"respondsToSelector:"), insets) { send_insets(screen, insets).top } else { 0.0 };
+            found.push([f.x, f.w, f.h, top]);
+        }
+        found
+    }
+}
+
+/// No Mac with an Intel chip has a notch.
+#[cfg(not(target_arch = "aarch64"))]
+fn read_notches() -> Vec<[f64; 4]> {
+    Vec::new()
+}
+
+/// The notch's height (logical px) on this display, 0 without one. There the
+/// top island starts at the screen's very top, around the notch.
+/// `CANDY_NOTCH=32` pretends a display has one (CI's Macs have none).
+pub fn notch_height(m: &tauri::Monitor) -> f64 {
+    if let Some(n) = std::env::var("CANDY_NOTCH").ok().and_then(|v| v.parse::<f64>().ok()) {
+        return n.clamp(0.0, 64.0);
+    }
+    let mut known = NOTCHES.lock().unwrap();
+    if on_main_thread() {
+        *known = read_notches();
+    }
+    let scale = m.scale_factor();
+    let (x, w, h) = (m.position().x as f64 / scale, m.size().width as f64 / scale, m.size().height as f64 / scale);
+    known
+        .iter()
+        .find(|s| (s[0] - x).abs() < 1.0 && (s[1] - w).abs() < 1.0 && (s[2] - h).abs() < 1.0)
+        .map_or(0.0, |s| s[3].clamp(0.0, 64.0))
 }
 
 /// The window takes the keyboard whenever it is clicked: nothing to switch.

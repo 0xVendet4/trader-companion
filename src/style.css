@@ -125,6 +125,10 @@ body[data-placement="float"] #wake-strip {
   box-shadow: var(--island-ring, none);
   border-radius: 0 0 14px 14px;
   will-change: width, height;
+  /* The band over a MacBook's notch (Island.band): a top border the island's
+     own colour runs under, its contents placed below it. */
+  border-top: 0 solid transparent;
+  background-origin: border-box;
 }
 
 #island-clip {
