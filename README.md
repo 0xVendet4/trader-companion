@@ -264,6 +264,9 @@ official source; Apple's tools and Node.js ask for your Mac's password), builds 
 puts `Candy.app` in your own `~/Applications` and starts it. If macOS asks
 whether Terminal may use your Downloads folder, click *OK*. If something goes
 wrong, it says what, and the details are in `~/Library/Caches/Candy/install.log`.
+To remove Candy, double-click **`Uninstall Candy.command`** in the same folder:
+it removes the app, its settings and its build files, and asks before
+removing the tools too.
 
 **Or type it yourself:**
 
