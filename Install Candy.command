@@ -76,8 +76,14 @@ if ! have_clt || ! have_rust || ! have_node; then
     # From Apple's update server, the way Homebrew's installer gets them:
     # softwareupdate lists them while this file exists. (xcode-select
     # --install's window doesn't open on every macOS: not on 26.2.)
-    echo "  Installing Apple's Command Line Tools, 5 to 15 minutes. When your Mac's"
-    echo "  password is asked, type it (nothing shows as you type) and press Return."
+    echo "  Installing Apple's Command Line Tools, 5 to 15 minutes."
+    sudo -p "  Your Mac's password (nothing shows as you type it), then Return: " -v ||
+      failed "Apple's Command Line Tools need your Mac's password. Double-click Install Candy again to retry."
+    echo "  Password accepted: nothing more to type."
+    # From here on, keys typed into this window aren't shown: a password typed
+    # again by mistake would stay on the screen.
+    stty -echo 2>/dev/null
+    trap 'stty echo 2>/dev/null' EXIT
     marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
     touch "$marker"
     clt=$(softwareupdate -l 2>> "$LOG" | grep -B 1 -E 'Command Line Tools' | awk -F'*' '/^ *\*/ {print $2}' |
