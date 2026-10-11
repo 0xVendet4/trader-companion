@@ -244,6 +244,22 @@ extern "C" {
     fn sel_registerName(name: *const c_char) -> *const c_void;
     fn objc_getClass(name: *const c_char) -> *mut c_void;
     fn objc_msgSend();
+    fn object_getClass(obj: *mut c_void) -> *mut c_void;
+    fn class_getInstanceMethod(cls: *mut c_void, name: *const c_void) -> *mut c_void;
+    fn method_getImplementation(method: *mut c_void) -> *const c_void;
+    fn method_getTypeEncoding(method: *mut c_void) -> *const c_char;
+    fn class_replaceMethod(cls: *mut c_void, name: *const c_void, imp: *const c_void, types: *const c_char) -> *const c_void;
+}
+
+/// libdispatch's main queue (dispatch_get_main_queue() is a macro for it).
+#[repr(C)]
+struct DispatchQueue {
+    _private: [u8; 0],
+}
+
+extern "C" {
+    static _dispatch_main_q: DispatchQueue;
+    fn dispatch_async_f(queue: *const DispatchQueue, context: *mut c_void, work: extern "C" fn(*mut c_void));
 }
 
 fn sel(name: &CStr) -> *const c_void {
@@ -272,15 +288,70 @@ pub fn make_non_activating(win: &WebviewWindow) {
 /// menus that open from it (101), as the apps that live in the notch do.
 const OVER_MENU_BAR: isize = 27;
 
-/// `[window setLevel:…]`: at the top of the screen the island covers the menu
-/// bar around the notch. Asked after every always-on-top, which sets its own.
-pub fn raise_island(win: &WebviewWindow) {
-    let Ok(ns) = win.ns_window() else { return };
-    let ns = ns as usize;
-    let _ = win.run_on_main_thread(move || unsafe {
+extern "C" fn set_island_level(ns: *mut c_void) {
+    unsafe {
         let send: unsafe extern "C" fn(*mut c_void, *const c_void, isize) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
-        send(ns as *mut c_void, sel(c"setLevel:"), OVER_MENU_BAR);
-    });
+        send(ns, sel(c"setLevel:"), OVER_MENU_BAR);
+    }
+}
+
+/// The island stays over everything, the menu bar included: `[window
+/// setLevel:]` on the main queue, where the window toolkit queues its own moves
+/// and resizes (so it lands after them). Not tao's always-on-top, whose level
+/// is under the menu bar. And AppKit may not push the island below the menu bar.
+pub fn keep_on_top(win: &WebviewWindow) {
+    let Ok(ns) = win.ns_window() else { return };
+    #[cfg(target_arch = "aarch64")]
+    let_island_cover_the_menu_bar(ns);
+    unsafe { dispatch_async_f(&_dispatch_main_q, ns, set_island_level) };
+}
+
+/// The island's NSWindow, and AppKit's own constrainFrameRect:toScreen: for every other window.
+static ISLAND_WINDOW: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static APPKIT_CONSTRAIN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(target_arch = "aarch64")]
+type Constrain = extern "C" fn(*mut c_void, *const c_void, NSRect, *mut c_void) -> NSRect;
+
+/// AppKit keeps a window's top under the menu bar: not the island's, which
+/// covers it around the notch. Every other window keeps AppKit's rule.
+#[cfg(target_arch = "aarch64")]
+extern "C" fn constrain_frame(this: *mut c_void, cmd: *const c_void, frame: NSRect, screen: *mut c_void) -> NSRect {
+    use std::sync::atomic::Ordering;
+    let appkit = APPKIT_CONSTRAIN.load(Ordering::Relaxed);
+    if this as usize == ISLAND_WINDOW.load(Ordering::Relaxed) || appkit == 0 {
+        return frame;
+    }
+    let appkit: Constrain = unsafe { std::mem::transmute(appkit) };
+    appkit(this, cmd, frame, screen)
+}
+
+/// Puts constrain_frame in place of constrainFrameRect:toScreen: on the
+/// island's window class, once.
+#[cfg(target_arch = "aarch64")]
+fn let_island_cover_the_menu_bar(ns: *mut c_void) {
+    use std::sync::atomic::Ordering;
+    if ISLAND_WINDOW.swap(ns as usize, Ordering::Relaxed) == ns as usize {
+        return;
+    }
+    unsafe {
+        let class = object_getClass(ns);
+        if class.is_null() {
+            return;
+        }
+        let name = sel(c"constrainFrameRect:toScreen:");
+        let method = class_getInstanceMethod(class, name);
+        if method.is_null() {
+            return;
+        }
+        let ours: Constrain = constrain_frame;
+        let current = method_getImplementation(method);
+        if current as usize == ours as usize {
+            return;
+        }
+        APPKIT_CONSTRAIN.store(current as usize, Ordering::Relaxed);
+        class_replaceMethod(class, name, ours as *const c_void, method_getTypeEncoding(method));
+    }
 }
 
 // AppKit's layouts, field for field (not all of them are read).

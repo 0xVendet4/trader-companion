@@ -517,8 +517,10 @@ pub fn make_non_activating(win: &WebviewWindow) {
     crate::log::line("island is a layer-shell overlay");
 }
 
-/// Always on top (or layer-shell) is all it takes here.
-pub fn raise_island(_win: &WebviewWindow) {}
+/// The island stays over everything (a layer-shell overlay already does).
+pub fn keep_on_top(win: &WebviewWindow) {
+    let _ = win.set_always_on_top(true);
+}
 
 /// No notch: the top island sits on the work area's top edge.
 pub fn notch_height(_m: &tauri::Monitor) -> f64 {

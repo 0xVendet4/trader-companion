@@ -363,8 +363,7 @@ pub fn apply_geometry(app: &AppHandle, s: &Settings, collapsed: bool) {
     let _ = win.set_position(PhysicalPosition::new(x, y));
     // Moving across displays can rescale the window: re-assert the physical size.
     let _ = win.set_size(PhysicalSize::new(pw, ph));
-    let _ = win.set_always_on_top(true);
-    platform::raise_island(&win);
+    platform::keep_on_top(&win);
 }
 
 /// Position, size and scale of the monitor the island lives on. Any change here
