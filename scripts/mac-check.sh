@@ -1,8 +1,8 @@
 #!/bin/bash
 # CI on macOS (.github/workflows/build.yml): opens the Candy.app just built,
 # walks through what a trader does first — the folded ticker, a hover, a
-# click that opens the island, a click outside that folds it, dragging Candy
-# out onto the desktop and double-clicking him home — and takes a screenshot
+# click that opens the island, Esc that folds it, dragging Candy out onto the
+# desktop and double-clicking him home — and takes a screenshot
 # of each step into <shots dir>. Then checks he is still running, and prints
 # his log.
 #
@@ -36,6 +36,10 @@ cy=$(( vy + vh * 12 / 100 ))
 mx=$(( cx - 153 ))
 echo "visible area: $vx,$vy ${vw}x$vh — ticker at $cx,$cy, Candy at $mx,$cy"
 
+# A click on the wallpaper would make macOS slide every window aside and put
+# a tip balloon over the ticker (Sonoma's "click wallpaper to show desktop").
+defaults write com.apple.WindowManager EnableStandardClickToShowDesktop -bool false
+
 cliclick m:$(( vx + vw - 40 )),$(( vy + vh - 40 ))
 open "$app"
 sleep 12
@@ -49,19 +53,24 @@ cliclick c:$cx,$cy
 sleep 2
 shot 03-open
 
-cliclick c:$cx,$(( cy + 420 ))
+# Esc folds it (the island has the keyboard since the click); the mouse goes away.
+cliclick kp:esc
+cliclick m:$(( vx + vw - 40 )),$(( vy + vh / 2 ))
 sleep 2
 shot 04-folded
 
-# Candy dragged out of the ticker, a little at a time, and let go.
-cliclick dd:$mx,$cy w:150 dm:$mx,$(( cy + 12 )) w:100 dm:$(( mx + 60 )),$(( cy + 120 )) w:100 dm:$(( mx + 140 )),$(( cy + 260 )) w:150 du:$(( mx + 140 )),$(( cy + 260 ))
+# Candy dragged out of the ticker, a little at a time: one picture while he is
+# held, one after he is let go.
+cliclick dd:$mx,$cy w:150 dm:$mx,$(( cy + 12 )) w:100 dm:$(( mx + 60 )),$(( cy + 120 )) w:100 dm:$(( mx + 140 )),$(( cy + 260 )) w:300
+shot 05-held
+cliclick du:$(( mx + 140 )),$(( cy + 260 ))
 sleep 3
-shot 05-on-the-desktop
+shot 06-on-the-desktop
 
 # A double-click sends him home.
 cliclick dc:$(( mx + 140 )),$(( cy + 260 ))
 sleep 3
-shot 06-home-again
+shot 07-home-again
 
 echo "--- Candy's log ---"
 cat "$log" || echo "(no log)"

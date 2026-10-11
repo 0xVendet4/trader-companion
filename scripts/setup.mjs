@@ -11,8 +11,7 @@
 //          a first install and for Candy's own update (src-tauri/src/update.rs).
 // Linux:   builds the app and installs it for your user only: ~/.local/bin/candy,
 //          its app-menu entry and icon in ~/.local/share.
-// macOS:   builds Candy.app and puts it in ~/Applications, then starts it. Not
-//          tried on a Mac yet: CI builds it on GitHub's macOS runners.
+// macOS:   builds Candy.app and puts it in ~/Applications, then starts it.
 //
 // What Rust compiles is kept outside this folder, so an update from a new ZIP
 // only rebuilds what changed: %LOCALAPPDATA%\Candy-build, ~/.cache/candy/build,

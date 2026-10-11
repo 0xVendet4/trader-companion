@@ -252,8 +252,20 @@ details are in `%LOCALAPPDATA%\Candy-build\install.log`.
 
 ### macOS
 
-Nobody has tried Candy on a Mac yet: it builds and passes its tests on
-GitHub's macOS machines, and that is all that is known. Tell us how it goes.
+**The simple way:** double-click **`Install Candy.command`** in the unzipped
+folder (Safari unzips the download by itself; otherwise double-click the ZIP).
+
+macOS says it can't check the file, because it came from the internet: open
+*System Settings → Privacy & Security*, scroll down and click *Open Anyway*
+(on macOS 14 or older: right-click the file → *Open* → *Open*). It is a short
+text file; TextEdit shows all it does. It asks before installing the tools a
+build needs (Apple's Command Line Tools, Rust and Node.js, each from its own
+official source), builds Candy (10–20 minutes the first time, a few after),
+puts `Candy.app` in your own `~/Applications` and starts it. If macOS asks
+whether Terminal may use your Downloads folder, click *OK*. If something goes
+wrong, it says what, and the details are in `~/Library/Caches/Candy/install.log`.
+
+**Or type it yourself:**
 
 1. **The tools, once.** In Terminal:
 

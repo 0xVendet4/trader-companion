@@ -134,8 +134,10 @@ jobs:
           npm test
           cargo test --manifest-path src-tauri/Cargo.toml
 
+      # Install Candy.command as a user double-clicks it (the tools are already
+      # on the runner, so it goes straight to npm run setup).
       - name: Build the app
-        run: npm run setup -- --build-only
+        run: '"./Install Candy.command" --build-only'
 
       # On demand (Actions → Build → Run workflow), not on every push: the
       # runner opens the Candy it just built and goes through the first things

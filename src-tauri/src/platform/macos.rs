@@ -1,9 +1,8 @@
 // macOS: CoreGraphics for the cursor, ~/Library for files, `open` for links.
 //
-// Not tried on a Mac yet: it is built by CI on GitHub's macOS runners (the
-// author has none). It works like Windows — the cursor can be read anywhere,
-// so the island polls it for hover, click-through, Ctrl, clicks elsewhere and
-// dragging — with less around it:
+// It works like Windows — the cursor can be read anywhere, so the island polls
+// it for hover, click-through, Ctrl, clicks elsewhere and dragging — with less
+// around it:
 //   * no music card or dance (no public API says what plays);
 //   * no buttons on notifications, no fullscreen quiet, no in-app update;
 //   * the island takes focus when clicked (an NSWindow, not a panel).
