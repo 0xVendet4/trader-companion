@@ -225,7 +225,19 @@ export const Bridge = {
   mediaControl: (action: string, value?: number) => call<boolean>("media_control", { action, value: value ?? null }),
 
   // ── Candy on the desktop (src-tauri/src/desktop.rs) ───────────────────────
-  desktopInfo: () => call<DesktopInfo>("desktop_info"),
+  /**
+   * How his window works here. The app sets that window up while the island's
+   * page loads, and a page asking first got no answer and took him for
+   * unsupported: he could never be dragged out. It asks again, for a few seconds.
+   */
+  async desktopInfo(): Promise<DesktopInfo | null> {
+    if (!IS_TAURI) return null;
+    for (let tries = 0; ; tries++) {
+      const info = await call<DesktopInfo>("desktop_info");
+      if (info || tries >= 40) return info;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  },
   /** Dragged out of the island: (x, y) is the pointer in island-window coordinates. */
   desktopPickUp: (x: number, y: number) => call<boolean>("desktop_pick_up", { x, y }),
   /** Linux: the pointer moved during that drag (Windows carries him from Rust). */

@@ -1239,7 +1239,10 @@ export class Island {
       }
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) <= DRAG_THRESHOLD) return;
       this.mascotPress = null;
-      if (State.mode === "hidden" || State.view === "greeting" || !this.desktop.canPickUp()) return;
+      // Not while the hello plays. Folded after it, the view still reads "greeting"
+      // until a tab opens: that must not keep him in the ticker.
+      const greeting = State.mode === "expanded" && State.view === "greeting";
+      if (State.mode === "hidden" || greeting || !this.desktop.canPickUp()) return;
       // Not a poke after all.
       this.pressing = false;
       if (this.pressTimer != null) window.clearTimeout(this.pressTimer);
