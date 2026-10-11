@@ -260,7 +260,7 @@ macOS says it can't check the file, because it came from the internet: open
 (on macOS 14 or older: right-click the file → *Open* → *Open*). It is a short
 text file; TextEdit shows all it does. It asks before installing the tools a
 build needs (Apple's Command Line Tools, Rust and Node.js, each from its own
-official source), builds Candy (10–20 minutes the first time, a few after),
+official source; Apple's tools and Node.js ask for your Mac's password), builds Candy (10–20 minutes the first time, a few after),
 puts `Candy.app` in your own `~/Applications` and starts it. If macOS asks
 whether Terminal may use your Downloads folder, click *OK*. If something goes
 wrong, it says what, and the details are in `~/Library/Caches/Candy/install.log`.

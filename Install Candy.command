@@ -4,7 +4,7 @@
 # compiles here.
 #
 # It asks before installing the tools a build needs, each from its own
-# official source: Apple's Command Line Tools (Apple's own window), Rust
+# official source: Apple's Command Line Tools (Apple's update server), Rust
 # (rustup.rs) and Node.js (nodejs.org's installer, its checksum checked). The
 # build itself is "npm run setup" (scripts/setup.mjs), which you can read too.
 # The details of each step go to a log; if something goes wrong, this window
@@ -59,7 +59,7 @@ have_node() { command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1;
 
 if ! have_clt || ! have_rust || ! have_node; then
   echo "  To build Candy, this Mac needs:"
-  have_clt || echo "    - Apple's Command Line Tools (Apple's own installer, a few minutes)"
+  have_clt || echo "    - Apple's Command Line Tools (from Apple; it asks for your Mac's password)"
   have_rust || echo "    - Rust"
   have_node || echo "    - Node.js (its installer asks for your Mac's password)"
   echo
@@ -73,13 +73,27 @@ if ! have_clt || ! have_rust || ! have_node; then
   echo
 
   if ! have_clt; then
-    echo "  Installing Apple's Command Line Tools: click Install in Apple's window..."
-    xcode-select --install >> "$LOG" 2>&1
-    # Apple's window does the rest: wait for it, an hour at most.
-    for _ in $(seq 720); do
-      have_clt && break
-      sleep 5
-    done
+    # From Apple's update server, the way Homebrew's installer gets them:
+    # softwareupdate lists them while this file exists. (xcode-select
+    # --install's window doesn't open on every macOS: not on 26.2.)
+    echo "  Installing Apple's Command Line Tools, 5 to 15 minutes. When your Mac's"
+    echo "  password is asked, type it (nothing shows as you type) and press Return."
+    marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+    touch "$marker"
+    clt=$(softwareupdate -l 2>> "$LOG" | grep -B 1 -E 'Command Line Tools' | awk -F'*' '/^ *\*/ {print $2}' |
+      sed -e 's/^ *Label: //' -e 's/^ *//' | sort -V | tail -n1)
+    echo "softwareupdate: '$clt'" >> "$LOG"
+    [ -n "$clt" ] && sudo softwareupdate -i "$clt" --verbose 2>&1 | tee -a "$LOG"
+    rm -f "$marker"
+    if ! have_clt; then
+      # Apple's window, then: wait for it, an hour at most.
+      echo "  Click Install in Apple's window..."
+      xcode-select --install >> "$LOG" 2>&1
+      for _ in $(seq 720); do
+        have_clt && break
+        sleep 5
+      done
+    fi
     have_clt || failed "Apple's Command Line Tools didn't install. Double-click Install Candy again to retry."
   fi
 
