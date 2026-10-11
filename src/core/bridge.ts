@@ -32,6 +32,8 @@ export interface DesktopInfo {
   onDesktop: boolean;
   /** His window is on screen right now (a page loading late missed the news). */
   shown?: boolean;
+  /** Dragged by how far the mouse goes, not by screen position (a layer surface: KDE, Sway…). */
+  dragsByDelta?: boolean;
 }
 
 /** An event for one window only (island ⇄ desktop Candy). Never throws. */
@@ -53,6 +55,8 @@ export interface BootInfo {
   os?: string;
   /** False where the cursor can't be read across the screen (see State.cursorPoll). */
   cursorPoll?: boolean;
+  /** False where the island can't be placed (plain Wayland without layer-shell): top edge only. */
+  canPlace?: boolean;
   /** The trader's first name from their OS account, for the greeting (src-tauri/src/identity.rs); null when it has none. */
   firstName?: string | null;
 }
@@ -147,6 +151,9 @@ export const Bridge = {
    * until the button is let go, then sends "float-drag-end".
    */
   startFloatDrag: () => call<void>("start_float_drag"),
+  /** Without a cursor poll (Linux) the page drags the floating island: by (dx, dy), then let go. */
+  floatDragBy: (dx: number, dy: number) => call<void>("float_drag_by", { dx, dy }),
+  floatDragDone: (moved: boolean) => call<void>("float_drag_done", { moved }),
 
   /** Only https links to the known trading sites are opened (see lib.rs). */
   async openUrl(url: string): Promise<void> {

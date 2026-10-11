@@ -110,8 +110,8 @@ export function buildHeader(actions: ViewActions): ViewHost {
   let dockShown = "";
   function paintDock() {
     const place = State.settings.placement;
-    // Only the top edge without a cursor poll (Linux): nothing to pick.
-    dockWrap.style.display = IS_TAURI && !State.cursorPoll ? "none" : "";
+    // Only the top edge where the window can't be placed (plain Wayland): nothing to pick.
+    dockWrap.style.display = IS_TAURI && !State.canPlace ? "none" : "";
     dockMenu.classList.toggle("on", dockOpen);
     dock.classList.toggle("on", dockOpen);
     for (const { id, b } of dockChoices) b.classList.toggle("on", id === place);

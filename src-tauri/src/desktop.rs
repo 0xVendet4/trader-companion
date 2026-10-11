@@ -236,6 +236,9 @@ pub struct DesktopInfo {
     /// His window is on screen now: a page that loaded after it was shown
     /// never heard "desktop-visible" and asks here instead.
     shown: bool,
+    /// The page drags him by how far the mouse goes, not by screen position
+    /// (a layer surface on Wayland: KDE, Sway…).
+    drags_by_delta: bool,
 }
 
 pub fn window(app: &AppHandle) -> Option<WebviewWindow> {
@@ -353,8 +356,7 @@ fn displays(app: &AppHandle) -> Vec<Display> {
 /// the whole island window.
 fn island_rect(app: &AppHandle) -> Option<(Rect, f64)> {
     let win = island::window(app)?;
-    let pos = win.outer_position().ok()?;
-    let size = win.outer_size().ok()?;
+    let (pos, size) = island::frame_now(app)?;
     let scale = win.scale_factor().unwrap_or(1.0);
     let shape = app.try_state::<crate::Shared>().map(|s| *s.gate.rect.lock().unwrap());
     Some(match shape {
@@ -384,7 +386,7 @@ fn side(app: &AppHandle) -> f64 {
 /// Island-window client coordinates (logical) → physical desktop pixels.
 fn from_island_client(app: &AppHandle, x: f64, y: f64) -> Option<(f64, f64)> {
     let island = island::window(app)?;
-    let pos = island.outer_position().ok()?;
+    let (pos, _) = island::frame_now(app)?;
     let scale = island.scale_factor().unwrap_or(1.0);
     Some((pos.x as f64 + x * scale, pos.y as f64 + y * scale))
 }
@@ -393,9 +395,17 @@ fn from_island_client(app: &AppHandle, x: f64, y: f64) -> Option<(f64, f64)> {
 
 fn place(app: &AppHandle, d: &Desktop, pos: (f64, f64)) {
     d.inner.lock().unwrap().pos = pos;
-    if let Some(win) = window(app) {
-        let _ = win.set_position(PhysicalPosition::new(pos.0.round() as i32, pos.1.round() as i32));
-    }
+    let Some(win) = window(app) else { return };
+    // The display his centre is on (a layer surface is placed within one).
+    let s = side(app);
+    let centre = (pos.0 + s / 2.0, pos.1 + s / 2.0);
+    let all = displays(app);
+    let (screen, scale) = all
+        .iter()
+        .find(|d| d.frame.contains(centre))
+        .or(all.first())
+        .map_or(((0, 0), 1.0), |d| ((d.frame.x as i32, d.frame.y as i32), d.scale));
+    platform::move_window(&win, pos.0.round() as i32, pos.1.round() as i32, screen, scale);
 }
 
 fn show(app: &AppHandle, d: &Desktop, at: (f64, f64)) {
@@ -634,7 +644,12 @@ pub fn desktop_info(app: AppHandle, desktop: State<Arc<Desktop>>) -> DesktopInfo
         .map(|s| s.settings.lock().unwrap().desktop.on_desktop)
         .unwrap_or(false);
     let shown = desktop.inner.lock().unwrap().shown;
-    DesktopInfo { mode: desktop.mode.as_str(), on_desktop: on_desktop && desktop.mode != DesktopMode::Off, shown }
+    DesktopInfo {
+        mode: desktop.mode.as_str(),
+        on_desktop: on_desktop && desktop.mode != DesktopMode::Off,
+        shown,
+        drags_by_delta: platform::desktop_drags_by_delta(),
+    }
 }
 
 /// Dragging Candy out of the island: the window appears under the pointer

@@ -987,8 +987,8 @@ export class Island {
   /** Where the island lives now. A browser window too narrow for the panel keeps it on top. */
   private placement(): Placement {
     if (!IS_TAURI && window.innerWidth < PANEL_W + 40) return "top";
-    // Without a cursor poll (Linux) only the top edge works (see State.cursorPoll).
-    if (IS_TAURI && !State.cursorPoll) return "top";
+    // Where the window can't be placed (plain Wayland) only the top edge works (see State.canPlace).
+    if (IS_TAURI && !State.canPlace) return "top";
     return State.settings.placement;
   }
 
@@ -1032,14 +1032,16 @@ export class Island {
 
   /**
    * A press on the floating ticker: a drag moves it, a click opens it. The app
-   * moves its window from Rust (it answers with "float-drag-end"); a browser
-   * moves the stage.
+   * moves its window from Rust (it answers with "float-drag-end"): with the
+   * cursor poll Rust follows the mouse, without (Linux) the page tells it how
+   * far. A browser moves the stage.
    */
   private pressFloat(e: MouseEvent) {
-    if (IS_TAURI) {
+    if (IS_TAURI && State.cursorPoll) {
       void Bridge.startFloatDrag();
       return;
     }
+    if (IS_TAURI) return this.dragWindow(e);
     const r0 = this.root.getBoundingClientRect();
     const from = { x: e.clientX, y: e.clientY, left: r0.left, top: r0.top };
     let moved = false;
@@ -1060,6 +1062,47 @@ export class Island {
       const pill = FLOAT_MARGIN + COMPACT_H / 2;
       const cy = floatsUp(State.settings.floatY) ? r.top + PANEL_H - pill : r.top + pill;
       this.floatDragEnded(true, (r.left + PANEL_W / 2) / window.innerWidth, cy / window.innerHeight);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
+
+  /**
+   * Linux: the page drags the floating island's window. The press point stays
+   * under the mouse: every move asks Rust to shift the window by how far the
+   * mouse got from it (the compositor keeps sending the moves while the button
+   * is held, even outside the window), one request at a time.
+   */
+  private dragWindow(e: MouseEvent) {
+    const grab = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    let busy = false;
+    let want: { dx: number; dy: number } | null = null;
+    const send = () => {
+      if (busy || !want) return;
+      const { dx, dy } = want;
+      want = null;
+      busy = true;
+      void Bridge.floatDragBy(dx, dy).finally(() => {
+        busy = false;
+        send();
+      });
+    };
+    const move = (ev: MouseEvent) => {
+      const dx = ev.clientX - grab.x;
+      const dy = ev.clientY - grab.y;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      // Moves that come while one is on its way are skipped: they were
+      // measured before the window got there.
+      if (busy) return;
+      want = { dx, dy };
+      send();
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      void Bridge.floatDragDone(moved);
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);

@@ -93,6 +93,20 @@ pub struct PollGate {
     /// The band over a notch at the top of the island (logical px), else 0:
     /// the island's contents, and Candy's seat in the ticker, sit under it.
     pub band: Mutex<f64>,
+    /// Where the window was last put, and on which screen: what the page's
+    /// drag moves on Linux, where a layer surface has no position to ask.
+    placed: Mutex<Placed>,
+}
+
+/// The island window's frame (physical px), its screen's top-left corner and scale.
+#[derive(Clone, Copy, Default)]
+struct Placed {
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    screen: (i32, i32),
+    scale: f64,
 }
 
 impl PollGate {
@@ -105,6 +119,7 @@ impl PollGate {
             ignoring: AtomicBool::new(false),
             drag: Mutex::new(None),
             band: Mutex::new(0.0),
+            placed: Mutex::new(Placed::default()),
         }
     }
 
@@ -308,9 +323,7 @@ pub fn window_frame(d: Display, s: &Settings, collapsed: bool) -> (i32, i32, u32
 /// it sits on, and that display's name. Takes no lock: the window calls wait
 /// for the main thread.
 pub fn float_fractions(app: &AppHandle, s: &Settings) -> Option<(f64, f64, String)> {
-    let win = window(app)?;
-    let pos = win.outer_position().ok()?;
-    let size = win.outer_size().ok()?;
+    let (pos, size) = frame_now(app)?;
     let wx = pos.x as f64 + size.width as f64 / 2.0;
     let wy = pos.y as f64 + size.height as f64 / 2.0;
     // The display under the window's centre, wherever it was dropped.
@@ -329,15 +342,36 @@ pub fn float_fractions(app: &AppHandle, s: &Settings) -> Option<(f64, f64, Strin
     ))
 }
 
-/// The placement the island can have here: without a cursor to read (Linux)
-/// only the top edge — a side or floating island needs the cursor poll to hover,
-/// drag and pass clicks through.
+/// The island window's position and size (physical px). With the cursor poll,
+/// as the window toolkit says (the poll drags it); without (Linux), where it
+/// was last put: a layer surface has no position to ask.
+pub fn frame_now(app: &AppHandle) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    if platform::CURSOR_POLL {
+        let win = window(app)?;
+        return Some((win.outer_position().ok()?, win.outer_size().ok()?));
+    }
+    let p = *app.try_state::<crate::Shared>()?.gate.placed.lock().unwrap();
+    Some((PhysicalPosition::new(p.x, p.y), PhysicalSize::new(p.w, p.h)))
+}
+
+/// The placement the island can have here: only the top edge where the
+/// window can't be placed (plain Wayland without layer-shell).
 pub fn effective(s: &Settings) -> Settings {
     let mut s = s.clone();
-    if !platform::CURSOR_POLL {
+    if !platform::can_place() {
         s.placement = "top".into();
     }
     s
+}
+
+/// The page drags the floating island (Linux, no cursor poll): the window
+/// moves by (dx, dy), logical px.
+pub fn drag_by(app: &AppHandle, gate: &PollGate, dx: f64, dy: f64) {
+    let Some(win) = window(app) else { return };
+    let mut p = gate.placed.lock().unwrap();
+    p.x += (dx * p.scale).round() as i32;
+    p.y += (dy * p.scale).round() as i32;
+    platform::move_window(&win, p.x, p.y, p.screen, p.scale);
 }
 
 /// Places and sizes the window. `collapsed` picks the wake strip instead of the panel.
@@ -349,8 +383,10 @@ pub fn apply_geometry(app: &AppHandle, s: &Settings, collapsed: bool) {
     let (x, y, pw, ph) = window_frame(d, s, collapsed);
     // The page draws the band over the notch (State.notch).
     let _ = app.emit_to(WINDOW_LABEL, "notch", d.notch);
+    let screen = (m.position().x, m.position().y);
     if let Some(shared) = app.try_state::<crate::Shared>() {
         *shared.gate.band.lock().unwrap() = notch_band(d, s);
+        *shared.gate.placed.lock().unwrap() = Placed { x, y, w: pw, h: ph, screen, scale: d.scale };
     }
 
     // GTK never sizes a non-resizable window below its natural size (200 px),
@@ -360,7 +396,7 @@ pub fn apply_geometry(app: &AppHandle, s: &Settings, collapsed: bool) {
     #[cfg(target_os = "linux")]
     let _ = win.set_resizable(true);
     let _ = win.set_size(PhysicalSize::new(pw, ph));
-    let _ = win.set_position(PhysicalPosition::new(x, y));
+    platform::move_window(&win, x, y, screen, d.scale);
     // Moving across displays can rescale the window: re-assert the physical size.
     let _ = win.set_size(PhysicalSize::new(pw, ph));
     platform::keep_on_top(&win);
@@ -509,16 +545,22 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
         return;
     }
     let Some(win) = window(app) else { return };
-    platform::set_input_region(&win, input_region(gate.collapsed.load(Ordering::Relaxed), *gate.rect.lock().unwrap()));
+    let placement = app
+        .try_state::<crate::Shared>()
+        .map(|s| effective(&s.settings.lock().unwrap()).placement)
+        .unwrap_or_default();
+    let side = placement == "left" || placement == "right";
+    platform::set_input_region(&win, input_region(gate.collapsed.load(Ordering::Relaxed), side, *gate.rect.lock().unwrap()));
 }
 
 /// The part of the window that takes the mouse without a cursor poll: the wake
-/// strip while collapsed (never "the whole window": if it ever fails to shrink,
-/// the rest must not swallow clicks meant for what sits under the top of the
-/// screen), else the island and its margin, and nothing before it is drawn.
-pub fn input_region(collapsed: bool, r: IslandRect) -> platform::Region {
+/// strip while collapsed, upright on a side edge (never "the whole window": if
+/// it ever fails to shrink, the rest must not swallow clicks meant for what
+/// sits under that edge), else the island and its margin, and nothing before
+/// it is drawn.
+pub fn input_region(collapsed: bool, side: bool, r: IslandRect) -> platform::Region {
     if collapsed {
-        return Some((0.0, 0.0, STRIP_W, STRIP_H));
+        return Some(if side { (0.0, 0.0, STRIP_H, STRIP_W) } else { (0.0, 0.0, STRIP_W, STRIP_H) });
     }
     if r.w <= 0.0 {
         return Some((0.0, 0.0, 0.0, 0.0));
@@ -593,11 +635,13 @@ mod tests {
     #[test]
     fn without_a_cursor_poll_only_the_island_takes_the_mouse() {
         // Collapsed: the wake strip, never the whole window.
-        assert_eq!(input_region(true, IslandRect::default()), Some((0.0, 0.0, STRIP_W, STRIP_H)));
+        assert_eq!(input_region(true, false, IslandRect::default()), Some((0.0, 0.0, STRIP_W, STRIP_H)));
+        // Upright on a side edge.
+        assert_eq!(input_region(true, true, IslandRect::default()), Some((0.0, 0.0, STRIP_H, STRIP_W)));
         // Nothing drawn yet: nothing.
-        assert_eq!(input_region(false, IslandRect::default()), Some((0.0, 0.0, 0.0, 0.0)));
+        assert_eq!(input_region(false, false, IslandRect::default()), Some((0.0, 0.0, 0.0, 0.0)));
         // The island and its margin, kept inside the window.
         let r = IslandRect { x: 200.0, y: 0.0, w: 320.0, h: 32.0 };
-        assert_eq!(input_region(false, r), Some((186.0, 0.0, 348.0, 46.0)));
+        assert_eq!(input_region(false, false, r), Some((186.0, 0.0, 348.0, 46.0)));
     }
 }

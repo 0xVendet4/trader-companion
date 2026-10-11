@@ -103,6 +103,11 @@ pub fn prepare_desktop_window(win: &WebviewWindow) -> bool {
     true
 }
 
+/// The page drags him by screen position (the cursor poll does, here).
+pub fn desktop_drags_by_delta() -> bool {
+    false
+}
+
 /// The cursor poll toggles click-through from the body hit test instead.
 pub fn set_desktop_shape(_win: &WebviewWindow, _shape: super::MouseShape) {}
 
@@ -304,6 +309,16 @@ pub fn keep_on_top(win: &WebviewWindow) {
     #[cfg(target_arch = "aarch64")]
     let_island_cover_the_menu_bar(ns);
     unsafe { dispatch_async_f(&_dispatch_main_q, ns, set_island_level) };
+}
+
+/// The island can go anywhere.
+pub fn can_place() -> bool {
+    true
+}
+
+/// Moves a window (the island, the desktop Candy) so its top-left corner is at (x, y), physical px.
+pub fn move_window(win: &WebviewWindow, x: i32, y: i32, _screen: (i32, i32), _scale: f64) {
+    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
 }
 
 /// The island's NSWindow, and AppKit's own constrainFrameRect:toScreen: for every other window.

@@ -829,6 +829,12 @@ class AppState {
    */
   cursorPoll = true;
   /**
+   * False where the island's window can't be placed (plain Wayland without
+   * layer-shell): it stays on the top edge. Linux elsewhere (KDE, Sway, GNOME
+   * through XWayland…) has every placement, the page dragging the float itself.
+   */
+  canPlace = true;
+  /**
    * The notch's height (logical px) on a MacBook that has one, else 0. At the
    * top there, the island grows out of the notch: a black band that tall over
    * the menu bar, then the island (see Island.band, window_frame in island.rs).

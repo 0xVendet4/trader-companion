@@ -34,6 +34,7 @@ async function main() {
   State.version = boot.version;
   State.os = boot.os ?? "browser";
   State.cursorPoll = boot.cursorPoll ?? true;
+  State.canPlace = boot.canPlace ?? true;
   State.notch = boot.screen.notch ?? 0;
   State.firstName = boot.firstName ?? null;
   // No cursor poll (Linux): the page's own mouse events stand in for it.

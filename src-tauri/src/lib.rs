@@ -42,8 +42,11 @@ pub struct BootInfo {
     /// "windows", "linux"…: labels like "Start with Windows" follow it.
     os: &'static str,
     /// False where the cursor can't be read across the screen (Linux): the page
-    /// follows the mouse over the island itself, and the island stays on top.
+    /// follows the mouse over the island itself, and drags it itself.
     cursor_poll: bool,
+    /// False where the island can't be placed (plain Wayland without
+    /// layer-shell): it stays on the top edge.
+    can_place: bool,
     /// The OS account's first name, for the greeting; it never leaves the PC.
     first_name: Option<&'static str>,
 }
@@ -58,6 +61,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         os: std::env::consts::OS,
         cursor_poll: platform::CURSOR_POLL,
+        can_place: platform::can_place(),
         first_name: identity::first_name(),
     }
 }
@@ -150,6 +154,22 @@ fn start_float_drag(app: AppHandle, shared: State<Shared>) {
     let Ok(origin) = win.outer_position() else { return };
     let Some(cursor) = platform::cursor_physical() else { return };
     shared.gate.start_drag(cursor, (origin.x, origin.y));
+}
+
+/// Without a cursor poll (Linux) the page drags the floating island itself:
+/// the window moves by (dx, dy), logical px, from where it is.
+#[tauri::command]
+fn float_drag_by(app: AppHandle, shared: State<Shared>, dx: f64, dy: f64) {
+    if island::effective(&shared.settings.lock().unwrap()).placement != "float" {
+        return;
+    }
+    island::drag_by(&app, &shared.gate, dx, dy);
+}
+
+/// The page let go of the floating island it was dragging (Linux).
+#[tauri::command]
+fn float_drag_done(app: AppHandle, moved: bool) {
+    finish_float_drag(&app, moved);
 }
 
 #[derive(Serialize, Clone)]
@@ -793,6 +813,8 @@ pub fn run() {
             focus_window,
             reposition,
             start_float_drag,
+            float_drag_by,
+            float_drag_done,
             open_url,
             read_clipboard,
             fullscreen_busy,

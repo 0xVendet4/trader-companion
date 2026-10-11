@@ -12,7 +12,8 @@
 //     the compositor itself sends every other click to whatever is underneath;
 //   * the cursor comes from the page's own mouse events, which only fire over
 //     the island: the eyes follow the pointer there, not across the screen, and
-//     there is no Ctrl pass-through, side or floating placement.
+//     there is no Ctrl pass-through. A side or floating island is placed by
+//     margins on a layer surface (move_window) and dragged by the page.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -135,23 +136,59 @@ pub fn clipboard_text(app: &AppHandle) -> Option<String> {
 
 // ── Desktop Candy window ──────────────────────────────────────────────────────
 
-/// On X11 (GNOME through XWayland too) a window can be placed anywhere; on
-/// native Wayland it cannot, so Candy stays in the island there.
+/// X11, or GNOME through XWayland (prepare_environment): a window can be
+/// placed anywhere there.
+fn x11() -> bool {
+    std::env::var("GDK_BACKEND").map(|v| v == "x11").unwrap_or(false)
+        || std::env::var("XDG_SESSION_TYPE").map(|v| v == "x11").unwrap_or(false)
+}
+
+/// The compositor has layer-shell (KDE, COSMIC, Hyprland, Sway…), and it
+/// wasn't turned off with CANDY_LAYER_SHELL=0. Never under X11 or XWayland.
+fn layer_shell() -> bool {
+    std::env::var("CANDY_LAYER_SHELL").map(|v| v != "0").unwrap_or(true) && unsafe { layer::gtk_layer_is_supported() } != 0
+}
+
+/// On X11 (GNOME through XWayland too) a window can be placed anywhere, and
+/// on a compositor with layer-shell a layer surface can, by its margins. On
+/// plain Wayland without it nothing can, so Candy stays in the island there.
 pub fn desktop_mode() -> super::DesktopMode {
-    let x11 = std::env::var("GDK_BACKEND").map(|v| v == "x11").unwrap_or(false)
-        || std::env::var("XDG_SESSION_TYPE").map(|v| v == "x11").unwrap_or(false);
-    if x11 {
+    if x11() || layer_shell() {
         super::DesktopMode::Window
     } else {
         super::DesktopMode::Off
     }
 }
 
-/// An ordinary always-on-top window that refuses focus (the island's non-layer path).
+/// True once the desktop Candy's window is a layer surface: it is moved by
+/// margins, and the page drags it by how far the mouse goes (no screen
+/// coordinates on Wayland).
+static DESKTOP_LAYER: AtomicBool = AtomicBool::new(false);
+
+/// The desktop window's input region, re-applied on every map (see INPUT_REGION).
+static DESKTOP_REGION: Mutex<Region> = Mutex::new(Some((0.0, 0.0, 0.0, 0.0)));
+
+/// An always-on-top window that refuses focus; without X11, a layer surface
+/// over everything, like the island.
 pub fn prepare_desktop_window(win: &WebviewWindow) -> bool {
     let Ok(gw) = win.gtk_window() else { return false };
     gw.set_accept_focus(false);
+    if x11() {
+        return true;
+    }
+    if gw.is_realized() {
+        crate::log::line("desktop Candy: window already shown, can't be a layer surface");
+        return false;
+    }
+    make_layer_surface(&gw, c"candy-desktop", &DESKTOP_REGION);
+    DESKTOP_LAYER.store(true, Ordering::Relaxed);
     true
+}
+
+/// The page drags the desktop Candy by how far the mouse goes, not by screen
+/// coordinates (a layer surface on Wayland has none).
+pub fn desktop_drags_by_delta() -> bool {
+    DESKTOP_LAYER.load(Ordering::Relaxed)
 }
 
 /// Which part of the desktop window takes the mouse: nothing, all of it, or
@@ -163,6 +200,7 @@ pub fn set_desktop_shape(win: &WebviewWindow, shape: super::MouseShape) {
         super::MouseShape::Whole => None,
         super::MouseShape::Rect { x, y, w, h } => Some((x, y, w, h)),
     };
+    *DESKTOP_REGION.lock().unwrap() = region;
     apply_input_region(&gw, region);
 }
 
@@ -423,6 +461,7 @@ mod layer {
     use std::os::raw::{c_char, c_int};
 
     pub const LAYER_OVERLAY: c_int = 3;
+    pub const EDGE_LEFT: c_int = 0;
     pub const EDGE_TOP: c_int = 2;
     pub const KEYBOARD_NONE: c_int = 0;
     pub const KEYBOARD_ON_DEMAND: c_int = 2;
@@ -431,9 +470,11 @@ mod layer {
     extern "C" {
         pub fn gtk_layer_is_supported() -> c_int;
         pub fn gtk_layer_init_for_window(window: *mut GtkWindow);
+        pub fn gtk_layer_is_layer_window(window: *mut GtkWindow) -> c_int;
         pub fn gtk_layer_set_namespace(window: *mut GtkWindow, name_space: *const c_char);
         pub fn gtk_layer_set_layer(window: *mut GtkWindow, layer: c_int);
         pub fn gtk_layer_set_anchor(window: *mut GtkWindow, edge: c_int, anchor: c_int);
+        pub fn gtk_layer_set_margin(window: *mut GtkWindow, edge: c_int, margin: c_int);
         pub fn gtk_layer_set_exclusive_zone(window: *mut GtkWindow, zone: c_int);
         pub fn gtk_layer_set_keyboard_mode(window: *mut GtkWindow, mode: c_int);
     }
@@ -480,17 +521,27 @@ pub fn make_non_activating(win: &WebviewWindow) {
         });
         return;
     }
+    make_layer_surface(&gw, c"candy", &INPUT_REGION);
+    LAYER_SURFACE.store(true, Ordering::Relaxed);
+    crate::log::line("island is a layer-shell overlay");
+}
+
+/// Makes a window an overlay layer surface on the top edge (over any panel)
+/// that never takes the keyboard, whose input region `region` is put back on
+/// every map. Before the window is first shown only.
+fn make_layer_surface(gw: &gtk::ApplicationWindow, namespace: &'static std::ffi::CStr, region: &'static Mutex<Region>) {
     // tao gives undecorated Wayland windows an empty titlebar to force
     // client-side decorations. A layer surface has none, and a client-decorated
     // GtkWindow recomputes its own input region (shadow margins included) on
     // every map, over ours.
     gw.set_titlebar(None::<&gtk::Widget>);
-    let ptr = gtk_window_ptr(&gw);
+    let ptr = gtk_window_ptr(gw);
     unsafe {
         layer::gtk_layer_init_for_window(ptr);
-        layer::gtk_layer_set_namespace(ptr, c"candy".as_ptr());
+        layer::gtk_layer_set_namespace(ptr, namespace.as_ptr());
         layer::gtk_layer_set_layer(ptr, layer::LAYER_OVERLAY);
-        // Top edge only: the compositor centres the surface horizontally.
+        // Top edge only: the compositor centres the surface horizontally, until
+        // move_window pins it to the left edge too.
         layer::gtk_layer_set_anchor(ptr, layer::EDGE_TOP, 1);
         // -1: right against the screen edge, over any top panel.
         layer::gtk_layer_set_exclusive_zone(ptr, -1);
@@ -502,19 +553,48 @@ pub fn make_non_activating(win: &WebviewWindow) {
     // map, gets it drawing for good.
     let remapped = std::cell::Cell::new(false);
     gw.connect_map_event(move |w, _| {
-        apply_input_region(w, *INPUT_REGION.lock().unwrap());
+        apply_input_region(w, *region.lock().unwrap());
         if !remapped.replace(true) {
             let w = w.clone();
             gtk::glib::idle_add_local_once(move || {
                 w.hide();
                 w.show_all();
-                apply_input_region(&w, *INPUT_REGION.lock().unwrap());
+                apply_input_region(&w, *region.lock().unwrap());
             });
         }
         gtk::glib::Propagation::Proceed
     });
-    LAYER_SURFACE.store(true, Ordering::Relaxed);
-    crate::log::line("island is a layer-shell overlay");
+}
+
+/// Where the island can go: anywhere on a layer-shell overlay (KDE, COSMIC,
+/// Hyprland, Sway…) and on X11 or XWayland (GNOME); on plain Wayland only
+/// where the compositor puts it, so there it stays on the top edge.
+pub fn can_place() -> bool {
+    LAYER_SURFACE.load(Ordering::Relaxed) || x11()
+}
+
+/// Moves a window (the island, the desktop Candy) so its top-left corner is at
+/// (x, y), physical px. A layer surface can't be moved: it is pinned to the
+/// top-left corner of the screen whose top-left is `screen`, that far in
+/// (margins, logical px).
+pub fn move_window(win: &WebviewWindow, x: i32, y: i32, screen: (i32, i32), scale: f64) {
+    // GTK only on its own thread: the desktop Candy's moves come from async commands.
+    let w = win.clone();
+    let _ = win.run_on_main_thread(move || {
+        let Ok(gw) = w.gtk_window() else { return };
+        let ptr = gtk_window_ptr(&gw);
+        if unsafe { layer::gtk_layer_is_layer_window(ptr) } == 0 {
+            let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+            return;
+        }
+        let left = ((x - screen.0) as f64 / scale).round() as i32;
+        let top = ((y - screen.1) as f64 / scale).round() as i32;
+        unsafe {
+            layer::gtk_layer_set_anchor(ptr, layer::EDGE_LEFT, 1);
+            layer::gtk_layer_set_margin(ptr, layer::EDGE_LEFT, left.max(0));
+            layer::gtk_layer_set_margin(ptr, layer::EDGE_TOP, top.max(0));
+        }
+    });
 }
 
 /// The island stays over everything (a layer-shell overlay already does).

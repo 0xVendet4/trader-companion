@@ -64,6 +64,10 @@ class DesktopCandy {
   private dragOrigin: Point | null = null;
   private dragTopLeft: Point | null = null;
   private moveFrame = false;
+  /** A layer surface (KDE, Sway…): dragged by how far the mouse goes, there are no screen coordinates. */
+  private byDelta = false;
+  /** A by-delta move on its way to Rust. */
+  private moving = false;
   private pokeTimer: number | null = null;
 
   constructor(stage: HTMLElement) {
@@ -106,6 +110,7 @@ class DesktopCandy {
     const info = await Bridge.desktopInfo();
     if (info) {
       this.mode = info.mode;
+      this.byDelta = info.dragsByDelta ?? false;
       if (info.shown && !this.visible) this.setVisible(true);
     }
     await emitToWindow(ISLAND, DESKTOP_EVENTS.ready);
@@ -323,6 +328,7 @@ class DesktopCandy {
     const press = this.press;
     if (!origin || !press || this.mode !== "window") return;
     const dpr = window.devicePixelRatio || 1;
+    if (this.byDelta) return this.dragByDelta(e, origin, press.client, dpr);
     const topLeft = windowDragTopLeft(origin, { x: e.screenX, y: e.screenY }, press.screen, dpr);
     this.dragTopLeft = topLeft;
     if (this.moveFrame) return;
@@ -332,6 +338,23 @@ class DesktopCandy {
       const p = this.dragTopLeft;
       if (p && this.dragging) void Bridge.desktopDragMove(p.x, p.y);
     });
+  }
+
+  /**
+   * A layer surface: the press point stays under the mouse, so each move
+   * shifts the window by how far the mouse got from it, from where it was last
+   * sent. One move at a time: the ones that come meanwhile were measured
+   * before the window got there.
+   */
+  private dragByDelta(e: PointerEvent, origin: Point, grab: Point, dpr: number) {
+    if (this.moving) return;
+    const from = this.dragTopLeft ?? origin;
+    const l = this.local(e);
+    if (l.x === grab.x && l.y === grab.y) return;
+    const topLeft = { x: from.x + (l.x - grab.x) * dpr, y: from.y + (l.y - grab.y) * dpr };
+    this.dragTopLeft = topLeft;
+    this.moving = true;
+    void Bridge.desktopDragMove(topLeft.x, topLeft.y).finally(() => (this.moving = false));
   }
 
   private endDrag(e: PointerEvent) {

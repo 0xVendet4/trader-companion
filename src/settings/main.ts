@@ -539,8 +539,8 @@ function generalSection(): HTMLElement {
         },
       ),
     ),
-    // Without a cursor poll (Linux) the island stays at the top edge.
-    !State.cursorPoll ? null : row(
+    // Where the window can't be placed (plain Wayland) the island stays at the top edge.
+    !State.canPlace ? null : row(
       t("Island position"),
       select<Placement>(
         [
@@ -1282,6 +1282,7 @@ async function main() {
   settings = boot.settings;
   State.os = boot.os ?? "browser";
   State.cursorPoll = boot.cursorPoll ?? true;
+  State.canPlace = boot.canPlace ?? true;
   await useLang(pickLang(devLang() ?? settings.companion.language, systemLangs()));
 
   const page = h(
