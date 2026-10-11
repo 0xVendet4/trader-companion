@@ -136,3 +136,23 @@ jobs:
 
       - name: Build the app
         run: npm run setup -- --build-only
+
+      # No one here has a Mac: the runner opens the Candy it just built for half
+      # a minute, checks it is still running and that it started, and prints
+      # its log. Nothing is kept.
+      - name: Start Candy for 30 seconds
+        run: |
+          open "$CARGO_TARGET_DIR/release/bundle/macos/Candy.app"
+          sleep 30
+          log="$HOME/Library/Logs/Candy/companion.log"
+          echo "--- Candy's log ---"
+          cat "$log" || echo "(no log)"
+          echo "-------------------"
+          # [C]: the pattern doesn't match the shell running it.
+          if ! pgrep -f '[C]andy.app/Contents/MacOS/' > /dev/null; then
+            echo "Candy is not running after 30 seconds"
+            exit 1
+          fi
+          grep -q -- "--- Candy .* started ---" "$log" || { echo "Candy never logged its start"; exit 1; }
+          echo "Candy started and is still running"
+          pkill -f '[C]andy.app/Contents/MacOS/' || true
