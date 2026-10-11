@@ -61,8 +61,9 @@ try {
 const browser = await puppeteer.launch({
   executablePath,
   headless: true,
-  // Encoding a cut runs as one call into the page: minutes for 1080×1920.
-  protocolTimeout: 15 * 60_000,
+  // Encoding a cut runs as one call into the page: up to half an hour on a
+  // machine without a hardware H.264 encoder.
+  protocolTimeout: 45 * 60_000,
   args: ["--hide-scrollbars", "--autoplay-policy=no-user-gesture-required"],
 });
 

@@ -409,6 +409,17 @@ function button(scope: string, label: string): HTMLElement | null {
   return b;
 }
 
+/** Answers the cards that come up one after the other, each with the first of `labels` it has. */
+async function answerCards(labels: string[]) {
+  for (let i = 0; i < 4; i++) {
+    const buttons = [...document.querySelectorAll<HTMLElement>(".view.event button")];
+    const b = labels.map((l) => buttons.find((x) => x.textContent?.trim() === l)).find(Boolean);
+    if (!b) return;
+    await click(b);
+    await wait(600);
+  }
+}
+
 function titled(title: string): HTMLElement | null {
   const el = document.querySelector<HTMLElement>(`#island [title="${title}"]`);
   if (!el) console.warn(`demo: nothing titled "${title}"`);
@@ -642,6 +653,44 @@ async function drag(dx: number, dy: number, ms = 1300) {
   shot = { ...start, x: start.x + dx * 0.7, y: start.y + dy * 0.7 };
   c.classList.remove("hold");
   fx("tick");
+}
+
+/** A token link carried from the right onto Candy: his mouth opens on the way, he swallows it and checks it off. */
+async function dropLink() {
+  const target = inWorld(mascotEl()!);
+  const to = { x: target.x + target.w / 2, y: target.y + target.h * 0.62 };
+  const from = { x: to.x + 320, y: to.y + 110 };
+  const chip = Object.assign(document.createElement("div"), { className: "drop-link", textContent: "dexscreener.com/solana/CANDLE…" });
+  $("#world-fx").append(chip);
+  const m = island.mascot;
+  const at = (x: number, y: number, k: number) => `translate(${x}px, ${y}px) translate(-8%, -50%) scale(${k})`;
+  await moveTo(from.x, from.y, 500);
+  $<HTMLElement>("#demo-cursor").classList.add("hold");
+  chip.style.transform = at(from.x, from.y, 1);
+  let opened = false;
+  await tween(1300, (e) => {
+    const x = from.x + (to.x - from.x) * e;
+    const y = from.y + (to.y - from.y) * e;
+    chip.style.transform = at(x, y, 1 - 0.35 * e);
+    cursor.x = x;
+    cursor.y = y;
+    placeCursor();
+    if (!opened && e > 0.4) {
+      opened = true;
+      m.cue({ kind: "ready" });
+    }
+  });
+  $<HTMLElement>("#demo-cursor").classList.remove("hold");
+  await wait(250);
+  chip.animate([{ opacity: 1 }, { opacity: 0, transform: at(to.x, to.y, 0.1) }], { duration: 220, fill: "forwards" });
+  await wait(200);
+  chip.remove();
+  // As the island does on a drop: the line goes, the mouth stays open, then the gulp (and its check).
+  m.cue({ kind: "unready", keepOpen: true });
+  m.cue({ kind: "gulp" });
+  fx("pop");
+  await moveTo(cursor.x + 140, cursor.y + 90, 500);
+  await wait(1100);
 }
 
 /** Picks where the island sits from its header, like the trader would. */
@@ -961,11 +1010,10 @@ async function clipSwallow() {
   await wait(250);
   await tween(260, (e) => place(mouth.x + 20 - 20 * e, mouth.y - 10 + 10 * e, 0.65 * (1 - e)));
   chip.remove();
+  s.mascot.cue({ kind: "unready", keepOpen: true });
   s.mascot.cue({ kind: "gulp" });
   s.mascot.lookAt(NO_GAZE);
   await wait(450);
-  s.mascot.emit("check", 1);
-  s.mascot.react("happy", 1800, "hop");
   caption("…and it joins your watchlist");
   await wait(2000);
 }
@@ -1143,6 +1191,13 @@ async function run() {
   island.setView("watchlist");
   camera(SHOTS.island, 800);
 
+  // A token link dropped on Candy: the mouth opens, a gulp, a check.
+  await say("…or just *drop a link* on it");
+  camera(closeUp(mascotEl(), 1.5), 700);
+  await wait(450);
+  await dropLink();
+  camera(SHOTS.island, 800);
+
   // An alert.
   await say("Alerts on price, market cap, *% moves* and liquidity");
   await click(titled("Alerts"));
@@ -1193,7 +1248,8 @@ async function run() {
   await wait(1500);
   camera(SHOTS.island, 900);
   await wait(900);
-  await click(button(".view.event", "OK"));
+  // A market cap milestone may ring with it: every card gets its OK.
+  await answerCards(["OK"]);
   await wait(600);
 
   // A rug: liquidity pulled on FROGE. A dutch angle and a shake.
@@ -1203,6 +1259,7 @@ async function run() {
   drawChart();
   await wait(700);
   pushCandle(-38);
+  const frogeLiq = live$.FROGE.liq;
   live$.FROGE.liq = 220_000;
   live$.FROGE.price *= 0.62;
   live$.FROGE.m5 = -38.4;
@@ -1214,14 +1271,18 @@ async function run() {
   await wait(1700);
   camera(SHOTS.island, 900);
   await wait(800);
-  await click(button(".view.event", "OK"));
+  await answerCards(["OK"]);
   await wait(500);
   // The market calms down, and Candy with it: the rug's warning is let go.
   live$.FROGE.m5 = -1.2;
+  // Its liquidity comes back, so the warning has nothing left to ring about.
+  live$.FROGE.liq = frogeLiq;
   live$.FROGE.h1 = -3.4;
   live$.CANDLE.m5 = 4.1;
   State.history[FROGE.key] = [];
   (Companion as unknown as { liqWarnings: Map<string, number> }).liqWarnings.clear();
+  // Its rule has done its job: it must not ring again later in the tour.
+  State.settings.companion.alerts = State.settings.companion.alerts.filter((a) => a.id !== "demo-liq");
   Companion.feed(quotes());
 
   // The trader's own wallet: a slow pan along a winning row.
@@ -1237,6 +1298,18 @@ async function run() {
   await wait(1400);
   mark([top?.querySelector(".c-x") ?? null], 1300);
   await wait(900);
+  camera(SHOTS.island, 800);
+
+  // Pokes: a wave, a spin, then dizzy (reactions.ts counts the streak).
+  await say("Poke it… *not too much*");
+  camera(closeUp(mascotEl(), 1.6), 700);
+  await wait(450);
+  const poker = island as unknown as { pokeMascot(): void };
+  for (let i = 0; i < 5; i++) {
+    await click(mascotEl(), { ms: i ? 120 : 500, click: false });
+    poker.pokeMascot();
+    await wait(i === 4 ? 2000 : 330);
+  }
   camera(SHOTS.island, 800);
 
   // The wardrobe, then a close-up on the new look.
@@ -1263,6 +1336,12 @@ async function run() {
   await say("Your own rules, and it *turns red* on a loss");
   await click(titled("Discipline"));
   await wait(400);
+  // With a wallet of his own, the day counts its sales: a trade typed in goes through "Log one by hand".
+  const byHand = document.querySelector<HTMLElement>("#island .auto-line a");
+  if (byHand && byHand.offsetParent) {
+    await click(byHand);
+    await wait(300);
+  }
   const amount = document.querySelector<HTMLInputElement>(".log-bar input")!;
   await click(amount, { click: false });
   await type(amount, "1.2");
@@ -1276,7 +1355,8 @@ async function run() {
   await wait(1700);
   camera(SHOTS.island, 800);
   await wait(500);
-  await click(button(".view.event", "Got it"));
+  // The check-in asks whether the trade followed the plan, then the cooldown card.
+  await answerCards(["No", "Got it"]);
   // The cooldown is waived and the day turns green again: Candy smiles.
   Companion.endCooldown();
   Companion.recordTrade(2.1, "", { quiet: true });
