@@ -1,4 +1,4 @@
-// The demo's audio: a short, light house groove synthesised here (nothing to
+// The demo's audio: a short, light house groove (or a lo-fi or a trap loop) synthesised here (nothing to
 // license), the app's own sounds where the island played them
 // (src/core/sound.ts), and a few effects for the camera, the cursor and the
 // big moments. Rendered offline into the recording (scripts/record-demo.mjs),
@@ -210,6 +210,238 @@ export function scheduleMusic(ctx: BaseAudioContext, dest: AudioNode, start: num
   }
 }
 
+/** The same "random" numbers every time: two renders sound the same. */
+function seeded(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
+/** A fade in, and a fade out over the last second and a half. */
+function musicOut(ctx: BaseAudioContext, dest: AudioNode, start: number, end: number, level: number): GainNode {
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0.0001, start);
+  out.gain.exponentialRampToValueAtTime(level, start + 0.6);
+  out.gain.setValueAtTime(level, Math.max(start + 0.6, end - 1.6));
+  out.gain.exponentialRampToValueAtTime(0.0001, end);
+  out.connect(dest);
+  return out;
+}
+
+// ── Lo-fi: a slow, warm loop of electric piano, a lazy beat and vinyl ────────
+
+const LOFI_BEAT = 60 / 78;
+const LOFI_BAR = 4 * LOFI_BEAT;
+const LOFI_16 = LOFI_BEAT / 4;
+/** Late off-beat sixteenths: the lazy swing. */
+const LOFI_SWING = LOFI_16 * 0.22;
+
+/** Fmaj9 – Em7 – Dm9 – Cmaj9, a bar each, and a few notes of melody over them (eighths, null: a rest). */
+const LOFI_BARS: { root: number; chord: number[]; tune: (number | null)[] }[] = [
+  { root: 41, chord: [57, 60, 64, 67], tune: [72, null, null, 74, 76, null, null, null] },
+  { root: 40, chord: [55, 59, 62, 64], tune: [null, null, 74, null, 71, null, 69, null] },
+  { root: 38, chord: [53, 57, 60, 64], tune: [69, null, 72, null, null, 74, null, null] },
+  { root: 36, chord: [52, 55, 59, 62], tune: [76, null, 74, 72, null, null, null, null] },
+];
+
+/** An electric piano chord, strummed a little, warm and wobbling. */
+function keys(ctx: BaseAudioContext, dest: AudioNode, wow: AudioNode, notes: number[], t: number, dur: number, rand: () => number) {
+  notes.forEach((n, i) => {
+    const at = t + i * 0.022;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.05, at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.018, at + 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    g.connect(dest);
+    const detune = (rand() - 0.5) * 10;
+    const a = tone(ctx, g, "sine", hz(n), at, dur, detune);
+    const b = tone(ctx, env(ctx, g, at, 0.35, 0.005, 0.25), "triangle", hz(n) * 2, at, 0.3, detune);
+    wow.connect(a.detune);
+    wow.connect(b.detune);
+  });
+}
+
+function lofiKick(ctx: BaseAudioContext, dest: AudioNode, t: number) {
+  const o = tone(ctx, env(ctx, dest, t, 0.75, 0.003, 0.32), "sine", 92, t, 0.36);
+  o.frequency.setValueAtTime(92, t);
+  o.frequency.exponentialRampToValueAtTime(44, t + 0.12);
+}
+
+function lofiSnare(ctx: BaseAudioContext, dest: AudioNode, t: number, peak = 0.2) {
+  noise(ctx, filter(ctx, env(ctx, dest, t, peak, 0.002, 0.17), "bandpass", 1700, 0.8), t, 0.2);
+  tone(ctx, env(ctx, dest, t, peak * 0.4, 0.002, 0.07), "triangle", 190, t, 0.1);
+}
+
+/** A soft bell for the melody. */
+function bell(ctx: BaseAudioContext, dest: AudioNode, midi: number, t: number, peak = 0.045) {
+  tone(ctx, env(ctx, dest, t, peak, 0.004, 0.9), "sine", hz(midi), t, 1);
+  tone(ctx, env(ctx, dest, t, peak * 0.25, 0.003, 0.3), "sine", hz(midi) * 3, t, 0.35);
+}
+
+/** Vinyl: a faint hiss, and crackles here and there. */
+function vinyl(ctx: BaseAudioContext, dest: AudioNode, start: number, end: number, rand: () => number) {
+  const hiss = ctx.createGain();
+  hiss.gain.value = 0.006;
+  hiss.connect(dest);
+  noise(ctx, filter(ctx, filter(ctx, hiss, "lowpass", 6000), "highpass", 1500), start, end - start);
+  for (let t = start; t < end; t += 0.04 + rand() * 0.25) {
+    noise(ctx, filter(ctx, env(ctx, dest, t, 0.01 + rand() * 0.05, 0.0005, 0.004), "highpass", 2500), t, 0.01);
+  }
+}
+
+/**
+ * The lo-fi loop from `start` to `end`: keys from the start, the beat and the
+ * bass from the second bar, the melody from the fifth. The beat steps out for
+ * the last `outro` seconds. The whole sits behind a low-pass, like a tape.
+ */
+export function scheduleLofi(ctx: BaseAudioContext, dest: AudioNode, start: number, end: number, outro = 4.5) {
+  const rand = seeded(0x10f1);
+  const out = musicOut(ctx, dest, start, end, 0.7);
+  const tapeOut = filter(ctx, out, "lowpass", 5200);
+  // The tape's wow: the keys' pitch drifts a few cents, slowly.
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.55;
+  const wow = ctx.createGain();
+  wow.gain.value = 7;
+  lfo.connect(wow);
+  lfo.start(start);
+  lfo.stop(end + 0.1);
+  const room = echo(ctx, tapeOut);
+  vinyl(ctx, out, start, end, rand);
+  const beatUntil = end - outro;
+
+  for (let bar = 0; start + bar * LOFI_BAR < end; bar++) {
+    const t = start + bar * LOFI_BAR;
+    const b = LOFI_BARS[bar % LOFI_BARS.length];
+    keys(ctx, room, wow, b.chord, t, LOFI_BAR * 0.95, rand);
+    // A softer push on the "and" of three.
+    keys(ctx, room, wow, b.chord.slice(1), t + LOFI_BEAT * 2.5 + LOFI_SWING, LOFI_BEAT * 1.4, rand);
+    if (bar >= 4) b.tune.forEach((n, i) => n != null && bell(ctx, room, n, t + i * LOFI_BEAT * 0.5 + (i % 2 ? LOFI_SWING : 0)));
+    if (bar < 1 || t >= beatUntil) continue;
+    for (let s = 0; s < 16; s++) {
+      const at = t + s * LOFI_16 + (s % 2 ? LOFI_SWING : 0);
+      if (at >= beatUntil) break;
+      if (s === 0 || s === 10 || (bar % 2 === 1 && s === 7)) lofiKick(ctx, tapeOut, at);
+      if (s === 4 || s === 12) lofiSnare(ctx, tapeOut, at + 0.018);
+      if (s % 2 === 0) hat(ctx, tapeOut, at, s % 4 === 2 ? 0.03 : 0.018, 0.035);
+      else if (rand() < 0.3) hat(ctx, tapeOut, at, 0.01, 0.025);
+    }
+    // The bass: a round sub on the one and on the "and" of three.
+    for (const [s, len] of [
+      [0, 2.5],
+      [10, 1.2],
+    ] as const) {
+      const at = t + s * LOFI_16;
+      const lp = filter(ctx, env(ctx, tapeOut, at, 0.32, 0.01, LOFI_BEAT * len), "lowpass", 300);
+      tone(ctx, lp, "sine", hz(b.root), at, LOFI_BEAT * len + 0.1);
+      tone(ctx, lp, "triangle", hz(b.root), at, LOFI_BEAT * len + 0.1);
+    }
+  }
+}
+
+// ── Trap: an 808, rolling hats and a dark bell, unhurried ────────────────────
+
+const TRAP_BEAT = 60 / 140;
+const TRAP_BAR = 4 * TRAP_BEAT;
+const TRAP_16 = TRAP_BEAT / 4;
+
+/** Am – F – C – G: the 808's notes, the pad's chord and the bell's line (sixteenths). */
+const TRAP_BARS: { root: number; chord: number[]; bell: (number | null)[] }[] = [
+  { root: 33, chord: [57, 60, 64], bell: [81, null, null, 79, null, 76, null, null, 81, null, null, 79, null, 74, 76, null] },
+  { root: 29, chord: [53, 57, 60], bell: [77, null, null, 76, null, 72, null, null, 77, null, 76, null, 72, null, null, null] },
+  { root: 36, chord: [55, 60, 64], bell: [76, null, null, 79, null, 76, null, null, 74, null, null, 72, null, 74, 76, null] },
+  { root: 31, chord: [55, 59, 62], bell: [74, null, null, 71, null, 74, null, null, 79, null, null, 76, null, 74, null, null] },
+];
+
+/** Soft clipping, for the 808's growl. */
+function drive(ctx: BaseAudioContext, dest: AudioNode, amount: number): WaveShaperNode {
+  const curve = new Float32Array(1024);
+  for (let i = 0; i < curve.length; i++) {
+    const x = (i / (curve.length - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * amount) / Math.tanh(amount);
+  }
+  const ws = ctx.createWaveShaper();
+  ws.curve = curve;
+  ws.connect(dest);
+  return ws;
+}
+
+/** An 808: a punchy click into a long, sliding sub. */
+function eightOhEight(ctx: BaseAudioContext, dest: AudioNode, midi: number, t: number, dur: number, from?: number) {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.5, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.25, t + dur * 0.6);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.connect(drive(ctx, dest, 2.2));
+  const o = tone(ctx, g, "sine", hz(from ?? midi + 2), t, dur);
+  o.frequency.setValueAtTime(hz(from ?? midi + 2), t);
+  o.frequency.exponentialRampToValueAtTime(hz(midi), t + (from != null ? 0.12 : 0.04));
+  // The kick on top of it.
+  const k = tone(ctx, env(ctx, dest, t, 0.5, 0.002, 0.07), "sine", 170, t, 0.09);
+  k.frequency.exponentialRampToValueAtTime(60, t + 0.06);
+  noise(ctx, filter(ctx, env(ctx, dest, t, 0.08, 0.001, 0.006), "highpass", 4000), t, 0.015);
+}
+
+/** A thin, held pad: the chord, very low in the mix. */
+function pad(ctx: BaseAudioContext, dest: AudioNode, notes: number[], t: number, dur: number) {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.012, t + 0.4);
+  g.gain.setValueAtTime(0.012, t + dur - 0.3);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  const lp = filter(ctx, g, "lowpass", 900);
+  g.connect(dest);
+  for (const n of notes) {
+    tone(ctx, lp, "sawtooth", hz(n), t, dur, -7);
+    tone(ctx, lp, "sawtooth", hz(n), t, dur, 7);
+  }
+}
+
+/**
+ * The trap loop from `start` to `end`: the bell and the pad from the start,
+ * the hats from the second bar, the 808 and the clap from the third. Hats roll
+ * at the end of every other bar. The drums step out for the last `outro` seconds.
+ */
+export function scheduleTrap(ctx: BaseAudioContext, dest: AudioNode, start: number, end: number, outro = 4.5) {
+  const rand = seeded(0x7a9);
+  const out = musicOut(ctx, dest, start, end, 0.32);
+  const room = echo(ctx, out);
+  const drumsUntil = end - outro;
+  for (let bar = 0; start + bar * TRAP_BAR < end; bar++) {
+    const t = start + bar * TRAP_BAR;
+    const b = TRAP_BARS[bar % TRAP_BARS.length];
+    pad(ctx, out, b.chord, t, TRAP_BAR);
+    b.bell.forEach((n, i) => n != null && bell(ctx, room, n, t + i * TRAP_16, 0.035));
+    if (bar < 1 || t >= drumsUntil) continue;
+    const roll = bar % 2 === 1;
+    for (let s = 0; s < 16; s++) {
+      const at = t + s * TRAP_16;
+      if (at >= drumsUntil) break;
+      // Hats on every sixteenth; a roll of triplets over the last beat of every other bar.
+      if (roll && s >= 12) {
+        for (let k = 0; k < 3; k++) hat(ctx, out, at + (k * TRAP_16) / 3, 0.02 + k * 0.004, 0.02);
+      } else hat(ctx, out, at, s % 4 === 0 ? 0.035 : 0.02, 0.03);
+      if (bar < 2) continue;
+      if (s === 8) {
+        clap(ctx, out, at);
+        lofiSnare(ctx, out, at, 0.1);
+      }
+      const hits = bar % 2 === 0 ? [0, 6, 10] : [0, 3, 11, 14];
+      const i = hits.indexOf(s);
+      if (i >= 0) {
+        const next = hits[i + 1] ?? 16;
+        // The last hit of a bar slides up an octave now and then.
+        const slide = i === hits.length - 1 && rand() < 0.4;
+        eightOhEight(ctx, out, b.root + (slide ? 12 : 0), at, (next - s) * TRAP_16 + 0.05, slide ? b.root : undefined);
+      }
+    }
+  }
+}
+
 // ── Effects ──────────────────────────────────────────────────────────────────
 
 /** One effect at `t`. */
@@ -306,10 +538,10 @@ export function masterBus(ctx: BaseAudioContext): { music: GainNode; sfx: GainNo
 const APP_SOUND_GAIN = 0.2;
 
 /**
- * The music under the video: the groove (`"groove"`), none, or a file of your
- * own (its bytes), faded in and out.
+ * The music under the video: one of the loops made here (the house `"groove"`,
+ * `"lofi"`, `"trap"`), none, or a file of your own (its bytes), faded in and out.
  */
-export type Music = "groove" | "none" | ArrayBuffer;
+export type Music = "groove" | "lofi" | "trap" | "none" | ArrayBuffer;
 
 /** The whole soundtrack, `duration` seconds long, the music starting at `musicAt`. */
 export async function renderSoundtrack(cues: Cue[], musicAt: number, duration: number, sampleRate = 48_000, music: Music = "groove"): Promise<AudioBuffer> {
@@ -320,6 +552,8 @@ export async function renderSoundtrack(cues: Cue[], musicAt: number, duration: n
   app.connect(bus.sfx);
   const from = Math.max(0, musicAt);
   if (music === "groove") scheduleMusic(ctx, bus.music, from, duration);
+  else if (music === "lofi") scheduleLofi(ctx, bus.music, from, duration);
+  else if (music === "trap") scheduleTrap(ctx, bus.music, from, duration);
   else if (music !== "none") {
     const src = ctx.createBufferSource();
     src.buffer = await ctx.decodeAudioData(music);

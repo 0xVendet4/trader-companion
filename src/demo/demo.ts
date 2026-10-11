@@ -19,6 +19,9 @@ import { Island } from "../island/island";
 import { tokenKey } from "../market/chains";
 import { Mascot, accessory, loadManifest, type Manifest, type MascotState, type Motion } from "../mascot/mascot";
 import { skinFilter } from "../mascot/skins";
+import { EXPANDED_W } from "../core/layout";
+import { Music } from "../core/music";
+import { gazeAt } from "../mascot/gaze";
 import { DEMO_TOKENS, avatar, demoQuotes, driftLive, freshLive } from "./market";
 import { liveAudio, renderSoundtrack, type FxName } from "./soundtrack";
 
@@ -248,9 +251,10 @@ function frame(to: Shot, ms: number, ease: string) {
  * in while the scene holds (`drift: false` holds still). Close-ups blur the
  * desktop behind the island; a `whip` blurs the move itself.
  */
-function camera(to: Shot, ms = 950, opts: { drift?: boolean; whip?: boolean; ease?: string } = {}) {
+function camera(to: Shot, ms = 950, opts: { drift?: boolean; whip?: boolean; ease?: string; free?: boolean } = {}) {
   if (driftTimer != null) window.clearTimeout(driftTimer);
   driftTimer = null;
+  if (!opts.free) to = fitIsland(to);
   const travels = Math.abs(to.s - shot.s) > 0.08 || Math.hypot(to.x - shot.x, to.y - shot.y) > 60;
   shot = to;
   frame(to, ms, opts.ease ?? "var(--ease-move)");
@@ -270,9 +274,36 @@ function camera(to: Shot, ms = 950, opts: { drift?: boolean; whip?: boolean; eas
   }
 }
 
+/**
+ * A shot on the island never crops it: zoomed no nearer than the whole island
+ * fits on screen (its slow push-in included), and moved so none of it is cut
+ * off. Only the end's dive into Candy (`free`) goes nearer.
+ */
+function fitIsland(to: Shot): Shot {
+  const el = document.querySelector("#island");
+  if (VERTICAL || !el || el.getClientRects().length === 0) return to;
+  const now = inWorld(el);
+  // Still opening: what it will be, not what it is mid-spring.
+  const open = State.mode === "expanded" && State.settings.placement === "top";
+  const w = open ? Math.max(now.w, EXPANDED_W) : now.w;
+  const h = open ? Math.max(now.h, 290) : now.h;
+  const b = { x: now.x + now.w / 2 - w / 2, y: now.y, w, h };
+  const pad = 60;
+  const inside = to.x >= b.x - pad && to.x <= b.x + b.w + pad && to.y >= b.y - pad && to.y <= b.y + b.h + pad;
+  if (!inside) return to;
+  const s = Math.min(to.s, Math.min((STAGE.w * 0.92) / b.w, (STAGE.h * 0.86) / b.h) / 1.05);
+  const sx = to.sx ?? STAGE.w / 2;
+  const sy = to.sy ?? STAGE.h / 2;
+  const clamp = (v: number, lo: number, hi: number) => (lo > hi ? v : Math.min(hi, Math.max(lo, v)));
+  // The world point at the screen's left edge is x - sx / s: it must not pass the island's left, nor its right edge the right.
+  const x = clamp(to.x, b.x + b.w - STAGE.w / s + sx / s, b.x + sx / s);
+  const y = clamp(to.y, b.y + b.h - STAGE.h / s + sy / s, b.y + sy / s);
+  return { ...to, s, x, y };
+}
+
 /** A shot centred on an element, zoomed `s` times. */
 function focusOn(el: Element | null, s: number, extra: Partial<Shot> = {}): Shot {
-  if (!el) return shot;
+  if (!el || el.getClientRects().length === 0) return shot;
   const b = inWorld(el);
   return { x: b.x + b.w / 2, y: b.y + b.h / 2, s, ...extra };
 }
@@ -387,6 +418,12 @@ async function click(el: Element | null, opts: { ms?: number; click?: boolean } 
     console.warn("demo: nothing to click");
     return;
   }
+  // Something hidden has no place on screen: the cursor would fly to the corner.
+  if (el.getClientRects().length === 0) {
+    console.warn("demo: hidden, not pointed at");
+    if (opts.click !== false) (el as HTMLElement).click();
+    return;
+  }
   const b = inWorld(el);
   await moveTo(b.x + b.w / 2, b.y + b.h / 2, opts.ms ?? 600);
   await press();
@@ -412,7 +449,8 @@ function button(scope: string, label: string): HTMLElement | null {
 /** Answers the cards that come up one after the other, each with the first of `labels` it has. */
 async function answerCards(labels: string[]) {
   for (let i = 0; i < 4; i++) {
-    const buttons = [...document.querySelectorAll<HTMLElement>(".view.event button")];
+    // Only the buttons on screen: a card just answered stays in the page, hidden.
+    const buttons = [...document.querySelectorAll<HTMLElement>(".view.event button")].filter((x) => x.getClientRects().length > 0);
     const b = labels.map((l) => buttons.find((x) => x.textContent?.trim() === l)).find(Boolean);
     if (!b) return;
     await click(b);
@@ -691,6 +729,118 @@ async function dropLink() {
   fx("pop");
   await moveTo(cursor.x + 140, cursor.y + 90, 500);
   await wait(1100);
+}
+
+/**
+ * Candy dragged out of the island onto the desktop. The app gives him a
+ * window of his own; here a second Candy on the fake desktop stands in for it,
+ * dressed like the island's, which hides meanwhile. His eyes follow the mouse;
+ * a double-click flies him home.
+ */
+async function desktopCandy() {
+  const home = inWorld(mascotEl()!);
+  const from = { x: home.x + home.w / 2, y: home.y + home.h / 2 };
+  const to = { x: 330, y: 480 };
+  const size = 80;
+  const c = State.companion;
+  const desk = new Mascot("mascot");
+  desk.use(manifest);
+  desk.setOutfit(accessory(manifest, "outfits", c.outfit), false);
+  desk.setFace(accessory(manifest, "faces", c.face));
+  desk.setFilter(skinFilter(c.skin, c.customSkin));
+  Object.assign(desk.el.style, { width: `${size}px`, height: `${size}px`, zIndex: "18" });
+  const put = (x: number, y: number) => {
+    desk.el.style.left = `${x - size / 2}px`;
+    desk.el.style.top = `${y - size / 2}px`;
+  };
+  const away = (on: boolean) => {
+    State.mascotAway = on;
+    island.mascot.el.style.opacity = on ? "0" : "";
+  };
+  const look = () => desk.lookAt(gazeAt(parseFloat(desk.el.style.left) + size / 2, parseFloat(desk.el.style.top) + size / 2, cursor.x, cursor.y));
+  const glide = async (x: number, y: number, ms: number) => {
+    const a = { ...cursor };
+    await tween(ms, (e) => {
+      cursor.x = a.x + (x - a.x) * e;
+      cursor.y = a.y + (y - a.y) * e;
+      placeCursor();
+      look();
+    });
+  };
+
+  await moveTo(from.x, from.y, 650);
+  const hand = $<HTMLElement>("#demo-cursor");
+  hand.classList.add("hold");
+  fx("tick");
+  put(from.x, from.y);
+  $("#world-fx").append(desk.el);
+  away(true);
+  desk.react("shocked", 1400, "jump");
+  await tween(1300, (e) => {
+    const x = from.x + (to.x - from.x) * e;
+    const y = from.y + (to.y - from.y) * e - Math.sin(e * Math.PI) * 50;
+    put(x, y);
+    cursor.x = x;
+    cursor.y = y;
+    placeCursor();
+  });
+  hand.classList.remove("hold");
+  fx("drop");
+  desk.squash(0.7);
+  desk.react("happy", 1800, "hop");
+  await glide(560, 560, 900);
+  await glide(250, 360, 1000);
+  await say("…a double-click *sends it home*");
+  await glide(to.x + 4, to.y + 6, 600);
+  await press();
+  await wait(90);
+  await press();
+  desk.react("wave", 1200);
+  fx("whoosh");
+  const at = { x: to.x, y: to.y };
+  await tween(800, (e) => {
+    put(at.x + (from.x - at.x) * e, at.y + (from.y - at.y) * e - Math.sin(e * Math.PI) * 120);
+  });
+  desk.el.remove();
+  away(false);
+  island.mascot.react("happy", 1400, "hop");
+  fx("pop");
+  await moveTo(cursor.x + 200, cursor.y + 60, 500);
+}
+
+/** A song plays: the music card opens and Candy dances along, notes rising. The song is made up. */
+async function playMusic() {
+  Object.assign(State.companion, { musicCard: true, danceToMusic: true });
+  Music.art = { key: "demo-song", url: avatar("♪", "#8b5cf6") };
+  State.nowPlaying = {
+    app: "Music",
+    title: "Midnight Candles",
+    artist: "The Wicks",
+    album: "Green Days",
+    duration: 214,
+    position: 48,
+    positionAt: Date.now(),
+    playing: true,
+    shuffle: false,
+    repeat: false,
+    volume: 0.7,
+    canSeek: true,
+    canNext: true,
+    canPrevious: true,
+    artKey: "demo-song",
+  };
+  State.notify();
+  await openIsland();
+  island.setView("music");
+  camera(SHOTS.island, 800);
+  for (let i = 0; i < 8; i++) {
+    island.mascot.emit("note", 1);
+    await wait(450);
+  }
+  State.nowPlaying = null;
+  State.notify();
+  island.setView("watchlist");
+  await wait(400);
 }
 
 /** Picks where the island sits from its header, like the trader would. */
@@ -1163,6 +1313,11 @@ async function run() {
   camera(SHOTS.island);
   await say("Market cap, volume, buys and sells, *5m · 1h · 24h*");
   await openIsland();
+  // The arrival's greeting may still be up: the tour starts on the watchlist.
+  if (State.view !== "watchlist") {
+    island.setView("watchlist");
+    await wait(450);
+  }
   await moveTo(cursor.x - 160, cursor.y + 120, 900);
   await wait(900);
 
@@ -1381,6 +1536,16 @@ async function run() {
   share.classList.remove("on");
   await wait(250);
 
+  // Out of the island and onto the desktop, then home with a double-click.
+  await say("Drag it out: it *sits on your desktop*");
+  camera(SHOTS.wide, 900);
+  await wait(500);
+  await desktopCandy();
+
+  // Music playing: the music card, and Candy dances.
+  await say("Music on? *It dances*");
+  await playMusic();
+
   // Where it sits: whip pans from edge to edge.
   await say("Put it *anywhere:* the top, the left or right edge…");
   camera(SHOTS.wide, 900);
@@ -1418,7 +1583,7 @@ async function run() {
   // The end: the camera dives into Candy, and the card comes up.
   void say(null);
   $<HTMLElement>("#demo-cursor").style.opacity = "0";
-  camera(focusOn(mascotEl(), SHOTS.wide.s * 7), 650, { whip: true, drift: false, ease: "cubic-bezier(0.7, 0, 0.84, 0)" });
+  camera(focusOn(mascotEl(), SHOTS.wide.s * 7), 650, { whip: true, drift: false, ease: "cubic-bezier(0.7, 0, 0.84, 0)", free: true });
   await wait(450);
   bars(true);
   endCard();
