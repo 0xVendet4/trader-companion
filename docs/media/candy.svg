@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 144" width="128" height="144" role="img" aria-label="Candy waving hello">
+<title>Candy</title>
+<!-- Candy, animated for the README: breathes, blinks, and waves now and then. CSS only, so GitHub plays it. -->
+<style>
+  .bob { animation: bob 2.4s ease-in-out infinite; transform-box: view-box; transform-origin: 64px 122px; }
+  .shadow { animation: shadow 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .eyes { animation: blink 4.8s infinite; transform-box: fill-box; transform-origin: center; }
+  .arm { animation: show 9.6s infinite; }
+  .hand { animation: wave 9.6s infinite; transform-box: view-box; transform-origin: 96px 66px; }
+  .tilt { animation: tilt 9.6s ease-in-out infinite; transform-box: view-box; transform-origin: 64px 106px; }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) scale(1, 1); }
+    50% { transform: translateY(-5px) scale(0.985, 1.02); }
+  }
+  @keyframes shadow {
+    0%, 100% { transform: scale(1); opacity: .32; }
+    50% { transform: scale(.84); opacity: .2; }
+  }
+  @keyframes blink {
+    0%, 44%, 48%, 100% { transform: scaleY(1); }
+    46% { transform: scaleY(.1); }
+  }
+  @keyframes show {
+    0%, 58%, 96%, 100% { opacity: 0; }
+    62%, 92% { opacity: 1; }
+  }
+  @keyframes wave {
+    0%, 62% { transform: rotate(0); }
+    67% { transform: rotate(-28deg); }
+    72% { transform: rotate(6deg); }
+    77% { transform: rotate(-28deg); }
+    82% { transform: rotate(6deg); }
+    87%, 100% { transform: rotate(0); }
+  }
+  @keyframes tilt {
+    0%, 60%, 92%, 100% { transform: rotate(0); }
+    66%, 86% { transform: rotate(-4deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bob, .shadow, .eyes, .arm, .hand, .tilt { animation: none; }
+  }
+</style>
+<defs>
+  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86efac"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+</defs>
+<ellipse class="shadow" cx="64" cy="134" rx="30" ry="5" fill="#000"/>
+<g class="bob">
+  <g class="tilt">
+    <rect x="60" y="6" width="8" height="116" rx="4" fill="#15803d" stroke="#06140b" stroke-width="5" paint-order="stroke"/>
+    <g class="arm">
+      <g class="hand"><path d="M96 66 L114 44" stroke="#06140b" stroke-width="10" stroke-linecap="round"/><path d="M96 66 L114 44" stroke="#16a34a" stroke-width="5" stroke-linecap="round"/></g>
+      <path d="M32 84 L22 96" stroke="#06140b" stroke-width="10" stroke-linecap="round"/><path d="M32 84 L22 96" stroke="#16a34a" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <rect x="28" y="24" width="72" height="82" rx="22" fill="url(#g)" stroke="#06140b" stroke-width="5" paint-order="stroke"/>
+    <ellipse cx="42" cy="75" rx="7" ry="4.5" fill="#f9a8d4" opacity="0.85"/><ellipse cx="86" cy="75" rx="7" ry="4.5" fill="#f9a8d4" opacity="0.85"/>
+    <g class="eyes"><ellipse cx="50" cy="60" rx="7.5" ry="10" fill="#0b1f12"/><circle cx="52.5" cy="55.5" r="3" fill="#fff"/><ellipse cx="78" cy="60" rx="7.5" ry="10" fill="#0b1f12"/><circle cx="80.5" cy="55.5" r="3" fill="#fff"/></g>
+    <path d="M53 76 Q64 93 75 76 Z" fill="#0b1f12" stroke="#0b1f12" stroke-width="2" stroke-linejoin="round"/><path d="M58 84 Q64 89 70 84 Q64 81 58 84 Z" fill="#fb7185"/>
+  </g>
+</g>
+</svg>

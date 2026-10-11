@@ -17,7 +17,7 @@ import { DEFAULT_HOTKEY, State, normalizeSettings, type Quote, type Skin, type T
 import { todayKey } from "../discipline/discipline";
 import { Island } from "../island/island";
 import { tokenKey } from "../market/chains";
-import { Mascot, accessory, loadManifest, type Manifest, type MascotState } from "../mascot/mascot";
+import { Mascot, accessory, loadManifest, type Manifest, type MascotState, type Motion } from "../mascot/mascot";
 import { skinFilter } from "../mascot/skins";
 import { DEMO_TOKENS, avatar, demoQuotes, driftLive, freshLive } from "./market";
 import { liveAudio, renderSoundtrack, type FxName } from "./soundtrack";
@@ -582,7 +582,7 @@ function endCard() {
   card([
     el,
     `<h1>${FULL_NAME}</h1>`,
-    `<p>Free and open source · Windows and Linux</p>`,
+    `<p>Free and open source · Windows, macOS and Linux</p>`,
     `<div class="url">github.com/0xVendet4/trader-companion</div>`,
     `<p class="small">not financial advice</p>`,
   ]);
@@ -739,6 +739,345 @@ async function still(name: Still): Promise<StillShot> {
       return { png: btoa(s) };
     }
   }
+}
+
+// ── Clips for the README's GIFs (scripts/record-gifs.mjs) ────────────────────
+
+const CLIPS = ["demo", "hello", "moods", "swallow", "pokes", "wardrobe", "extras", "places", "dance"] as const;
+type Clip = (typeof CLIPS)[number];
+
+/** What the recorder films: an area of the page, and the GIF's width and frame rate. */
+interface ClipShot {
+  clip: { x: number; y: number; width: number; height: number };
+  width: number;
+  fps: number;
+}
+
+/**
+ * Candy alone on a dark tile, larger than in the island, for the clips about
+ * the character itself: a big Mascot, a line under it, and a layer for a
+ * cursor or a dragged link.
+ */
+interface Studio {
+  el: HTMLElement;
+  mascot: Mascot;
+  label: HTMLElement;
+  layer: HTMLElement;
+}
+let studio: Studio | null = null;
+const STUDIO = { w: 480, h: 360, size: 190 };
+
+function openStudio(): Studio {
+  if (!studio) {
+    const el = document.createElement("div");
+    el.id = "studio";
+    const mascot = new Mascot("mascot");
+    mascot.use(manifest);
+    Object.assign(mascot.el.style, {
+      width: `${STUDIO.size}px`,
+      height: `${STUDIO.size}px`,
+      left: `${(STUDIO.w - STUDIO.size) / 2}px`,
+      top: `${(STUDIO.h - STUDIO.size) / 2 - 18}px`,
+    });
+    const label = Object.assign(document.createElement("div"), { className: "studio-label" });
+    const layer = Object.assign(document.createElement("div"), { className: "studio-layer" });
+    el.append(mascot.el, layer, label);
+    document.body.append(el);
+    studio = { el, mascot, label, layer };
+  }
+  const s = studio;
+  s.el.classList.add("on");
+  s.layer.replaceChildren();
+  s.label.textContent = "";
+  s.mascot.setOutfit(null, false);
+  s.mascot.setFace(null);
+  s.mascot.setFilter("");
+  s.mascot.setDancing(false);
+  s.mascot.setMood("happy");
+  s.mascot.lookAt(NO_GAZE);
+  return s;
+}
+
+const NO_GAZE = { x: 0, y: 0 };
+
+function closeStudio() {
+  studio?.el.classList.remove("on");
+}
+
+/** The studio's line: the word for what Candy does now. */
+function caption(text: string) {
+  if (!studio) return;
+  studio.label.textContent = text;
+  studio.label.classList.remove("pop");
+  void studio.label.offsetWidth;
+  studio.label.classList.add("pop");
+}
+
+/** Where Candy's mouth is on the studio tile. */
+const studioMouth = () => ({ x: STUDIO.w / 2, y: (STUDIO.h - STUDIO.size) / 2 - 18 + STUDIO.size * 0.64 });
+
+let current: Clip = "demo";
+
+/** Sets a clip up, still, and says what to film. The recorder then starts filming and calls clipPlay. */
+async function clipSetup(name: Clip): Promise<ClipShot> {
+  current = name;
+  State.events.length = 0;
+  Companion.closeSearch();
+  closeStudio();
+  $<HTMLElement>("#demo-cursor").style.opacity = "0";
+  const stage = { x: 0, y: 0, width: STAGE.w, height: STAGE.h };
+  const tile = { clip: { x: 0, y: 0, width: STUDIO.w, height: STUDIO.h }, width: 400, fps: 18 };
+  switch (name) {
+    case "demo": {
+      State.settings.placement = "top";
+      island.applySettings();
+      camera(SHOTS.wide, 0, { drift: false });
+      island.fsm.homeToPetitDelay = 9;
+      island.collapse();
+      cursor.x = 1000;
+      cursor.y = 560;
+      placeCursor();
+      await wait(1400);
+      return { clip: { x: 200, y: 0, width: 880, height: 400 }, width: 720, fps: 15 };
+    }
+    case "hello": {
+      State.settings.placement = "top";
+      island.applySettings();
+      camera({ x: 640, y: 110, s: 1.35, sy: 190 }, 0, { drift: false });
+      island.collapse();
+      await wait(1400);
+      return { clip: { x: 240, y: 0, width: 800, height: 400 }, width: 560, fps: 18 };
+    }
+    case "places": {
+      State.settings.placement = "top";
+      island.applySettings();
+      camera(SHOTS.wide, 0, { drift: false });
+      island.setView("watchlist");
+      cursor.x = 900;
+      cursor.y = 420;
+      placeCursor();
+      await wait(1400);
+      return { clip: stage, width: 640, fps: 12 };
+    }
+    default:
+      openStudio();
+      await wait(600);
+      return tile;
+  }
+}
+
+async function clipPlay(): Promise<void> {
+  switch (current) {
+    case "demo":
+      return clipDemo();
+    case "hello":
+      island.launch();
+      await wait(5200);
+      return;
+    case "moods":
+      return clipMoods();
+    case "swallow":
+      return clipSwallow();
+    case "pokes":
+      return clipPokes();
+    case "wardrobe":
+      return clipWardrobe();
+    case "extras":
+      return clipExtras();
+    case "places":
+      return clipPlaces();
+    case "dance":
+      return clipDance();
+  }
+}
+
+/** The ticker opens on a hover, a token jumps, the alert card pops. */
+async function clipDemo() {
+  const rule = { id: "clip-up", address: CANDLE.address, kind: "pctUp" as const, value: 30, windowMin: 5, enabled: true };
+  State.settings.companion.alerts = [...State.settings.companion.alerts.filter((a) => a.id !== rule.id), rule];
+  const pill = inWorld($("#island"));
+  await moveTo(pill.x + pill.w / 2, pill.y + pill.h / 2, 900);
+  await press();
+  island.fsm.click();
+  await wait(1700);
+  await moveTo(cursor.x + 230, cursor.y + 170, 800);
+  await wait(500);
+  const before = { ...live$.CANDLE };
+  live$.CANDLE.price *= 1.34;
+  live$.CANDLE.m5 = 34.2;
+  live$.CANDLE.h1 = 48.9;
+  Companion.feed(quotes());
+  window.setTimeout(confetti, 120);
+  await wait(3200);
+  Object.assign(live$.CANDLE, before);
+  State.history[CANDLE.key] = [];
+  Companion.feed(quotes());
+  await click(button(".view.event", "OK"), { ms: 600 });
+  await wait(900);
+}
+
+async function clipMoods() {
+  const m = studio!.mascot;
+  const moods: [MascotState, string][] = [
+    ["happy", "happy: the list is green"],
+    ["worried", "worried: it is red"],
+    ["bored", "bored: nothing moves"],
+    ["sleepy", "asleep, late at night"],
+    ["excited", "excited: extreme greed"],
+    ["nervous", "nervous: extreme fear"],
+    ["dizzy", "dizzy: a whipsaw"],
+    ["proud", "proud of a win"],
+    ["angry", "angry: past your trade cap"],
+  ];
+  for (const [state, line] of moods) {
+    m.react(state, 1150);
+    caption(line);
+    await wait(1150);
+  }
+}
+
+/** A token link dragged onto Candy: the mouth opens, a gulp, a check. */
+async function clipSwallow() {
+  const s = studio!;
+  const chip = Object.assign(document.createElement("div"), { className: "studio-link", textContent: "dexscreener.com/solana/CANDLE…" });
+  s.layer.append(chip);
+  const mouth = studioMouth();
+  const from = { x: STUDIO.w + 40, y: 70 };
+  const place = (x: number, y: number, k = 1) => (chip.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${k})`);
+  place(from.x, from.y);
+  caption("drop a token link on Candy");
+  await wait(300);
+  let opened = false;
+  await tween(1500, (e) => {
+    const x = from.x + (mouth.x + 20 - from.x) * e;
+    const y = from.y + (mouth.y - 10 - from.y) * e;
+    place(x, y, 1 - e * 0.35);
+    s.mascot.lookAt({ x: (x - STUDIO.w / 2) / 160, y: (y - mouth.y) / 160 });
+    if (!opened && e > 0.45) {
+      opened = true;
+      s.mascot.cue({ kind: "ready" });
+    }
+  });
+  await wait(250);
+  await tween(260, (e) => place(mouth.x + 20 - 20 * e, mouth.y - 10 + 10 * e, 0.65 * (1 - e)));
+  chip.remove();
+  s.mascot.cue({ kind: "gulp" });
+  s.mascot.lookAt(NO_GAZE);
+  await wait(450);
+  s.mascot.emit("check", 1);
+  s.mascot.react("happy", 1800, "hop");
+  caption("…and it joins your watchlist");
+  await wait(2000);
+}
+
+/** Poke after poke, as reactions.ts has it: hi, a spin, dizzy at five, fed up at eight. */
+async function clipPokes() {
+  const s = studio!;
+  const m = s.mascot;
+  const hand = Object.assign(document.createElement("div"), { className: "studio-cursor" });
+  s.layer.append(hand);
+  const at = { x: STUDIO.w / 2 + 20, y: STUDIO.h / 2 + 4 };
+  hand.style.transform = `translate(${at.x + 120}px, ${at.y + 90}px)`;
+  await wait(200);
+  hand.animate([{ transform: hand.style.transform }, { transform: `translate(${at.x}px, ${at.y}px)` }], { duration: 500, easing: "ease-out", fill: "forwards" });
+  await wait(550);
+  const tap = () => {
+    hand.classList.add("press");
+    const ring = Object.assign(document.createElement("div"), { className: "ripple" });
+    Object.assign(ring.style, { left: `${at.x + 4}px`, top: `${at.y + 3}px` });
+    s.layer.append(ring);
+    window.setTimeout(() => ring.remove(), 500);
+    window.setTimeout(() => hand.classList.remove("press"), 110);
+  };
+  const pokes: [MascotState, Motion, string, number][] = [
+    ["happy", "squish", "hehe", 600],
+    ["wave", "wiggle", "hi hi!", 700],
+    ["celebrate", "spin", "wheee!", 900],
+    ["happy", "wiggle", "hehe", 600],
+    ["dizzy", "dizzy", "@_@", 2000],
+    ["worried", "wiggle", "hey…", 600],
+    ["worried", "wiggle", "hey…", 600],
+    ["angry", "shake", "ok ok, that's enough 😤", 2200],
+  ];
+  for (const [i, [state, motion, line, ms]] of pokes.entries()) {
+    tap();
+    m.react(state, ms + 300, motion);
+    m.say(line, ms);
+    caption(`poke ${i + 1}`);
+    await wait(ms);
+  }
+}
+
+/** Hats on and off, each with a hop: the pompoms, ears and tassel swing. */
+async function clipWardrobe() {
+  const m = studio!.mascot;
+  const looks: [string, string, Skin | null, string][] = [
+    ["party", "none", null, "party hat"],
+    ["bunny", "none", null, "bunny ears"],
+    ["santa", "none", null, "santa"],
+    ["grad", "glasses", null, "graduate"],
+    ["crown", "shades", "sky", "crown, shades, sky"],
+    ["wizard", "starglasses", "rose", "wizard, star glasses, rose"],
+    ["beanie", "none", "mint", "beanie, mint"],
+  ];
+  for (const [hat, face, skin, line] of looks) {
+    m.setOutfit(accessory(manifest, "outfits", hat));
+    m.setFace(accessory(manifest, "faces", face));
+    m.setFilter(skin ? skinFilter(skin, null) : "");
+    caption(line);
+    m.hop(20);
+    await wait(500);
+    m.hop(12);
+    await wait(700);
+  }
+}
+
+/** The little extras, one after the other. */
+async function clipExtras() {
+  const m = studio!.mascot;
+  const steps: [string, () => void, number][] = [
+    ["a flame on its wick, on a rise", () => { m.react("excited", 1600); m.emit("flame", 1, 1.6); }, 1700],
+    ["confetti", () => { m.react("celebrate", 1400, "jump"); m.emit("confetti", 22); }, 1500],
+    ["a rain cloud on a hard drop", () => { m.react("sad", 1800); m.emit("cloud", 1); m.emit("rain", 10); }, 1900],
+    ["coins on a winning sale", () => { m.react("proud", 1400); m.emit("coin", 6); }, 1500],
+    ["fireworks on a green week", () => { m.react("celebrate", 1800); m.emit("firework", 36); m.emit("confetti", 10); }, 1900],
+    ["a jump for joy", () => m.joyJump(), 1300],
+  ];
+  for (const [line, play, ms] of steps) {
+    caption(line);
+    play();
+    await wait(ms);
+  }
+}
+
+/** The top, the left and right edges, then floating and dragged. */
+async function clipPlaces() {
+  await place("Left edge");
+  await wait(1300);
+  await place("Right edge");
+  await wait(1300);
+  await place("Floating: drag it anywhere");
+  floatAt(520, 330);
+  island.collapse();
+  await wait(700);
+  await drag(300, -110, 1200);
+  await wait(500);
+  await place("Top of the screen");
+  floatAt(640, 26);
+  $<HTMLElement>("#root").style.left = "";
+  $<HTMLElement>("#root").style.top = "";
+  await wait(900);
+}
+
+async function clipDance() {
+  const m = studio!.mascot;
+  caption("music playing");
+  m.setDancing(true);
+  for (let i = 0; i < 9; i++) {
+    m.emit("note", 1);
+    await wait(500);
+  }
+  m.setDancing(false);
 }
 
 // ── Script ────────────────────────────────────────────────────────────────────
@@ -1065,6 +1404,10 @@ async function main() {
     Companion.recordTrade(-0.4, "", { quiet: true });
     Companion.recordTrade(1.3, "", { quiet: true });
     Object.assign(window, { __demoStills: STILLS, __demoStill: still });
+    return;
+  }
+  if (params.has("clips")) {
+    Object.assign(window, { __demoClips: CLIPS, __demoClip: clipSetup, __demoClipPlay: clipPlay });
     return;
   }
   if (RECORD) {
