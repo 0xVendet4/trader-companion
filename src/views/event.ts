@@ -10,14 +10,16 @@ import { APP_NAME, MASCOT_NAME } from "../core/brand";
 import { formatDuration, formatPct, formatPnl, pctClass } from "../core/format";
 import { Bridge, IS_TAURI } from "../core/bridge";
 import { t, tn } from "../core/i18n";
-import { State, type CompanionEvent, type TradePlan } from "../core/state";
+import { EDITION_ID, State, type CompanionEvent, type TradePlan } from "../core/state";
 import { WHATS_NEW_URL } from "../core/update";
 import { TERMINALS } from "../market/links";
 import { headsUpTitle } from "../market/calendar";
 import { RUGCHECK_WAIT_MS, checklistFor, checklistSummary, stopWaiting, type CheckItem, type CheckSummary } from "../market/checklist";
 import type { AwayMove } from "../away/away";
 import type { CardFormat } from "../share/card";
-import { buildWeekRecap } from "../share/recap";
+import { buildRecap, buildWeekRecap, type Recap } from "../share/recap";
+import { countDoneAt, countProgress, dayEndStats, type DayEndStat } from "../share/dayend";
+import { currentLog } from "../discipline/discipline";
 import type { MascotState } from "../mascot/mascot";
 
 /** Candy going over a checklist card (see buildEvent). */
@@ -52,6 +54,34 @@ const CHECK_REACTION: Record<CheckItem["state"], CandyAct> = {
   unknown: { react: "confused", ms: 1200 },
 };
 const SUMMARY_FACE: Record<CheckSummary["tone"], MascotState> = { ok: "proud", warn: "worried", unknown: "confused" };
+
+/** The end of the day (see buildEvent): Candy holds up the day's board and its numbers count up. */
+interface Board {
+  id: string;
+  stats: DayEndStat[];
+  mood: Recap["mood"];
+  /** Each number's element, in the stats' order. */
+  cells: HTMLElement[];
+  /** Which numbers have settled (a blip each). */
+  settled: boolean[];
+  /** When the board came up (performance.now()); 0 while Candy still steps forward. */
+  start: number;
+  timer: number | null;
+  raf: number;
+  done: boolean;
+}
+
+/** Candy steps forward first; the board comes up after this beat. */
+const BOARD_RISE_MS = 380;
+/** The face he holds the board up with: pleased on a green or quiet day, set on a red one, uneasy on a stopped one. */
+const OPENING: Record<Recap["mood"], MascotState> = { celebrate: "happy", idle: "happy", worried: "focused", stop: "worried" };
+/** How the finale goes: the face, its sound, its line, and confetti on a green day. */
+const FINALE: Record<Recap["mood"], CandyAct> = {
+  celebrate: { react: "celebrate", ms: 2800, sound: "tada", emit: "confetti", count: 18, hop: true },
+  worried: { react: "sad", ms: 2800, sound: "hmm" },
+  stop: { react: "stop", ms: 2800, sound: "hmm" },
+  idle: { react: "happy", ms: 2000, sound: "pop" },
+};
 
 function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail: string; tone: string } {
   switch (e.kind) {
@@ -104,6 +134,20 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
         detail: t("That was the plan. Log off, or set a new end in Discipline."),
         tone: "calm",
       };
+    case "dayEnd": {
+      // The same numbers as Share my day's card, so the two never disagree.
+      const input = Companion.recapInput();
+      const r = buildRecap(input, "");
+      return {
+        eyebrow:
+          e.reason === "session" && e.minutes
+            ? t("The {duration} session is over · {date}", { duration: formatDuration(e.minutes * 60_000), date: input.date })
+            : t("End of day · {date}", { date: input.date }),
+        title: r.headline,
+        detail: "",
+        tone: r.mood === "celebrate" ? "up" : r.mood === "worried" || r.mood === "stop" ? "down" : "calm",
+      };
+    }
     case "checklist": {
       const symbol = State.token(e.key)?.symbol;
       return {
@@ -153,13 +197,23 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
       return {
         eyebrow: t("Update"),
         title: t("{app} {version} is out (you have {current}).", { app: APP_NAME, version: e.version, current: State.version }),
-        detail:
-          IS_TAURI && State.os === "windows"
+        detail: !updatesInApp()
+          ? t("To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.")
+          : State.os === "windows"
             ? t("Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.")
-            : t("To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay."),
+            : t("Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay."),
         tone: "calm",
       };
   }
+}
+
+/**
+ * "Update now" builds the main branch's code (src-tauri/src/update.rs). Not
+ * for a friend's edition: its costume is not in that code, and it would come
+ * back as plain Candy.
+ */
+function updatesInApp(): boolean {
+  return IS_TAURI && !EDITION_ID;
 }
 
 export function buildEvent(actions: ViewActions): ViewHost {
@@ -296,6 +350,98 @@ export function buildEvent(actions: ViewActions): ViewHost {
     }, 420);
   }
 
+  // ── The end of the day: the board Candy holds up ──
+  // He steps forward (a hop, his eyes on it), the board rises, each number
+  // counts up a beat after the one before, then the finale: confetti on a
+  // green day, a soft oof on a red one. Out of sight, it skips to the end and
+  // nothing keeps running.
+  let board: Board | null = null;
+
+  const boardOnScreen = (b: Board) => State.mode === "expanded" && State.view === "event" && State.events[0]?.id === b.id;
+
+  function startBoard(id: string) {
+    stopBoard();
+    const input = Companion.recapInput();
+    const r = buildRecap(input, "");
+    const stats = dayEndStats({
+      trades: input.trades,
+      positions: input.positions,
+      entries: currentLog(State.companion.log).entries,
+      journal: State.companion.journal,
+      sessionMs: Date.now() - State.sessionStart,
+    });
+    clear(extra);
+    extra.className = "event-extra board off";
+    const cells = stats.map((s) => {
+      const value = h("b", { class: `b-value ${s.tone}`, text: s.format(0) });
+      extra.append(h("div", { class: "b-tile" }, h("span", { class: "b-label", text: s.label }), value, s.sub ? h("span", { class: "b-sub", text: s.sub }) : null));
+      return value;
+    });
+    const b: Board = { id, stats, mood: r.mood, cells, settled: stats.map(() => false), start: 0, timer: null, raf: 0, done: false };
+    board = b;
+    // The buttons come at the end; the card stays up until then.
+    buttons.classList.add("later");
+    actions.holdOpen(true);
+    actions.candy({ hop: true, forward: true, react: OPENING[r.mood], ms: BOARD_RISE_MS + 900, look: extra });
+    b.timer = window.setTimeout(() => {
+      b.timer = null;
+      if (board !== b) return;
+      if (!boardOnScreen(b)) return finishBoard(b, false);
+      extra.classList.remove("off");
+      b.start = performance.now();
+      b.raf = requestAnimationFrame(() => stepBoard(b));
+    }, BOARD_RISE_MS);
+  }
+
+  function stepBoard(b: Board) {
+    b.raf = 0;
+    if (board !== b || b.done) return;
+    if (!boardOnScreen(b)) return finishBoard(b, false);
+    const ms = performance.now() - b.start;
+    b.stats.forEach((s, i) => {
+      const p = countProgress(i, ms);
+      b.cells[i].textContent = s.format(s.value * p);
+      if (p >= 1 && !b.settled[i]) {
+        b.settled[i] = true;
+        b.cells[i].classList.add("set");
+        actions.blip();
+      }
+    });
+    if (ms < countDoneAt(b.stats.length)) b.raf = requestAnimationFrame(() => stepBoard(b));
+    else finishBoard(b, true);
+  }
+
+  /** The end state: every number settled, the buttons in; the finale only when it played out on screen. */
+  function finishBoard(b: Board, played: boolean) {
+    b.done = true;
+    if (b.raf) cancelAnimationFrame(b.raf);
+    b.raf = 0;
+    b.stats.forEach((s, i) => {
+      b.cells[i].textContent = s.format(s.value);
+      b.cells[i].classList.add("set");
+    });
+    extra.classList.remove("off");
+    buttons.classList.remove("later");
+    if (played) {
+      // His line, where his bubble has room: in the sidebar it would sit on the card's words.
+      const room = !document.body.classList.contains("sidebar");
+      const line = !room ? null : b.mood === "celebrate" ? t("let's go!") : b.mood === "worried" || b.mood === "stop" ? t("oof…") : null;
+      actions.candy({ ...FINALE[b.mood], look: null, ...(line ? { say: line } : {}) });
+    } else actions.candy({ look: null });
+    actions.holdOpen(false);
+  }
+
+  function stopBoard() {
+    const b = board;
+    if (!b) return;
+    board = null;
+    if (b.timer != null) window.clearTimeout(b.timer);
+    if (b.raf) cancelAnimationFrame(b.raf);
+    if (!b.done) actions.holdOpen(false);
+    actions.candy({ look: null, forward: false });
+    buttons.classList.remove("later");
+  }
+
   function renderMoves(moves: AwayMove[]) {
     clear(extra);
     extra.className = "event-extra moves";
@@ -341,6 +487,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
       }
       shown = e.id;
       if (e.kind !== "checklist") stopPass();
+      if (e.kind !== "dayEnd") stopBoard();
       const copy = eventCopy(e);
       el.dataset.tone = copy.tone;
       el.dataset.kind = e.kind;
@@ -419,6 +566,29 @@ export function buildEvent(actions: ViewActions): ViewHost {
           buttons.append(share("story", t("Share as a story")), share("wide", t("Wide image")), btn(t("Got it"), "secondary", () => actions.dismissEvent()));
           break;
         }
+        case "dayEnd": {
+          startBoard(e.id);
+          // Share: today's card (Share my day's), copied; the button becomes the note.
+          const share = btn(t("Share"), "primary", async () => {
+            share.disabled = true;
+            try {
+              const note = await actions.shareDay();
+              share.replaceWith(h("span", { class: "done-note", text: note }));
+            } catch (err) {
+              share.disabled = false;
+              share.replaceWith(h("span", { class: "done-note err", text: t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) }) }));
+            }
+          });
+          share.title = t("A recap image of today, copied to paste on X or Telegram");
+          buttons.append(
+            share,
+            btn(t("Done"), "secondary", () => {
+              stopBoard();
+              actions.dismissEvent();
+            }),
+          );
+          break;
+        }
         case "away":
           renderMoves(e.moves ?? []);
           buttons.append(btn(t("Got it"), "primary", () => actions.dismissEvent()));
@@ -437,17 +607,26 @@ export function buildEvent(actions: ViewActions): ViewHost {
           break;
         case "update": {
           const whatsNew = btn(t("What's new"), "secondary", () => actions.openUrl(WHATS_NEW_URL));
-          if (IS_TAURI && State.os === "windows") {
+          if (updatesInApp()) {
+            // Windows builds in an installer window; a Mac and Linux build
+            // while Candy waits, and the new one replaces it when it's done.
+            const windows = State.os === "windows";
             const go = btn(t("Update now"), "primary", async () => {
               go.disabled = true;
-              detail.textContent = t("Downloading the new code…");
+              detail.textContent = windows
+                ? t("Downloading the new code…")
+                : t("Downloading and building the new code: Candy starts again by itself when it's done. You can keep using it meanwhile.");
               const failed = await Bridge.startUpdate();
               if (failed) {
                 go.disabled = false;
-                detail.textContent = t("The update didn't start: {error}", { error: failed });
+                detail.textContent = windows
+                  ? t("The update didn't start: {error}", { error: failed })
+                  : t("The update didn't finish: {error}", { error: failed });
                 return;
               }
-              detail.textContent = t("Building in its own window: Candy starts again when it's done.");
+              detail.textContent = windows
+                ? t("Building in its own window: Candy starts again when it's done.")
+                : t("Installed: Candy starts again.");
             });
             buttons.append(go, whatsNew, btn(t("Later"), "secondary", () => actions.dismissEvent()));
           } else {

@@ -18,6 +18,15 @@ export const DEMO_TOKENS: WatchToken[] = [
   { key: "DemoSPaRK11111111111111111111111111111111111", chainId: "solana", address: "DemoSPaRK11111111111111111111111111111111111", symbol: "SPARK", name: "Spark", pairAddress: "DemoPairSPaRK111111111111111111111111111111", dexId: "meteora", imageUrl: avatar("S", "#f59e0b") },
 ];
 
+/**
+ * Two made-up EVM memecoins, for the EVM wallet scenes: one on BSC, one on
+ * Base (keys as tokenKey makes them: chain:address, lower case).
+ */
+export const DEMO_EVM_TOKENS: WatchToken[] = [
+  { key: "bsc:0xf1a3e000000000000000000000000000000000f1", chainId: "bsc", address: "0xF1A3E000000000000000000000000000000000F1", symbol: "FLAME", name: "Flame", pairAddress: "0xdea1f1a3e00000000000000000000000000000f1", dexId: "pancakeswap", imageUrl: avatar("F", "#f97316") },
+  { key: "base:0xe3be2000000000000000000000000000000000e3", chainId: "base", address: "0xE3BE2000000000000000000000000000000000E3", symbol: "EMBER", name: "Ember", pairAddress: "0xdea1e3be200000000000000000000000000000e3", dexId: "uniswap", imageUrl: avatar("E", "#ef4444") },
+];
+
 export interface Live {
   price: number;
   supply: number;
@@ -34,16 +43,18 @@ export function freshLive(): Record<string, Live> {
     FROGE: { price: 0.01874, supply: 1e9, liq: 640_000, m5: -0.6, h1: -2.1, h24: 12.5 },
     WICK: { price: 0.000918, supply: 1e9, liq: 96_000, m5: 2.4, h1: 11.2, h24: -18.3 },
     SPARK: { price: 0.0612, supply: 1e9, liq: 1_250_000, m5: 0.3, h1: 1.8, h24: 4.2 },
+    FLAME: { price: 0.0321, supply: 1e8, liq: 410_000, m5: 0.8, h1: 5.1, h24: 22.4 },
+    EMBER: { price: 0.00087, supply: 1e10, liq: 150_000, m5: -1.1, h1: -3.4, h24: -9.8 },
   };
 }
 
-/** Quotes for the demo coins, as DexScreener would give them. */
+/** Quotes for the demo coins (the EVM ones too), as DexScreener would give them, by token key. */
 export function demoQuotes(live: Record<string, Live>): Record<string, Quote> {
   const out: Record<string, Quote> = {};
-  for (const t of DEMO_TOKENS) {
+  for (const t of [...DEMO_TOKENS, ...DEMO_EVM_TOKENS]) {
     const l = live[t.symbol];
-    out[t.address] = {
-      address: t.address,
+    out[t.key] = {
+      address: t.key,
       pairAddress: t.pairAddress,
       priceUsd: l.price,
       marketCap: l.price * l.supply,

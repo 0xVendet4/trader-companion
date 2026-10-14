@@ -41,13 +41,25 @@ export interface Slice {
   share: number;
 }
 
+/** A wallet's coin (SOL, ETH, BNB) and what it is worth. */
+export interface NativeValue {
+  symbol: string;
+  value: number;
+}
+
 /**
- * Each token's share of the wallet, SOL included, biggest first: the `max`
- * largest, then the rest together as "Others". Nothing in it: none.
+ * Each token's share of the wallet, the wallet's coins (SOL, ETH, BNB)
+ * included, biggest first: the `max` largest, then the rest together as
+ * "Others". Nothing in it: none. A number is the SOL value alone.
  */
-export function allocation(list: Held[], solValue: number, max = 5): Slice[] {
+export function allocation(list: Held[], natives: number | NativeValue[], max = 5): Slice[] {
   const parts = list.map((x) => ({ key: x.p.mint, symbol: x.p.symbol, value: Math.max(0, x.s.valueUsd) }));
-  if (solValue > 0) parts.push({ key: "SOL", symbol: "SOL", value: solValue });
+  // The same coin on two chains (ETH on Ethereum and Base) is one slice.
+  const coins = new Map<string, number>();
+  for (const n of typeof natives === "number" ? [{ symbol: "SOL", value: natives }] : natives) {
+    if (n.value > 0) coins.set(n.symbol, (coins.get(n.symbol) ?? 0) + n.value);
+  }
+  for (const [symbol, value] of coins) parts.push({ key: symbol, symbol, value });
   const total = parts.reduce((s, x) => s + x.value, 0);
   if (!(total > 0)) return [];
   parts.sort((a, b) => b.value - a.value);

@@ -187,7 +187,7 @@ export type ParsedInput =
   | { kind: "query"; query: string };
 
 /** GMGN's chain segments. */
-const GMGN_CHAINS: Record<string, ChainId> = { sol: "solana", bsc: "bsc", eth: "ethereum" };
+const GMGN_CHAINS: Record<string, ChainId> = { sol: "solana", bsc: "bsc", eth: "ethereum", base: "base" };
 /** Based Bot's chain segments. */
 const BASEDBOT_CHAINS: Record<string, ChainId> = { sol: "solana", bsc: "bsc", eth: "ethereum", robinhood: "robinhood" };
 
@@ -197,6 +197,7 @@ const EXPLORERS: Record<string, ChainId> = {
   "pump.fun": "solana",
   "etherscan.io": "ethereum",
   "bscscan.com": "bsc",
+  "basescan.org": "base",
 };
 
 const ANY_ADDRESS = /0x[0-9a-fA-F]{64}|0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/g;

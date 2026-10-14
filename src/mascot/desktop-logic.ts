@@ -4,6 +4,7 @@
 // Adapted from Coucou's desktop-logic.ts (MIT, © Louis Raillé).
 
 import type { MascotState } from "./mascot";
+import type { PnlSign } from "./sign";
 
 /** What the island tells the desktop window, whenever it changes. */
 export interface DesktopSnapshot {
@@ -15,12 +16,22 @@ export interface DesktopSnapshot {
   face: string | null;
   /** The trader's colour, as a CSS filter (see skins.ts). */
   filter: string;
+  /** After midnight: his pyjamas (night.ts). Missing from an older island: none. */
+  pyjamas?: boolean;
+  /** How far his wax has run down on a strong drop (0–1, melt.ts). */
+  melt?: number;
   soundEnabled: boolean;
   soundVolume: number;
   /** Tray → Pause: he dozes off and stays asleep. */
   paused: boolean;
   /** Music plays: he dances (dance.ts decides what moods sit it out). */
   dancing: boolean;
+  /** Shades on for a moment (a 2x, see shades.ts): their art, or null. */
+  shades: string | null;
+  /** His face accessory stays on under the shades. */
+  keepFace: boolean;
+  /** What his sign says, held up while the mouse rests on him (see sign.ts). */
+  sign: PnlSign | null;
 }
 
 /** Events between the two windows. Rust adds `desktop-dropped`. */
@@ -29,14 +40,18 @@ export const DESKTOP_EVENTS = {
   state: "desktop-state",
   /** A swallowing step (mascot.ts MouthCue). */
   cue: "desktop-cue",
+  /** An emote picked in the island's menu (emotes.ts), for him to play. */
+  emote: "desktop-emote",
+  /** A reaction for him to play, `{ state, ms }` (the cool look of a 2x's shades). */
+  react: "desktop-react",
   /** desktop window → island */
   ready: "desktop-ready",
   home: "desktop-home",
   poked: "desktop-poked",
   /** A link or address dropped on him: the island adds it. */
   drop: "desktop-drop",
-  /** Right-click on him: the wardrobe, in the island. */
-  wardrobe: "desktop-wardrobe",
+  /** Right-click on him: his menu (emotes, the wardrobe), in the island. */
+  menu: "desktop-menu",
   /** Rust → island: a drag ended, `{ from: "island" | "desktop", home }`. */
   dropped: "desktop-dropped",
   /** Rust → desktop window */

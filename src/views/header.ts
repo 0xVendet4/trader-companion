@@ -59,7 +59,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     type: "button",
     onclick: () => {
       actions.blip();
-      actions.setView("discipline");
+      actions.setView(State.companion.disciplineOn ? "discipline" : "positions");
     },
   });
   // One price per native coin of the chosen chains (SOL, BNB, ETH).
@@ -152,13 +152,17 @@ export function buildHeader(actions: ViewActions): ViewHost {
       el.style.opacity = show ? "1" : "0";
       el.style.pointerEvents = show ? "auto" : "none";
 
-      const pill = State.companion.disciplineOn ? dayPill(State.companion.discipline, summarize(currentLog(State.companion.log))) : null;
+      // With Discipline off the day's PnL stays, without the limits, and a
+      // click opens My wallet (where Share my day is).
+      const on = State.companion.disciplineOn;
+      const rules = on ? State.companion.discipline : { ...State.companion.discipline, dailyLossLimit: 0, maxTradesPerDay: 0 };
+      const pill = dayPill(rules, summarize(currentLog(State.companion.log)));
       dayPillEl.style.display = pill ? "" : "none";
       if (pill) {
         dayPillEl.textContent = pill.text;
         dayPillEl.className = `day-pill ${pill.tone}`;
         dayPillEl.title = `${pill.title}
-${t("Click for Discipline")}`;
+${on ? t("Click for Discipline") : t("Click for My wallet")}`;
       }
 
       clear(natives);

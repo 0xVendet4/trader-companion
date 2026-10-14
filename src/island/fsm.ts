@@ -20,6 +20,11 @@ export class IslandStateMachine {
   greetHoverCollapseDelay = 10;
   /** An alert waiting for an answer stays open, even when the mouse leaves. */
   pinned = false;
+  /**
+   * A panel (Settings, the Closet) fills the island: nothing folds, hides or
+   * opens it on a timer until it closes (Island.openPanel / closePanel).
+   */
+  frozen = false;
   /** Opens from the ticker as soon as the pointer rests on it (Settings → Open on hover). */
   openOnHover = false;
   /** How long the pointer rests on the ticker before it opens, seconds. */
@@ -142,6 +147,7 @@ export class IslandStateMachine {
 
   private schedulePetitHide() {
     this.clear("petitHide");
+    if (this.frozen) return;
     if (!Number.isFinite(this.petitToHiddenDelay)) return;
     this.petitHide = window.setTimeout(() => {
       this.petitHide = null;
@@ -151,7 +157,7 @@ export class IslandStateMachine {
 
   private scheduleHoverOpen() {
     this.clear("hoverOpen");
-    if (!this.openOnHover) return;
+    if (!this.openOnHover || this.frozen) return;
     this.hoverOpen = window.setTimeout(() => {
       this.hoverOpen = null;
       if (this.state !== "petit") return;
@@ -163,7 +169,7 @@ export class IslandStateMachine {
 
   private scheduleHomeCollapse() {
     this.clear("homeCollapse");
-    if (this.pinned) return;
+    if (this.pinned || this.frozen) return;
     const delay = this.hoverOpened ? this.hoverCloseDelay : this.homeToPetitDelay;
     this.homeCollapse = window.setTimeout(() => {
       this.homeCollapse = null;
@@ -175,6 +181,7 @@ export class IslandStateMachine {
 
   private scheduleGreetCollapse(delay: number) {
     this.clear("greetCollapse");
+    if (this.frozen) return;
     this.greetCollapse = window.setTimeout(() => {
       this.greetCollapse = null;
       if (this.state === "greet") this.transition("petit");

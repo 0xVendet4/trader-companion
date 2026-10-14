@@ -4,16 +4,18 @@
 import type { Manifest, MascotState } from "../mascot/mascot";
 import type { NowPlaying } from "./music";
 import { SHORTCUTS, type ShortcutId } from "./shortcuts";
-import { ALL_CHAINS, isChain, tokenKey, type ChainId } from "../market/chains";
+import { ALL_CHAINS, EVM_CHAINS, isChain, tokenKey, walletFamily, type ChainId, type EvmChain, type WalletFamily } from "../market/chains";
 import { COINGECKO_ID } from "../market/coingecko";
 import { DEFAULT_CUSTOM_SKIN, normalizeCustomSkin } from "../mascot/skins";
 import { normalizeBook, normalizeLevels } from "../positions/positions";
 import { POSITION_SORTS, type PositionSort } from "../positions/board";
 import type { FearGreed } from "../market/sentiment";
 import { CALENDAR_LEADS, type Calendar } from "../market/calendar";
-import { LANG_SETTINGS, type LangSetting } from "./i18n";
+import { LANG_SETTINGS, N_, t, type LangSetting } from "./i18n";
 import type { AwayMove } from "../away/away";
 import { DEFAULT_FOLDERS, normalizeFolders } from "../market/folders";
+import { DEFAULT_CHART_INTERVAL, isChartInterval, type Candle, type ChartInterval } from "../market/chart";
+import { DAY_END_DEFAULT, dayEndMinutes, type DayEndReason } from "../share/dayend";
 
 // ── Saved ─────────────────────────────────────────────────────────────────────
 
@@ -90,6 +92,8 @@ export interface TradeEntry {
   auto?: boolean;
   /** Wallet entries, so that none is counted twice. */
   id?: string;
+  /** The token, when the trade came from the wallet (the end-of-day board names the best and the worst). */
+  symbol?: string;
 }
 
 export interface TradeLog {
@@ -114,6 +118,10 @@ export type TradePlan = "yes" | "partly" | "no";
 export interface TrackedWallet {
   address: string;
   label: string;
+  /** A Solana address, or one 0x address followed on the EVM chains (files from before EVM wallets are Solana). */
+  family: WalletFamily;
+  /** EVM wallets: the chains it is followed on (all three unless the trader unticks some). */
+  chains?: EvmChain[];
   /** The trader's own wallet: no buy/sell alerts, value change shown as PnL. */
   mine: boolean;
   /** USD value when it was added, for "since added". */
@@ -190,7 +198,7 @@ export interface PositionAlerts {
   downs: number[];
 }
 
-/** The island's background (see src/core/themes.ts). */
+/** The island's look: a background, or a whole palette (see src/core/themes.ts). */
 export type Theme =
   | "classic"
   | "midnight"
@@ -205,11 +213,23 @@ export type Theme =
   | "matrix"
   | "bull"
   | "bear"
-  | "moon";
+  | "moon"
+  | "terminal"
+  | "vaporwave"
+  | "paper"
+  | "blueprint";
 export const THEME_IDS: readonly Theme[] = [
   "classic", "midnight", "neon", "gold", "glass", "carbon", "solana",
   "ocean", "sunset", "bubblegum", "matrix", "bull", "bear", "moon",
+  "terminal", "vaporwave", "paper", "blueprint",
 ];
+/** How see-through the island's background can go (%): past this the words would float on the desktop. */
+export const MAX_ISLAND_TRANSPARENCY = 70;
+/** A transparency as kept: a whole percent from 0 to MAX_ISLAND_TRANSPARENCY; anything else is 0 (solid). */
+export function clampTransparency(v: unknown): number {
+  if (typeof v !== "number" || !Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(MAX_ISLAND_TRANSPARENCY, Math.round(v)));
+}
 /** What the mascot wears on its head (the saved field is still `outfit`). */
 export type Outfit =
   | "none"
@@ -235,12 +255,27 @@ export type Outfit =
   | "bunny"
   | "pumpkin"
   | "catears"
-  | "rocket";
+  | "rocket"
+  | "sombrero"
+  | "hardhat"
+  | "fez"
+  | "jester"
+  | "bucket"
+  | "frog"
+  | "alien"
+  | "sprout"
+  | "mushroom"
+  | "sweatband"
+  | "unicorn"
+  | "fedora"
+  | "nightcap";
 export const OUTFIT_IDS: readonly Outfit[] = [
   "none", "cap", "crown", "party", "headphones", "tophat", "cowboy", "beanie",
   "halo", "horns", "wizard", "viking", "bow", "chef", "pirate",
   "santa", "grad", "beret", "propeller", "flowers", "bunny", "pumpkin",
-  "catears", "rocket",
+  "catears", "rocket", "sombrero", "hardhat", "fez", "jester", "bucket", "frog",
+  "alien", "sprout", "mushroom", "sweatband", "unicorn", "fedora",
+  "nightcap",
 ];
 /** What the mascot wears on its face, worn together with the hat. */
 export type Face =
@@ -268,12 +303,25 @@ export type Face =
   | "warpaint"
   | "dollareyes"
   | "facemask"
-  | "scarf";
+  | "scarf"
+  | "aviators"
+  | "sleepmask"
+  | "snorkel"
+  | "cateye"
+  | "hypno"
+  | "cyborg"
+  | "partyhorn"
+  | "pacifier"
+  | "rose"
+  | "bowtie"
+  | "goldchain";
 export const FACE_IDS: readonly Face[] = [
   "none", "shades", "laser", "glasses", "monocle", "mustache", "starglasses",
   "threed", "eyepatch", "heartglasses", "clownnose", "beard", "domino", "vr",
   "pixel", "goggles", "whiskers", "freckles", "bandaid", "lollipop", "bubblegum",
-  "warpaint", "dollareyes", "facemask", "scarf",
+  "warpaint", "dollareyes", "facemask", "scarf", "aviators", "sleepmask",
+  "snorkel", "cateye", "hypno", "cyborg", "partyhorn", "pacifier", "rose",
+  "bowtie", "goldchain",
 ];
 /** A colour treatment over the whole sprite (see src/mascot/skins.ts). */
 export type Skin =
@@ -311,8 +359,13 @@ export const SKIN_IDS: readonly Skin[] = [
  * costumes). Hats and faces still go on top; the colour does not apply.
  * "edition" is a friend's exclusive costume: only their build has it.
  */
-export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "edition";
-export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "edition"];
+export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "ghost" | "penguin" | "bee" | "edition";
+export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee", "edition"];
+/**
+ * Costumes named by a common noun, shown in the trader's language (Robô,
+ * Roboter); the others are characters and keep their names everywhere (Gengar).
+ */
+export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee"];
 /** Costumes that changed id, by their old one. */
 const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow" };
 
@@ -330,6 +383,35 @@ export function offeredCostumes(edition: boolean): Costume[] {
   return COSTUME_IDS.filter((id) => id !== "edition" || edition);
 }
 export const OFFERED_COSTUMES: readonly Costume[] = offeredCostumes(EDITION_ID !== null);
+
+/**
+ * What each costume is called, for the wardrobe and Settings alike; "none" is
+ * Candy itself. The common nouns (NOUN_COSTUMES) are marked with N_ and
+ * translated where shown (costumeName).
+ */
+export const COSTUME_NAMES: Record<Costume, string> = {
+  none: "Candy",
+  gengar: "Gengar",
+  spiderman: "Spiderman",
+  shadow: "Shadow",
+  v: "V",
+  astronaut: N_("Astronaut"),
+  ninja: N_("Ninja"),
+  robot: N_("Robot"),
+  dino: N_("Dinosaur"),
+  // The market's two animals; the island has backgrounds by the same names.
+  bull: N_("Bull"),
+  bear: N_("Bear"),
+  ghost: N_("Ghost"),
+  penguin: N_("Penguin"),
+  bee: N_("Bee"),
+  edition: EDITION_NAME,
+};
+
+/** A costume's name as shown: a common noun in the trader's language, a character's own name as it is. */
+export function costumeName(id: Costume): string {
+  return NOUN_COSTUMES.includes(id) ? t(COSTUME_NAMES[id]) : COSTUME_NAMES[id];
+}
 /** The free colour: hue shift in degrees, saturation and brightness in %. */
 export interface CustomSkin {
   hue: number;
@@ -342,6 +424,14 @@ export type Timeframe = "m5" | "h1" | "h6" | "h24";
 
 /** What the watchlist's value column shows: the price of major coins and the market cap of the rest ("auto"), or one of them for all. */
 export type ValueColumn = "auto" | "price" | "mcap";
+
+/**
+ * The compact island (src/core/layout.ts): lower, with fewer columns and
+ * smaller type, for a small screen. "auto": on when the display is short
+ * (COMPACT_SCREEN_H), as a laptop's is.
+ */
+export type CompactIsland = "auto" | "on" | "off";
+export const COMPACT_CHOICES: readonly CompactIsland[] = ["auto", "on", "off"];
 
 export interface Companion {
   watchlist: WatchToken[];
@@ -377,6 +467,8 @@ export interface Companion {
   /** The other global shortcuts' keys ("" = off; a missing one has its default, see shortcuts.ts). */
   shortcuts: Partial<Record<ShortcutId, string>>;
   theme: Theme;
+  /** How much of what is behind the island shows through its background (%, 0 = solid; see themes.ts). */
+  islandTransparency: number;
   outfit: Outfit;
   face: Face;
   skin: Skin;
@@ -397,6 +489,14 @@ export interface Companion {
   seasonal: boolean;
   /** A season the trader dressed over themselves (see seasons.ts). */
   seasonOff: string;
+  /** From midnight to 6 am: striped pyjamas and a nightcap, and more yawns (see night.ts). */
+  pyjamas: boolean;
+  /** A night the trader picked a look of their own during (see night.ts): no pyjamas until morning. */
+  nightOff: string;
+  /** With the PC idle and the market calm, Candy now and then naps in a little bed (see nap.ts). */
+  napBed: boolean;
+  /** On a strong drop Candy's wax runs down his body, and firms up as it recovers (see melt.ts). */
+  meltOnDrop: boolean;
   /** The mascot's eyes follow the mouse; it fidgets now and then. */
   lively: boolean;
   /** Candy dances while something plays on the PC (see src/mascot/dance.ts). */
@@ -456,6 +556,18 @@ export interface Companion {
   watchlistSort: WatchSort | null;
   /** The last month whose recap came up, by its first day (ms); 0: none yet. */
   monthRecapSeen: number;
+  /** The compact island: by the screen's height ("auto"), always, or never (see layout.ts). */
+  compactIsland: CompactIsland;
+  /** The candle size of the chart that opens on a hovered row (src/market/chart.ts); the last one picked. */
+  chartInterval: ChartInterval;
+  /**
+   * When the day ends ("HH:MM", local; "" = off): Candy sums the day up on the
+   * island then, unless a Discipline session end is set, which ends it instead
+   * (src/share/dayend.ts). Once a day, only with a trade or a position to tell of.
+   */
+  dayEndAt: string;
+  /** The day (YYYY-MM-DD) the end-of-day recap last played for; "" = never. */
+  dayEndShown: string;
 }
 
 /** A column the watchlist can be sorted by (src/market/watchsort.ts). */
@@ -531,6 +643,7 @@ export const DEFAULT_COMPANION: Companion = {
   pasteHotkey: DEFAULT_PASTE_HOTKEY,
   shortcuts: {},
   theme: "classic",
+  islandTransparency: 0,
   outfit: "none",
   face: "none",
   skin: "mint",
@@ -549,6 +662,10 @@ export const DEFAULT_COMPANION: Companion = {
   stickyAlerts: false,
   seasonal: true,
   seasonOff: "",
+  pyjamas: true,
+  nightOff: "",
+  napBed: true,
+  meltOnDrop: true,
   headerMarket: true,
   recapHideMoney: false,
   reactToSol: true,
@@ -571,6 +688,10 @@ export const DEFAULT_COMPANION: Companion = {
   fullscreenQuiet: true,
   watchlistSort: null,
   monthRecapSeen: 0,
+  compactIsland: "auto",
+  chartInterval: DEFAULT_CHART_INTERVAL,
+  dayEndAt: DAY_END_DEFAULT,
+  dayEndShown: "",
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -587,6 +708,28 @@ export const DEFAULT_SETTINGS: Settings = {
   rpcUrl: "",
   companion: DEFAULT_COMPANION,
 };
+
+/**
+ * A saved wallet entry: files from before EVM wallets have no family (they
+ * are Solana, as their addresses say); an EVM wallet with no chains, or none
+ * that exist, is followed on all three.
+ */
+export function normalizeWallet(w: Partial<TrackedWallet> & { address: string }): TrackedWallet {
+  const family: WalletFamily = w.family === "evm" || w.family === "solana" ? w.family : (walletFamily(w.address) ?? "solana");
+  const picked = Array.isArray(w.chains) ? EVM_CHAINS.filter((c) => w.chains!.includes(c)) : [];
+  const chains = family === "evm" ? (picked.length ? picked : [...EVM_CHAINS]) : undefined;
+  const out: TrackedWallet = {
+    ...(w as TrackedWallet),
+    family,
+    label: typeof w.label === "string" ? w.label : "",
+    mine: w.mine === true,
+    baselineUsd: typeof w.baselineUsd === "number" && Number.isFinite(w.baselineUsd) ? w.baselineUsd : null,
+    addedAt: typeof w.addedAt === "number" && Number.isFinite(w.addedAt) ? w.addedAt : Date.now(),
+  };
+  if (chains) out.chains = chains;
+  else delete out.chains;
+  return out;
+}
 
 /**
  * Fills in whatever a saved file is missing — an older build, a hand edit or a
@@ -623,7 +766,9 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
     journal: Array.isArray(c.journal)
       ? c.journal.slice(-MAX_JOURNAL).map((e) => (e.plan && !["yes", "partly", "no"].includes(e.plan) ? { ...e, plan: undefined } : e))
       : [],
-    wallets: Array.isArray(c.wallets) ? c.wallets.slice(0, MAX_WALLETS) : [],
+    wallets: Array.isArray(c.wallets)
+      ? c.wallets.filter((w) => w && typeof w.address === "string" && w.address).slice(0, MAX_WALLETS).map(normalizeWallet)
+      : [],
   };
   s.companion.pollSeconds = Math.min(120, Math.max(10, Number(s.companion.pollSeconds) || 20));
   if (typeof s.companion.hotkey !== "string") s.companion.hotkey = DEFAULT_HOTKEY;
@@ -654,13 +799,20 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (!POSITION_SORTS.includes(s.companion.walletSort)) s.companion.walletSort = "value";
   if (typeof s.companion.weekRecapSeen !== "number" || !Number.isFinite(s.companion.weekRecapSeen)) s.companion.weekRecapSeen = 0;
   if (typeof s.companion.checkIn !== "boolean") s.companion.checkIn = true;
-  for (const k of ["relativeStrength", "graduationAlert", "milestoneAlert", "sellPressureAlert", "fullscreenQuiet", "disciplineOn"] as const)
+  for (const k of ["relativeStrength", "graduationAlert", "milestoneAlert", "sellPressureAlert", "fullscreenQuiet", "disciplineOn", "pyjamas", "napBed", "meltOnDrop"] as const)
     if (typeof s.companion[k] !== "boolean") s.companion[k] = true;
+  if (typeof s.companion.nightOff !== "string") s.companion.nightOff = "";
   if (!(CALENDAR_LEADS as readonly number[]).includes(s.companion.calendarLeadMin)) s.companion.calendarLeadMin = DEFAULT_COMPANION.calendarLeadMin;
   if (!LANG_SETTINGS.includes(s.companion.language)) s.companion.language = "auto";
   const sort = c.watchlistSort as Partial<WatchSort> | null | undefined;
   s.companion.watchlistSort = sort && WATCH_SORT_KEYS.includes(sort.by as WatchSortKey) ? { by: sort.by as WatchSortKey, desc: !!sort.desc } : null;
   if (typeof s.companion.monthRecapSeen !== "number" || !Number.isFinite(s.companion.monthRecapSeen)) s.companion.monthRecapSeen = 0;
+  // Files from before the compact island, or a hand edit: by the screen.
+  if (!COMPACT_CHOICES.includes(s.companion.compactIsland)) s.companion.compactIsland = "auto";
+  // Files from before the end-of-day recap get its default time; "" is a chosen Off; anything else is no time.
+  if (typeof s.companion.dayEndAt !== "string") s.companion.dayEndAt = DAY_END_DEFAULT;
+  else if (s.companion.dayEndAt !== "" && dayEndMinutes(s.companion.dayEndAt) == null) s.companion.dayEndAt = DAY_END_DEFAULT;
+  if (typeof s.companion.dayEndShown !== "string") s.companion.dayEndShown = "";
   // Shades and laser eyes were outfits before the face slot: move them over.
   const oldOutfit = c.outfit as string | undefined;
   if ((oldOutfit === "shades" || oldOutfit === "laser") && c.face == null) s.companion.face = oldOutfit;
@@ -668,6 +820,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (!FACE_IDS.includes(s.companion.face)) s.companion.face = "none";
   if (!SKIN_IDS.includes(s.companion.skin)) s.companion.skin = "mint";
   if (!THEME_IDS.includes(s.companion.theme)) s.companion.theme = "classic";
+  s.companion.islandTransparency = clampTransparency(c.islandTransparency);
   // A renamed costume stays on; one this build does not offer comes off. A
   // friend's build also knows its costume by its own id, from before "edition".
   const renamed = EDITION_ID && c.costume === EDITION_ID ? "edition" : RENAMED_COSTUMES[c.costume as string];
@@ -684,10 +837,17 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (!["m5", "h1", "h6", "h24"].includes(s.companion.volumeFrame)) s.companion.volumeFrame = "h1";
   if (!["auto", "price", "mcap"].includes(s.companion.valueColumn)) s.companion.valueColumn = "auto";
   s.companion.positionAlerts = normalizeLevels(c.positionAlerts);
+  if (!isChartInterval(s.companion.chartInterval)) s.companion.chartInterval = DEFAULT_CHART_INTERVAL;
   return s;
 }
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
+
+/** A chart as last fetched: the candles shown, and when. */
+export interface ChartCache {
+  candles: Candle[];
+  fetchedAt: number;
+}
 
 export interface Quote {
   /** The token's key (see tokenKey), not necessarily its bare address. */
@@ -753,6 +913,8 @@ export type CompanionEvent =
   | { kind: "weekRecap"; id: string; from: number; to: number; label: string; period?: "week" | "month" }
   /** The session the trader set an end for is over. */
   | { kind: "sessionEnd"; id: string; minutes: number }
+  /** The day is over: Candy holds up the day's board (src/share/dayend.ts). `minutes`: the session it ended, when it ended one. */
+  | { kind: "dayEnd"; id: string; reason: DayEndReason; minutes?: number }
   /** A trade just closed: did it follow the plan? (the journal entry's id) */
   | { kind: "checkin"; id: string; entryId: string; pnl: number; unit: string; symbol: string }
   /** A token just added: what to check before an entry (src/market/checklist.ts). */
@@ -799,8 +961,11 @@ export interface TrendingItem {
 
 /** What a tracked wallet held at its last check. */
 export interface WalletSnapshot {
+  /** A Solana wallet's SOL (0 for an EVM wallet). */
   sol: number;
-  /** Mint → amount (UI units). */
+  /** An EVM wallet's coin on each chain it is followed on (ETH, BNB, ETH). */
+  natives?: Partial<Record<EvmChain, number>>;
+  /** Token key (a Solana mint, or chain:address) → amount (UI units). */
   holdings: Record<string, number>;
   /** Mint → USD value, for the priced ones. */
   values: Record<string, number>;
@@ -840,6 +1005,14 @@ class AppState {
    * the menu bar, then the island (see Island.band, window_frame in island.rs).
    */
   notch = 0;
+  /**
+   * The height (logical px) of the display the island lives on, from boot
+   * and every "screen-changed"; 0 until known. With Companion.compactIsland
+   * "auto" it decides the compact island (compactFor in layout.ts).
+   */
+  screenHeight = 0;
+  /** The island is compact right now (Island.applySettings; body.compact in style.css). */
+  compact = false;
   view: IslandViewName = "watchlist";
 
   settings: Settings = normalizeSettings(null);
@@ -887,6 +1060,10 @@ class AppState {
   fearGreed: FearGreed | null = null;
   /** This week's economic calendar, when read (see Companion.calendarTick). */
   calendar: Calendar | null = null;
+  /** Candles fetched for the hover chart, by chain, pool and candle size (src/market/charts.ts); the demo preloads it. */
+  charts: Record<string, ChartCache> = {};
+  /** GeckoTerminal said "too many" (429): no chart is asked for until then (ms). */
+  chartBusyUntil = 0;
   /** A followed wallet's last buy or sell seen, by address. */
   walletMoves: Record<string, { side: string; symbol: string; t: number }> = {};
   /** The last tab shown, for the wardrobe's way back. */

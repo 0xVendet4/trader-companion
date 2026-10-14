@@ -3,7 +3,7 @@
 // A terminal that does not list a token's chain falls back to DexScreener.
 
 import type { Terminal, WatchToken } from "../core/state";
-import { CHAINS } from "./chains";
+import { CHAINS, type ChainId } from "./chains";
 
 type Linkable = Pick<WatchToken, "chainId" | "address" | "pairAddress">;
 
@@ -63,6 +63,20 @@ export function tokenUrl(terminal: Terminal, token: Linkable): string {
 export function terminalLabel(terminal: Terminal, token: Linkable): string {
   const url = tokenUrl(terminal, token);
   return url.startsWith("https://dexscreener.com/") ? "DexScreener" : (TERMINALS[terminal] ?? TERMINALS.gmgn).label;
+}
+
+/** Each chain's explorer, for a wallet's address page. Every host is in ALLOWED_HOSTS. */
+const EXPLORERS: Partial<Record<ChainId, { label: string; url: (address: string) => string }>> = {
+  solana: { label: "Solscan", url: (a) => `https://solscan.io/account/${a}` },
+  ethereum: { label: "Etherscan", url: (a) => `https://etherscan.io/address/${a}` },
+  bsc: { label: "BscScan", url: (a) => `https://bscscan.com/address/${a}` },
+  base: { label: "BaseScan", url: (a) => `https://basescan.org/address/${a}` },
+};
+
+/** A wallet's page on its chain's explorer; null for a chain without one here. */
+export function explorerLink(chainId: ChainId, address: string): { label: string; url: string } | null {
+  const e = EXPLORERS[chainId];
+  return e ? { label: e.label, url: e.url(address) } : null;
 }
 
 /**

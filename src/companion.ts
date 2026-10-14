@@ -4,7 +4,8 @@
 // only draws what this produces.
 
 import { evaluateRules, isMuted, liveMutes, milestoneAlert, primeRule, pushSample, sellPressureAlerts, volumeAlerts, type RuleMemory } from "./alerts/alerts";
-import { monthRecapDue, weekRecapDue } from "./share/recap";
+import { monthRecapDue, recapDate, weekRecapDue, type RecapInput } from "./share/recap";
+import { dayEndDue } from "./share/dayend";
 import { LAUNCHPADS, graduation } from "./market/launchpads";
 import { ownFeedLine } from "./positions/board";
 import { Bridge, IS_TAURI } from "./core/bridge";
@@ -25,6 +26,7 @@ import {
   type Settings,
   type TradePlan,
   type TrendingItem,
+  type TrackedWallet,
   type WalletSnapshot,
   type WatchSort,
   type WatchToken,
@@ -39,7 +41,7 @@ import {
   todayKey,
   undoLastTrade,
 } from "./discipline/discipline";
-import { CHAINS, nativeCoins, tokenKey } from "./market/chains";
+import { CHAINS, EVM_CHAINS, isEvmChain, nativeCoins, splitKey, tokenKey, walletFamily, type EvmChain } from "./market/chains";
 import {
   SOL_MINT,
   WBTC,
@@ -75,7 +77,7 @@ import { FNG_TTL_MS, fetchFearGreed } from "./market/sentiment";
 import { fetchTrending } from "./market/trending";
 import type { SeenEvent } from "./away/away";
 import type { MascotState } from "./mascot/mascot";
-import { computeMood, moodKey, settleMood, settlesIn } from "./mood/mood";
+import { MoodClock, computeMood, settleMood, settlesIn } from "./mood/mood";
 import { entryFromHistory, fetchDeltas, historyCost } from "./positions/history";
 import {
   MAX_ACTIVITY,
@@ -84,6 +86,7 @@ import {
   crossedTargets,
   formatSignedUsd,
   heldAmount,
+  dropWalletKeys,
   needsHistory,
   positionStats,
   setEntry,
@@ -94,7 +97,8 @@ import {
   type PriceInfo,
   type WalletRead,
 } from "./positions/positions";
-import { diffHoldings, isAddress, readWallet } from "./wallets/wallets";
+import { diffHoldings, readWallet } from "./wallets/wallets";
+import { BLOCK_SECONDS, fetchTransfers, lastTransfer, latestBlock, priceNear, readDecimals, readEvmWallet, transfersToDeltas } from "./wallets/evm";
 import { learn, mintsToPrice, type PricingMemory, type Verdict } from "./wallets/pricing";
 import { junkReason } from "./market/spam";
 import { fetchNewSwaps, fetchSwaps, gapTrades, mergeActivity, tradesFromSwaps, type Swap } from "./positions/trades";
@@ -113,6 +117,13 @@ const WALLET_POLL_MS = 60_000;
 const TRENDING_TTL_MS = 60_000;
 /** The same wallet buying or selling the same token is reported once per window. */
 const WALLET_ALERT_COOLDOWN_MS = 10 * 60_000;
+/** A followed EVM wallet's recent transfers (its last move) are read from the logs this often. */
+const EVM_MOVES_EVERY_MS = 10 * 60_000;
+/** Watched tokens whose transfers are read per chain for a followed EVM wallet, per round. */
+const EVM_LOG_TOKENS = 8;
+
+/** The key a position's quotes live under: a Solana mint's key, or the chain:address it already is. */
+const positionKey = (mint: string) => (mint.includes(":") ? mint : tokenKey("solana", mint));
 /** Holdings priced per wallet and check (DexScreener: 30 per request). See wallets/pricing. */
 const MAX_PRICED_HOLDINGS = 300;
 
@@ -258,8 +269,9 @@ class CompanionController {
         ...natives.map((n) => ({ chainId: n.chain, address: n.address })),
         { chainId: "solana" as const, address: SOL_MINT },
         ...(State.companion.headerMarket ? [WBTC] : []),
-        // Held tokens ride along too, so positions move with the market.
-        ...Object.keys(State.companion.book.positions).map((address) => ({ chainId: "solana" as const, address })),
+        // Held tokens ride along too, so positions move with the market (an
+        // EVM position's mint is its chain:address key).
+        ...Object.keys(State.companion.book.positions).map((mint) => splitKey(mint)),
       ];
       const majorIds = tokens.map((tok) => majorFor(tok)).filter((id): id is string => !!id);
       const [quotes, markets] = await Promise.all([fetchQuotes(refs, abort.signal), this.marketsFor(majorIds)]);
@@ -538,7 +550,7 @@ class CompanionController {
     const book = State.companion.book;
     let changed = false;
     for (const p of Object.values(book.positions)) {
-      const key = tokenKey("solana", p.mint);
+      const key = positionKey(p.mint);
       const q = quotes[key];
       if (!q) continue;
       State.positionQuotes[p.mint] = q;
@@ -562,8 +574,8 @@ class CompanionController {
           tone: hit.tone,
           token: State.token(key) ?? {
             key,
-            chainId: "solana",
-            address: p.mint,
+            chainId: splitKey(key).chainId,
+            address: splitKey(key).address,
             symbol: p.symbol,
             name: p.symbol,
             pairAddress: q.pairAddress,
@@ -578,7 +590,7 @@ class CompanionController {
 
   /** The price a position is valued at: the latest quote, or none yet. */
   positionPrice(mint: string): number | null {
-    const q = State.positionQuotes[mint] ?? State.quotes[tokenKey("solana", mint)];
+    const q = State.positionQuotes[mint] ?? State.quotes[positionKey(mint)];
     return q ? q.priceUsd : null;
   }
 
@@ -591,6 +603,76 @@ class CompanionController {
       })
       .filter((x): x is NonNullable<typeof x> => x != null)
       .sort((a, b) => b.s.valueUsd - a.s.valueUsd);
+  }
+
+  /**
+   * Today as the recap card sees it (src/share/recap.ts): the day's trades,
+   * the positions, the watchlist's top mover. Share my day draws it, and the
+   * end-of-day board counts the same numbers up.
+   */
+  recapInput(now = new Date()): RecapInput {
+    const c = State.companion;
+    const day = summarize(currentLog(c.log, now));
+    const held = this.positions();
+    let topMover: { symbol: string; pct: number } | null = null;
+    for (const tok of c.watchlist) {
+      const pct = State.quotes[tok.key]?.change.h24;
+      if (pct != null && Number.isFinite(pct) && (!topMover || Math.abs(pct) > Math.abs(topMover.pct))) topMover = { symbol: tok.symbol, pct };
+    }
+    return {
+      date: recapDate(now),
+      hideMoney: c.recapHideMoney,
+      trades: { ...day, unit: c.discipline.unit },
+      hasRules: c.discipline.dailyLossLimit > 0 || c.discipline.maxTradesPerDay > 0,
+      stopped: this.stoppedToday,
+      positions:
+        held.length || c.book.realizedToday
+          ? {
+              count: held.length,
+              openPnl: held.reduce((s, x) => s + x.s.pnlUsd, 0),
+              cost: held.reduce((s, x) => s + x.s.costUsd, 0),
+              realizedToday: c.book.day === todayKey(now) ? c.book.realizedToday : 0,
+            }
+          : null,
+      topMover,
+      fearGreed: c.headerMarket && State.fearGreed ? { value: State.fearGreed.value, label: State.fearGreed.label } : null,
+    };
+  }
+
+  /** The day has something to tell of: a trade (or a part sold) today, or a position open. */
+  somethingToTell(): boolean {
+    return currentLog(State.companion.log).entries.length > 0 || this.positions().length > 0;
+  }
+
+  /**
+   * The day ends: once a day, when the session the trader set is over (or
+   * else at Settings → Day ends at, a few minutes after the last trade), never
+   * while paused, only with something to tell (src/share/dayend.ts). The
+   * session's own card gives way to it.
+   */
+  private dayEndTick(now: number) {
+    const c = State.companion;
+    if (State.demo) return;
+    const due = dayEndDue({
+      now: new Date(now),
+      dayEndAt: c.dayEndAt,
+      shownFor: c.dayEndShown,
+      somethingToTell: this.somethingToTell(),
+      lastTradeAt: currentLog(c.log, new Date(now)).entries.reduce((last, e) => Math.max(last, e.t), 0),
+      paused: State.paused,
+      sessionEndAt: State.sessionEndAt,
+    });
+    if (!due) return;
+    c.dayEndShown = todayKey(new Date(now));
+    this.save();
+    const minutes = due === "session" ? this.sessionMinutes : undefined;
+    if (due === "session") State.sessionEndAt = 0;
+    this.raise({ kind: "dayEnd", id: uid(), reason: due, ...(minutes ? { minutes } : {}) });
+  }
+
+  /** Discipline → Replay today: the day's board again, whenever asked. */
+  replayDayEnd() {
+    this.raise({ kind: "dayEnd", id: uid(), reason: "replay" });
   }
 
   /** The trader typed their real average entry for a position. */
@@ -918,8 +1000,10 @@ class CompanionController {
   addWallet(address: string, label = "", mine = false): { ok: boolean; message: string } {
     const a = address.trim();
     const list = State.companion.wallets;
-    if (!isAddress(a)) return { ok: false, message: t("That doesn't look like a Solana address.") };
-    const known = list.find((w) => w.address === a);
+    const family = walletFamily(a);
+    if (!family) return { ok: false, message: t("Not a Solana or 0x address.") };
+    // A 0x address is the same wallet whatever its casing.
+    const known = list.find((w) => w.address === a || (family === "evm" && w.address.toLowerCase() === a.toLowerCase()));
     if (known) {
       if (known.mine === mine) return { ok: false, message: mine ? t("That's already your wallet.") : t("Already following that wallet.") };
       known.mine = mine;
@@ -931,7 +1015,7 @@ class CompanionController {
     if (list.length >= MAX_WALLETS) return { ok: false, message: tn(MAX_WALLETS, "{n} wallet max.", "{n} wallets max.") };
     const same = list.filter((w) => w.mine === mine).length;
     const name = label.trim().slice(0, 24) || (mine ? (same ? `My wallet ${same + 1}` : "My wallet") : `Wallet ${same + 1}`);
-    list.push({ address: a, label: name, mine, baselineUsd: null, addedAt: Date.now() });
+    list.push({ address: a, label: name, family, ...(family === "evm" ? { chains: [...EVM_CHAINS] } : {}), mine, baselineUsd: null, addedAt: Date.now() });
     this.save();
     void this.refreshWallets([a]);
     return { ok: true, message: mine ? t("Your wallet is added. Reading it…") : t("Following. You'll get an alert when it buys or sells.") };
@@ -941,6 +1025,122 @@ class CompanionController {
     State.companion.wallets = State.companion.wallets.filter((w) => w.address !== address);
     delete State.wallets[address];
     this.updatePositions([], {});
+  }
+
+  /**
+   * The chains an EVM wallet is followed on, at least one. What it held on a
+   * chain unticked leaves the book unrealized (no sale is recorded), and the
+   * wallet is read again.
+   */
+  setWalletChains(address: string, chains: EvmChain[]) {
+    const w = State.companion.wallets.find((x) => x.address === address && x.family === "evm");
+    const picked = EVM_CHAINS.filter((c) => chains.includes(c));
+    if (!w || picked.length === 0) return;
+    w.chains = picked;
+    State.companion.book = dropWalletKeys(State.companion.book, address, (mint) => {
+      const c = splitKey(mint).chainId;
+      return isEvmChain(c) && !picked.includes(c);
+    });
+    delete State.wallets[address];
+    this.save();
+    State.notify();
+    void this.refreshWallets([address]);
+  }
+
+  /** Token decimals, read once per token (chain:address → decimals). */
+  private decimals = new Map<string, number>();
+
+  private async decimalsOf(chain: EvmChain, address: string): Promise<number> {
+    const key = tokenKey(chain, address);
+    let d = this.decimals.get(key);
+    if (d == null) {
+      d = await readDecimals(chain, address);
+      this.decimals.set(key, d);
+    }
+    return d;
+  }
+
+  /** The tokens read for an EVM wallet on one chain: the watchlist's there, and the ones it has a position in. */
+  private evmTokensOn(w: TrackedWallet, chain: EvmChain): string[] {
+    const out = new Set<string>();
+    for (const tok of State.companion.watchlist) if (tok.chainId === chain) out.add(tok.address.toLowerCase());
+    if (w.mine) {
+      for (const p of Object.values(State.companion.book.positions)) {
+        if (p.amounts[w.address] == null) continue;
+        const k = splitKey(p.mint);
+        if (k.chainId === chain) out.add(k.address.toLowerCase());
+      }
+    }
+    return [...out];
+  }
+
+  /**
+   * An EVM wallet: its coin on each chain it is followed on, and its balance
+   * of every watched token there (keyed chain:address). The app only prices
+   * tokens it knows, so only those are read.
+   */
+  private async readEvm(w: TrackedWallet): Promise<{ natives: Partial<Record<EvmChain, number>>; holdings: Record<string, number> }> {
+    const natives: Partial<Record<EvmChain, number>> = {};
+    const holdings: Record<string, number> = {};
+    for (const chain of w.chains ?? EVM_CHAINS) {
+      const tokens: { address: string; decimals: number }[] = [];
+      for (const address of this.evmTokensOn(w, chain)) tokens.push({ address, decimals: await this.decimalsOf(chain, address) });
+      const read = await readEvmWallet(w.address, chain, tokens);
+      natives[chain] = read.native;
+      Object.assign(holdings, read.holdings);
+    }
+    return { natives, holdings };
+  }
+
+  /** The wrapped coins' prices seen while reading EVM wallets, for chains not in the header. */
+  private coinPrices: Partial<Record<"ETH" | "BNB", number>> = {};
+
+  /** What a chain's coin is worth: the header's quote, else the wrapped coin's pair just fetched. */
+  private nativePrice(chain: EvmChain, pairs: Record<string, DexPair>): number {
+    const n = CHAINS[chain].native;
+    const fetched = Number(pairs[tokenKey(n.chain, n.address)]?.priceUsd) || 0;
+    if (fetched > 0) this.coinPrices[n.symbol as "ETH" | "BNB"] = fetched;
+    return State.natives[n.symbol]?.priceUsd || fetched || this.coinPrices[n.symbol as "ETH" | "BNB"] || 0;
+  }
+
+  /** A wallet coin's price (SOL, ETH, BNB), or 0 until one is known. */
+  coinPrice(symbol: "SOL" | "ETH" | "BNB"): number {
+    if (symbol === "SOL") return State.sol?.priceUsd ?? 0;
+    return State.natives[symbol]?.priceUsd || this.coinPrices[symbol] || 0;
+  }
+
+  /** When a followed EVM wallet's transfers were last read from the logs. */
+  private evmMovesAt = new Map<string, number>();
+
+  /**
+   * A followed EVM wallet's last move among the watched tokens, from their
+   * Transfer logs over the last blocks (see src/wallets/evm.ts): the balance
+   * diff only sees what happens from the second read on. A few tokens per
+   * chain, one call at a time.
+   */
+  private async readEvmMoves(w: TrackedWallet, holdings: Record<string, number>, pairs: Record<string, DexPair>) {
+    const now = Date.now();
+    let newest: { side: "bought" | "sold" | "sold all"; symbol: string; t: number } | null = null;
+    for (const chain of w.chains ?? EVM_CHAINS) {
+      const tokens = this.evmTokensOn(w, chain).slice(0, EVM_LOG_TOKENS);
+      if (tokens.length === 0) continue;
+      const latest = await latestBlock(chain);
+      const transfers = [];
+      const symbols: Record<string, string> = {};
+      for (const address of tokens) {
+        const key = tokenKey(chain, address);
+        const symbol = State.token(key)?.symbol ?? pairs[key]?.baseToken.symbol;
+        if (symbol) symbols[key] = symbol;
+        transfers.push(...(await fetchTransfers(chain, w.address, address, await this.decimalsOf(chain, address), latest)));
+      }
+      const move = lastTransfer(transfers, w.address, symbols, holdings, chain, latest, now);
+      if (move && (!newest || move.t > newest.t)) newest = move;
+    }
+    const seen = State.walletMoves[w.address];
+    if (newest && (!seen || newest.t > seen.t)) {
+      State.walletMoves[w.address] = newest;
+      State.notify();
+    }
   }
 
   renameWallet(address: string, label: string) {
@@ -977,13 +1177,16 @@ class CompanionController {
           // The balances are as of now: the transactions read below stop here
           // (later ones go to the next check, with the balances they changed).
           const readAt = Date.now();
-          const { sol, holdings, accounts } = await readWallet(w.address);
-          if (w.mine) this.tokenAccounts.set(w.address, accounts);
+          const evm = w.family === "evm";
+          const { sol, holdings, accounts, natives } = evm
+            ? { sol: 0, accounts: {} as Record<string, string[]>, ...(await this.readEvm(w)) }
+            : { natives: undefined, ...(await readWallet(w.address)) };
+          if (w.mine && !evm) this.tokenAccounts.set(w.address, accounts);
           const solPrice = State.sol?.priceUsd ?? 0;
           // An own wallet's transactions since the last read: a token bought
           // and sold within the minute never shows in the balances.
           let swaps: Swap[] = [];
-          if (w.mine && prev && !prev.error && solPrice > 0) {
+          if (w.mine && !evm && prev && !prev.error && solPrice > 0) {
             // Every transaction the wallet makes moves its SOL (the fee, at
             // least) or a token: when nothing moved and the last read got
             // everything, there is nothing to read, and the shared RPC is spared.
@@ -1005,16 +1208,27 @@ class CompanionController {
             ? Object.values(State.companion.book.positions).filter((p) => p.amounts[w.address] != null).map((p) => p.mint)
             : [];
           const traded = swaps.map((x) => x.mint);
-          const mints = mintsToPrice({
-            held,
-            traded,
-            holdings,
-            prev: prev && !prev.error ? prev.holdings : null,
-            memory: this.pricing,
-            now: readAt,
-            limit: MAX_PRICED_HOLDINGS,
-          });
-          const fetched = mints.length ? await fetchPairs(mints.map((address) => ({ chainId: "solana" as const, address }))) : {};
+          // An EVM wallet holds only watched tokens here: all of them are priced
+          // (one it sold to zero too, for the sale), its coins from their wrapped pairs.
+          const mints = evm
+            ? [...new Set([...held, ...Object.keys(holdings), ...Object.keys(prev && !prev.error ? prev.holdings : {})])]
+            : mintsToPrice({
+                held,
+                traded,
+                holdings,
+                prev: prev && !prev.error ? prev.holdings : null,
+                memory: this.pricing,
+                now: readAt,
+                limit: MAX_PRICED_HOLDINGS,
+              });
+          const refs = mints.map((m) => splitKey(m));
+          if (evm) {
+            for (const chain of w.chains ?? EVM_CHAINS) {
+              const n = CHAINS[chain].native;
+              if (!State.natives[n.symbol]) refs.push({ chainId: n.chain, address: n.address });
+            }
+          }
+          const fetched = refs.length ? await fetchPairs(refs) : {};
           // Junk (an airdropped scam, a coin its pool can't pay for: see
           // market/spam) stays out of the wallet's worth, its reported moves
           // and new positions. A position already held, or a token just
@@ -1030,6 +1244,7 @@ class CompanionController {
           learn(this.pricing, verdicts, readAt);
           const values: Record<string, number> = {};
           let total = sol * solPrice;
+          for (const [chain, amount] of Object.entries(natives ?? {})) if (isEvmChain(chain)) total += (amount ?? 0) * this.nativePrice(chain, fetched);
           for (const [mint, pair] of Object.entries(pairs)) {
             const v = holdings[mint] * (Number(pair.priceUsd) || 0);
             if (v > 0) {
@@ -1043,13 +1258,22 @@ class CompanionController {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 3)
             .map(([address, usd]) => ({ address, symbol: pairs[address]?.baseToken.symbol ?? "?", usd }));
-          const snap: WalletSnapshot = { sol, holdings, values, totalUsd: total, top, checkedAt: readAt, error: null };
+          const snap: WalletSnapshot = { sol, ...(natives ? { natives } : {}), holdings, values, totalUsd: total, top, checkedAt: readAt, error: null };
           State.wallets[w.address] = snap;
           if (w.baselineUsd == null && total > 0) {
             w.baselineUsd = total;
             this.save();
           }
+          // An EVM wallet's trades are not read back (its entries come from the Transfer logs, see checkHistories).
+          if (w.mine && evm && w.historyAt == null) {
+            w.historyAt = readAt;
+            this.save();
+          }
           if (prev && !prev.error && !w.mine) this.reportWalletMoves(w.address, w.label, prev.holdings, holdings, pairs);
+          if (!w.mine && evm && readAt - (this.evmMovesAt.get(w.address) ?? 0) >= EVM_MOVES_EVERY_MS) {
+            this.evmMovesAt.set(w.address, readAt);
+            await this.readEvmMoves(w, holdings, pairs).catch((err) => void Bridge.log(`transfers of ${w.label} failed: ${err instanceof Error ? err.message : String(err)}`));
+          }
           if (w.mine) {
             reads.push({ address: w.address, holdings });
             for (const [mint, pair] of Object.entries(pairs)) prices[mint] = { price: Number(pair.priceUsd) || 0, symbol: pair.baseToken.symbol };
@@ -1085,7 +1309,7 @@ class CompanionController {
     this.walletsQueued = null;
     if (queued) void this.refreshWallets(queued === true ? undefined : queued);
     // An own wallet read for the first time: its recent trades, once.
-    const fresh = State.companion.wallets.find((w) => w.mine && w.historyAt == null && State.wallets[w.address] && !State.wallets[w.address].error);
+    const fresh = State.companion.wallets.find((w) => w.mine && w.family !== "evm" && w.historyAt == null && State.wallets[w.address] && !State.wallets[w.address].error);
     if (fresh) void this.readTradeHistory(fresh.address);
     void this.checkHistories();
   }
@@ -1097,7 +1321,7 @@ class CompanionController {
    * wallet; again on demand.
    */
   async readTradeHistory(address: string) {
-    const w = State.companion.wallets.find((x) => x.address === address && x.mine);
+    const w = State.companion.wallets.find((x) => x.address === address && x.mine && x.family !== "evm");
     // One read at a time; a line showing an error is the one case to start again (Try again).
     if (!w || (State.historyRead && !State.historyRead.error)) return;
     // The entry reader holds the RPC: go right after it (one call at a time, see checkHistories).
@@ -1219,16 +1443,29 @@ class CompanionController {
         const amount = heldAmount(p);
         try {
           const parts = [];
+          const { chainId, address } = splitKey(p.mint);
           for (const wallet of Object.keys(p.amounts)) {
-            const accounts = this.tokenAccounts.get(wallet)?.[p.mint] ?? [];
-            if (accounts.length === 0) throw new Error("token accounts not read yet");
-            parts.push(entryFromHistory(await fetchDeltas(wallet, p.mint, accounts)));
+            if (chainId === "solana") {
+              const accounts = this.tokenAccounts.get(wallet)?.[p.mint] ?? [];
+              if (accounts.length === 0) throw new Error("token accounts not read yet");
+              parts.push(entryFromHistory(await fetchDeltas(wallet, p.mint, accounts)));
+            } else {
+              // An EVM position: the token's Transfer logs over the last blocks,
+              // each buy priced from the price history the app keeps for it.
+              if (!isEvmChain(chainId)) throw new Error("no history on this chain");
+              const decimals = await this.decimalsOf(chainId, address);
+              const latest = await latestBlock(chainId);
+              const transfers = await fetchTransfers(chainId, wallet, address, decimals, latest);
+              const priceAt = (t: number) => priceNear(State.history[p.mint], t);
+              parts.push(entryFromHistory(transfersToDeltas(transfers, wallet, p.amounts[wallet] ?? 0, latest, Date.now(), BLOCK_SECONDS[chainId], priceAt)));
+            }
           }
           const sum = parts.reduce(
             (a, h) => ({ amount: a.amount + h.amount, unknown: a.unknown + h.unknown, costSol: a.costSol + h.costSol, costUsd: a.costUsd + h.costUsd }),
             { amount: 0, unknown: 0, costSol: 0, costUsd: 0 },
           );
-          const solUsd = State.sol?.priceUsd ?? 0;
+          // EVM buys are costed in USD already; Solana ones in SOL, at today's price.
+          const solUsd = chainId === "solana" ? (State.sol?.priceUsd ?? 0) : 1;
           if (!(solUsd > 0)) throw new Error("no SOL price yet");
           const current = State.companion.book.positions[p.mint];
           // The balance moved while reading: try again next round.
@@ -1266,7 +1503,7 @@ class CompanionController {
     if (trades == null) return;
     this.pendingSales = [];
     for (const trade of trades) {
-      this.recordTrade(trade.pnl, trade.note ?? "", { partial: trade.partial, tradePnl: trade.tradePnl, auto: true, journal: !trade.partial });
+      this.recordTrade(trade.pnl, trade.note ?? "", { partial: trade.partial, tradePnl: trade.tradePnl, symbol: trade.symbol, auto: true, journal: !trade.partial });
     }
   }
 
@@ -1447,6 +1684,7 @@ class CompanionController {
       ...(opts.tradePnl != null ? { tradePnl: opts.tradePnl } : {}),
       ...(opts.auto ? { auto: true } : {}),
       ...(opts.id ? { id: opts.id } : {}),
+      ...(opts.symbol ? { symbol: opts.symbol } : {}),
     });
     c.log = out.log;
     let entryId: string | null = null;
@@ -1570,6 +1808,8 @@ class CompanionController {
     const c = State.companion;
     const now = Date.now();
     for (const [addr, until] of this.liqWarnings) if (now >= until) this.liqWarnings.delete(addr);
+    // The end of the day plays with Discipline off too: it is the day's story, not a rule.
+    this.dayEndTick(now);
     // Discipline off: no reminders of any kind.
     if (!c.disciplineOn) {
       this.recomputeMood();
@@ -1599,8 +1839,10 @@ class CompanionController {
       this.save();
       this.raise({ kind: "weekRecap", id: uid(), from: month.from, to: month.to, label: month.label, period: "month" });
     }
-    // The session the trader set an end for is over.
-    if (State.sessionEndAt && now >= State.sessionEndAt) {
+    // The session the trader set an end for is over (with something to tell,
+    // dayEndTick took it: the day's board says so instead). Paused, it waits
+    // for the unpause, as the board does, so the session's recap isn't lost.
+    if (State.sessionEndAt && now >= State.sessionEndAt && !State.paused) {
       State.sessionEndAt = 0;
       this.raise({ kind: "sessionEnd", id: uid(), minutes: this.sessionMinutes });
     }
@@ -1611,7 +1853,7 @@ class CompanionController {
   // ── Mood, events, persistence ───────────────────────────────────────────────
 
   /** When the current mood's condition began, for settling (see settleMood). */
-  private moodKey = "";
+  private moodClock = new MoodClock();
   private moodSince = 0;
   private settleTimer: number | null = null;
 
@@ -1637,11 +1879,7 @@ class CompanionController {
       })),
     });
     const now = Date.now();
-    const key = moodKey(raw);
-    if (key !== this.moodKey) {
-      this.moodKey = key;
-      this.moodSince = now;
-    }
+    this.moodSince = this.moodClock.start(raw, now);
     State.mood = settleMood(raw, this.moodSince, now);
     // Settle on time, not at the next poll: one timer, for this mood only.
     if (this.settleTimer != null) window.clearTimeout(this.settleTimer);

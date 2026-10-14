@@ -189,6 +189,40 @@ describe("following is an option", () => {
   });
 });
 
+describe("hover chart's candle size", () => {
+  it("is 15 m until the trader picks one, and only one the chart has", async () => {
+    const { normalizeSettings } = await import("./core/state");
+    expect(normalizeSettings(null).companion.chartInterval).toBe("15m");
+    expect(normalizeSettings({ companion: {} } as never).companion.chartInterval).toBe("15m");
+    expect(normalizeSettings({ companion: { chartInterval: "4h" } } as never).companion.chartInterval).toBe("4h");
+    expect(normalizeSettings({ companion: { chartInterval: "2h" } } as never).companion.chartInterval).toBe("15m");
+    expect(normalizeSettings({ companion: { chartInterval: 15 } } as never).companion.chartInterval).toBe("15m");
+  });
+});
+
+describe("EVM wallets", () => {
+  it("reads wallets saved before them as Solana, and gives a 0x wallet all three chains", async () => {
+    const { normalizeSettings } = await import("./core/state");
+    const evm = "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B";
+    const sol = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+    const s = normalizeSettings({
+      companion: {
+        wallets: [
+          { address: sol, label: "old", mine: true, baselineUsd: null, addedAt: 1 },
+          { address: evm, label: "evm", mine: false, baselineUsd: null, addedAt: 1, family: "evm", chains: ["bsc", "mars"] },
+          { address: evm.toLowerCase(), label: "all", mine: false, baselineUsd: null, addedAt: 1, family: "evm" },
+          { label: "no address" },
+        ],
+      },
+    } as never);
+    expect(s.companion.wallets.map((w) => [w.family, w.chains])).toEqual([
+      ["solana", undefined],
+      ["evm", ["bsc"]],
+      ["evm", ["ethereum", "bsc", "base"]],
+    ]);
+  });
+});
+
 describe("relative strength", () => {
   it("measures a token against its chain's coin", () => {
     expect(relativeStrength(10, 10)).toBeCloseTo(0);

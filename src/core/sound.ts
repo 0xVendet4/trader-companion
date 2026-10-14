@@ -236,6 +236,17 @@ class SoundEngine {
     return next.size;
   }
 
+  /** A sound the trader picked in Settings, to hear it: played even with the sounds off. */
+  preview(name: SoundName) {
+    const was = this.enabled;
+    this.enabled = true;
+    try {
+      this.play(name);
+    } finally {
+      this.enabled = was;
+    }
+  }
+
   play(name: SoundName) {
     if (!this.enabled) return;
     const ctx = this.ensure();

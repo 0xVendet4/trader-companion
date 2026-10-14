@@ -5,8 +5,69 @@ import { join, resolve, sep } from "node:path";
 // The public Solana RPC refuses calls carrying a web page's Origin. In the
 // browser (npm run dev) /api/rpc is forwarded without it; in the app the call
 // goes through Rust. The economic calendar (src/market/calendar.ts) sends no
-// CORS headers: the same, at /api/calendar.
+// CORS headers: the same, at /api/calendar. EVM wallets (src/wallets/evm.ts)
+// read each chain's public RPC at /api/evm/<chain>; in the app, Rust's
+// evm_rpc does, with the same endpoints and their spares. The hover chart's
+// candles (src/market/chart.ts) come from GeckoTerminal at /api/ohlcv, the URL
+// built here from checked parts, as src-tauri/src/chart.rs builds it in the app.
+const EVM_RPCS: Record<string, string> = {
+  ethereum: "https://ethereum-rpc.publicnode.com",
+  bsc: "https://bsc-rpc.publicnode.com",
+  base: "https://base-rpc.publicnode.com",
+};
+
+const stripOrigin = (proxy: { on: (ev: string, fn: (req: { removeHeader: (h: string) => void }) => void) => void }) =>
+  proxy.on("proxyReq", (req) => {
+    req.removeHeader("origin");
+    req.removeHeader("referer");
+  });
+
+const OHLCV_NETWORKS = new Set(["solana", "bsc", "eth", "base"]);
+const OHLCV_FRAMES = new Map<string, number[]>([
+  ["day", [1]],
+  ["hour", [1, 4, 12]],
+  ["minute", [1, 5, 15]],
+]);
+/** The API's path for an /api/ohlcv request, or null when any part is not what the API takes (nothing is forwarded then). */
+function ohlcvPath(url: string): string | null {
+  const q = new URL(url, "http://x").searchParams;
+  const network = q.get("network") ?? "";
+  const pool = q.get("pool") ?? "";
+  const timeframe = q.get("timeframe") ?? "";
+  const aggregate = Number(q.get("aggregate"));
+  const limit = Math.min(1000, Math.max(1, Number(q.get("limit")) || 100));
+  const poolOk = network === "solana" ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(pool) : /^0x[0-9a-fA-F]{40}$/.test(pool);
+  if (!OHLCV_NETWORKS.has(network) || !poolOk || !OHLCV_FRAMES.get(timeframe)?.includes(aggregate)) return null;
+  return `/api/v2/networks/${network}/pools/${pool}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=${limit}`;
+}
+
+/**
+ * Refuses a bad /api/ohlcv request here, before the proxy: GeckoTerminal allows
+ * some 30 requests a minute from one address, none to spend on a bogus path.
+ * (A plugin's configureServer middleware runs ahead of Vite's own proxy.)
+ */
+function ohlcvGuard(): Plugin {
+  return {
+    name: "trader-companion-ohlcv-guard",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url ?? "";
+        if (!url.startsWith("/api/ohlcv") || ohlcvPath(url) !== null) return next();
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "text/plain");
+        res.end("ohlcv: network, pool, timeframe or aggregate is not something GeckoTerminal serves");
+      });
+    },
+  };
+}
+
 const proxies = {
+  "/api/ohlcv": {
+    target: "https://api.geckoterminal.com",
+    changeOrigin: true,
+    // The guard above answered every request ohlcvPath refuses: "/" is never reached.
+    rewrite: (path) => ohlcvPath(path) ?? "/",
+  },
   "/api/calendar": {
     target: "https://nfs.faireconomy.media",
     changeOrigin: true,
@@ -16,12 +77,11 @@ const proxies = {
     target: "https://api.mainnet-beta.solana.com",
     changeOrigin: true,
     rewrite: () => "/",
-    configure: (proxy: { on: (ev: string, fn: (req: { removeHeader: (h: string) => void }) => void) => void }) =>
-      proxy.on("proxyReq", (req) => {
-        req.removeHeader("origin");
-        req.removeHeader("referer");
-      }),
+    configure: stripOrigin,
   },
+  ...Object.fromEntries(
+    Object.entries(EVM_RPCS).map(([chain, target]) => [`/api/evm/${chain}`, { target, changeOrigin: true, rewrite: () => "/", configure: stripOrigin }]),
+  ),
 };
 
 /**
@@ -73,7 +133,7 @@ function edition(): Plugin | null {
 }
 
 export default defineConfig({
-  plugins: [edition()],
+  plugins: [ohlcvGuard(), edition()],
   clearScreen: false,
   server: {
     port: 1420,
@@ -93,7 +153,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         island: resolve(__dirname, "index.html"),
-        settings: resolve(__dirname, "settings.html"),
         desktop: resolve(__dirname, "desktop.html"),
       },
     },

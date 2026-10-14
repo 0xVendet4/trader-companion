@@ -8,6 +8,7 @@
 // opens search results in place of the list — the user picks; nothing is added
 // on a name alone, because every popular token has copycats.
 
+import { wireChartHover } from "./chart-popover";
 import { h, clear } from "./dom";
 import { ICONS } from "./icons";
 import {
@@ -28,7 +29,7 @@ import { Companion } from "../companion";
 import { Bridge } from "../core/bridge";
 import { compact, formatAge, formatPct, formatUsd, valueCell, valueHead } from "../core/format";
 import { t } from "../core/i18n";
-import { MAX_ROWS, ROW_H } from "../core/layout";
+import { MAX_ROWS, density } from "../core/layout";
 import { shareEntry, shareText } from "../core/share";
 import { MAX_NOTE, State, uid, type Quote, type Timeframe, type TrendingItem, type ValueColumn, type WatchSortKey, type WatchToken } from "../core/state";
 import { CHAINS } from "../market/chains";
@@ -243,7 +244,6 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
   }
 
   const rows = h("div", { class: "rows" });
-  rows.style.maxHeight = `${MAX_ROWS * ROW_H}px`;
   const head = h(
     "div",
     { class: "row head" },
@@ -276,8 +276,6 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     h("span", { class: "c-add" }),
   );
   const results = h("div", { class: "rows results" });
-  // One row fewer than the list: the title and column names take its place.
-  results.style.maxHeight = `${(MAX_ROWS - 1) * ROW_H}px`;
   const resultsEl = h("div", { class: "results-pane" }, resultsHead, resultsCols, results);
 
   const input = field(actions, { placeholder: t("Search a token, or paste its address (CA) or link…") });
@@ -454,6 +452,8 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
         actionsEl,
       );
       row.addEventListener("click", () => actions.openToken(tok.key));
+      // The pointer resting on the row opens its candles (src/views/chart-popover.ts).
+      wireChartHover(row, tok.key, () => ({ symbol: tok.symbol, chainId: tok.chainId, pairAddress: State.token(tok.key)?.pairAddress ?? tok.pairAddress }), actions);
       rows.append(row);
       liveCells.set(tok.key, cells);
       fillCells(tok.key, q?.updatedAt ?? -1);
@@ -566,6 +566,11 @@ export function buildWatchlist(actions: ViewActions): ViewHost {
     el,
     sync() {
       volHead.textContent = `Vol ${FRAME_LABEL[State.companion.volumeFrame]}`;
+      // The lists scroll past MAX_ROWS rows, of the island's density (compact
+      // or not); the results show one fewer: their title and heads take its place.
+      const rowH = density(State.compact).rowH;
+      rows.style.maxHeight = `${MAX_ROWS * rowH}px`;
+      results.style.maxHeight = `${(MAX_ROWS - 1) * rowH}px`;
       const c = State.companion;
       const list = folderTokens(c.watchlist, c.activeFolder);
       listValueHead.textContent = valueHead(c.valueColumn, list.map((tok) => State.quotes[tok.key]));

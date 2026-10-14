@@ -1,7 +1,7 @@
 {
   "name": "trader-companion",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,8 @@
     "pack:edition": "node scripts/pack-edition.mjs",
     "record-demo": "node scripts/record-demo.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "gifs": "node scripts/record-gifs.mjs"
+    "gifs": "node scripts/record-gifs.mjs",
+    "panel-check": "node scripts/panel-check.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

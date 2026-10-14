@@ -16,12 +16,14 @@
 import { Ease } from "../core/anim";
 import { t } from "../core/i18n";
 import type { CustomSkin, Skin } from "../core/state";
-import { drawHands, drawParticles, drawRig, mixRGB, rgbOf, rigBox, turnTo, type Look, type RGB } from "./paint";
+import { drawBed, drawHands, drawParticles, drawRig, mixRGB, rgbOf, rigBox, turnTo, type Look, type RGB } from "./paint";
 import { danceStep, dancesIn, stepDanceLevel } from "./dance";
+import type { Emote } from "./emotes";
 import { moodGaze } from "./gaze";
-import { spawn, step as stepParticles, type Particle, type ParticleKind } from "./particles";
+import { spawn, step as stepParticles, type Origin, type Particle, type ParticleKind } from "./particles";
 import { dangle, piecesOf, pose, pulls, still, type Pieces } from "./pieces";
-import { hasArms, paletteOf, parseRig, wickOf, type Box, type Rig } from "./rig";
+import { hasArms, paletteOf, parseRig, wickOf, type Box, type Op, type Rig } from "./rig";
+import type { PnlSign } from "./sign";
 import { skinFilter } from "./skins";
 
 export const MASCOT_STATES = [
@@ -112,13 +114,28 @@ export interface Manifest {
   /** Hats and face accessories with loose bits, by the accessory's path (see pieces.ts). */
   pieces?: Record<string, Pieces>;
   /** Costumes: the whole body redrawn, with its own frames for every state. */
-  costumes?: Record<string, { name: string; states: Partial<Record<MascotState, StateDef>> }>;
+  costumes?: Record<string, { name: string; states: Partial<Record<MascotState, StateDef>>; mouthDrop?: number }>;
+  /** The face accessories held in or hung under the mouth (a pacifier, a bow tie…), by id. */
+  mouthFaces?: string[];
+  /** Dressed: how far below Candy's the costume's mouth sits, in art units (a bull's on its snout). */
+  mouthDrop?: number;
 }
 
 /** The manifest with a costume's frames in place of Candy's ("none": as is). */
 export function dressed(manifest: Manifest, costume: string): Manifest {
   const c = costume === "none" ? null : manifest.costumes?.[costume];
-  return c ? { ...manifest, states: c.states } : manifest;
+  return c ? { ...manifest, states: c.states, mouthDrop: c.mouthDrop ?? 0 } : manifest;
+}
+
+/**
+ * How far down a face accessory goes on the art worn now: one held in the
+ * mouth (or hung under it) follows a mouth drawn lower than Candy's, the rest
+ * stay where they are drawn.
+ */
+export function mouthShift(manifest: Manifest | null, face: string | null): number {
+  const drop = manifest?.mouthDrop ?? 0;
+  if (!drop || !face) return 0;
+  return manifest!.mouthFaces?.some((id) => manifest!.faces?.[id] === face) ? drop : 0;
 }
 
 /** Where a missing state borrows its look from. */
@@ -192,7 +209,7 @@ const FX_GLYPHS: Record<Fx, string[]> = {
 };
 
 /** How far the face turns toward the cursor at most, in radians (see rig.ts → turnFeature). */
-const MAX_YAW = 0.42;
+export const MAX_YAW = 0.42;
 /** How far it looks down or up, in art units. */
 const MAX_PITCH = 6;
 /** How far the pupils move on top of that: art units, for art taken apart; for a picture, % of its size as before. */
@@ -246,6 +263,9 @@ export function miniCandy(manifest: Manifest, look: { hat: string | null; face: 
   layer(def?.frames[0], look.filter);
   layer(def?.eyes);
   layer(look.face);
+  // Held in a mouth drawn lower (the bull's): down with it, in the picture's own units.
+  const shift = mouthShift(manifest, look.face);
+  if (shift && box.lastElementChild instanceof HTMLElement) box.lastElementChild.style.transform = `translateY(${(shift / 128) * 100}%)`;
   layer(look.hat);
   return box;
 }
@@ -327,7 +347,10 @@ function rigPalette(rig: Rig | null | undefined): Pal | null {
 // ── Tweens ────────────────────────────────────────────────────────────────────
 
 /** What the mascot animates by keyframes (Coucou's BotEngine does the same, per property). */
-type Prop = "open" | "sx" | "sy" | "oy" | "ox" | "hands" | "hatY" | "hatA" | "roll" | "es" | "blush" | "sink";
+type Prop = "open" | "sx" | "sy" | "oy" | "ox" | "hands" | "hatY" | "hatA" | "roll" | "es" | "blush" | "sink" | "melt" | "bed" | "shadeY" | "shadeA" | "turn";
+
+/** What still shows of the body with his back turned (a pirouette): no face, no mouth. */
+const BACK_PARTS: ReadonlySet<Op["part"]> = new Set(["back", "body", "front"]);
 
 /** Reactions whose eyes pop wide for a moment. */
 const POP_STATES = new Set<MascotState>(["alert", "shocked", "excited", "curious"]);
@@ -342,6 +365,11 @@ const DRIFT_EVERY_MS = 2600;
 const NOTE_EVERY_MS = 1700;
 /** Asleep: how far he sinks into the island, art units. */
 const SLEEP_SINK = 4;
+/** Napping in his bed: how far he sinks into the mattress, the blanket up to his chin. */
+const BED_SINK = 7;
+/** How long the wax takes to run down to a new stage, and to firm up again, seconds. */
+const MELT_DOWN_S = 3.2;
+const MELT_UP_S = 1.8;
 /** A head tilt (a question, a wink, pride), radians: about 8°. */
 const HEAD_TILT = 0.14;
 type Key = readonly [target: number, seconds: number, ease: (t: number) => number];
@@ -467,10 +495,41 @@ export class Mascot {
   /** Music is playing (see dance.ts): the dance comes in, unless the mood sits it out. */
   private wantDance = false;
   private danceLevel = 0;
+  /** How far his wax has run down on a drop (0–1, see melt.ts). */
+  private melt = 0;
+  /** After midnight he wears pyjamas (see night.ts). */
+  private pyjamas = false;
+  /** Napping in a little bed (see nap.ts): asleep whatever the mood, until woken. */
+  private asleepInBed = false;
+  /** The bed coming in (0–1, a spring past 1) or going. */
+  private bed = 0;
+  /** The bed: the headboard and pillow behind him, the blanket in front; still while he breathes. */
+  private bedBackCv: HTMLCanvasElement;
+  private bedFrontCv: HTMLCanvasElement;
+  private bedDrawn = 0;
   private tweens = new Map<Prop, Tween>();
   private palFrom: Pal | null = null;
   private palTo: Pal | null = null;
   private palT = 1;
+  /**
+   * Dark shades over the face for a few seconds (a 2x, see shades.ts): their
+   * art, how far above the eyes they still are (art units, sliding down) and
+   * how solid. `keepFace`: the face accessory he wears stays under them.
+   */
+  private shades: string | null = null;
+  private shadeY = 0;
+  private shadeA = 0;
+  private keepFace = false;
+  /** A pirouette (the spin emote): how far round he has turned, radians. */
+  private turn = 0;
+  /** A laugh: when it started and until when (seconds, now()). */
+  private laughFrom = 0;
+  private laughUntil = 0;
+  /** The dance emote: he dances until then, music or not (seconds, now()). */
+  private danceUntil = 0;
+  /** The little sign he holds up (see holdSign), built the first time. */
+  private signEl: HTMLElement | null = null;
+  private signTimer: number | null = null;
 
   constructor(className = "mascot") {
     const canvas = (cls: string) => {
@@ -481,6 +540,8 @@ export class Mascot {
     };
     this.frameCv = canvas("mascot-frame");
     this.topCv = canvas("mascot-top");
+    this.bedBackCv = canvas("mascot-bed");
+    this.bedFrontCv = canvas("mascot-bed");
     this.body = document.createElement("div");
     this.body.className = "mascot-body";
     this.body.append(this.frameCv, this.topCv);
@@ -498,9 +559,32 @@ export class Mascot {
     // only ever set with textContent.
     this.bubble = document.createElement("div");
     this.bubble.className = "mascot-bubble";
-    this.el.append(this.leanEl, this.fxEl, this.bubble, this.badgeEl);
+    this.el.append(this.bedBackCv, this.leanEl, this.bedFrontCv, this.fxEl, this.bubble, this.badgeEl);
     // The island resizes the mascot as it opens and closes: draw at the new size.
-    if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => this.invalidate(true)).observe(this.el);
+    if (typeof ResizeObserver !== "undefined") {
+      this.resized = new ResizeObserver(() => this.invalidate(true));
+      this.resized.observe(this.el);
+    }
+  }
+
+  private resized: ResizeObserver | null = null;
+  private disposed = false;
+
+  /**
+   * Taken off the page for good (Settings' previews when its panel closes):
+   * nothing of his is left running, no timer, frame or observer, and nothing
+   * starts him again.
+   */
+  dispose() {
+    if (this.disposed) return;
+    this.setActive(false);
+    this.disposed = true;
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    for (const id of [this.reactionTimer, this.bubbleTimer, this.badgeTimer, this.signTimer]) if (id != null) window.clearTimeout(id);
+    this.reactionTimer = this.bubbleTimer = this.badgeTimer = this.signTimer = null;
+    this.resized?.disconnect();
+    this.resized = null;
   }
 
   /** Loads (and, unless told not to, preloads) the art. Safe to call before the element is on screen. */
@@ -572,8 +656,67 @@ export class Mascot {
     this.invalidate(true);
   }
 
+  /** After midnight: striped pyjamas over the body (the island decides when, see night.ts). */
+  setPyjamas(on: boolean) {
+    if (on === this.pyjamas) return;
+    this.pyjamas = on;
+    this.invalidate(true);
+  }
+
+  /**
+   * How far his wax has run down on a strong drop (0–1, see melt.ts): slowly
+   * down to a new stage, and back up a little quicker as the price recovers
+   * (`seconds` sets the pace instead: Settings → Show me).
+   */
+  setMelt(level: number, seconds?: number) {
+    const target = this.tweens.get("melt")?.keys.at(-1)?.[0] ?? this.melt;
+    if (Math.abs(target - level) < 0.001) return;
+    if (!this.active || !this.drawn) {
+      this.tweens.delete("melt");
+      this.melt = level;
+      this.invalidate(true);
+      return;
+    }
+    this.anim("melt", [[level, seconds ?? (level > this.melt ? MELT_DOWN_S : MELT_UP_S), Ease.inOut]]);
+  }
+
+  /** Napping in his little bed (see nap.ts). */
+  get napping(): boolean {
+    return this.asleepInBed;
+  }
+
+  /**
+   * Into his little bed: it comes up around him and he falls asleep, whatever
+   * the mood. Out of it: `startled` (something happened) whisks it away with
+   * a hop and wide eyes; otherwise he wakes slowly, with a yawn.
+   */
+  setBed(on: boolean, startled = false) {
+    if (on === this.asleepInBed) return;
+    this.asleepInBed = on;
+    const live = this.active && this.drawn;
+    if (on && this.reaction) {
+      // Whatever he was doing, he lies down.
+      if (this.reactionTimer != null) window.clearTimeout(this.reactionTimer);
+      this.reactionTimer = null;
+      this.reaction = null;
+      this.reactionMotion = null;
+    }
+    if (!live) {
+      this.tweens.delete("bed");
+      this.bed = on ? 1 : 0;
+    } else if (on) this.anim("bed", [[1, 0.55, Ease.back]], () => this.squash(0.35));
+    else this.anim("bed", startled ? [[0, 0.2, Ease.easeIn]] : [[0, 0.5, Ease.inOut]]);
+    this.shown = null;
+    this.apply();
+    if (!live || on) return;
+    if (startled) {
+      this.hop(20);
+      this.pop();
+    } else window.setTimeout(() => this.yawn(), 380);
+  }
+
   get state(): MascotState {
-    return this.reaction ?? this.mood;
+    return this.reaction ?? (this.asleepInBed ? "sleepy" : this.mood);
   }
 
   /** The lasting state, from the market. */
@@ -672,24 +815,222 @@ export class Mascot {
     const at = (s: number, fn: () => void) => window.setTimeout(fn, s * 1000);
     const side = -26;
     at(0.85, () => this.anim("ox", [[side * 0.35, 0.35, Ease.inOut], [side, 0.6, Ease.inOut]]));
-    at(1.3, () => {
-      this.squash(0.5);
-      // A costume waves its own arm (its wave art): drawn hands would be a
-      // second pair behind the ones it has.
-      if (this.ownArms()) {
-        this.react("wave", 1150);
-        at(1.15, () => this.react("happy", 1400));
+    at(1.3, () => this.waveHello(1.0));
+    at(2.85, () => this.anim("ox", [[0, 0.6, Ease.inOut]], () => this.blinkOnce(0.14)));
+  }
+
+  /**
+   * Two little hands pop out from behind him and the left one waves for
+   * `seconds`, then they tuck away again (the arrival's hello, the wave emote).
+   */
+  private waveHello(seconds: number) {
+    const at = (s: number, fn: () => void) => window.setTimeout(fn, s * 1000);
+    this.squash(0.5);
+    // A costume waves its own arm (its wave art): drawn hands would be a
+    // second pair behind the ones it has.
+    if (this.ownArms()) {
+      this.react("wave", seconds * 1000 + 150);
+      at(seconds + 0.15, () => this.react("happy", 1400));
+      return;
+    }
+    this.anim("hands", [[1, 0.18, Ease.back]]);
+    at(0.15, () => {
+      this.waveFrom = now();
+      this.waveUntil = this.waveFrom + seconds;
+      this.invalidate();
+    });
+    at(seconds + 0.15, () => this.anim("hands", [[0, 0.25, Ease.easeIn]]));
+  }
+
+  // ── Emotes (the right-click menu, see emotes.ts) ───────────────────────────
+
+  /** Plays an emote once, on the spot: a dance, a wave, a laugh or a spin. */
+  emote(e: Emote) {
+    if (!this.active) return;
+    switch (e) {
+      case "dance":
+        return this.danceOnce(3.6);
+      case "wave":
+        if (!this.ownArms()) this.react("happy", 1900);
+        return this.waveHello(1.4);
+      case "laugh":
+        return this.laugh(1.7);
+      case "spin":
+        return this.pirouette(0.8);
+    }
+  }
+
+  /** A few beats of the music dance (dance.ts) with no music on, a note or two off him. */
+  private danceOnce(seconds: number) {
+    this.danceUntil = now() + seconds;
+    this.react("happy", seconds * 1000 + 250, "none");
+    this.emit("note", 1);
+    for (const ms of [1100, 2300]) window.setTimeout(() => this.active && now() < this.danceUntil && this.emit("note", 1), ms);
+    this.invalidate();
+  }
+
+  /** Happy eyes, the mouth going "ha ha ha", little bounces and a "ha" off each side. */
+  private laugh(seconds: number) {
+    this.laughFrom = now();
+    this.laughUntil = this.laughFrom + seconds;
+    this.react("happy", seconds * 1000 + 300, "none");
+    const bounce: Key[] = [];
+    for (let i = 0; i < 6; i++) bounce.push([-3.5, 0.1, Ease.out], [0, 0.13, Ease.easeIn]);
+    this.anim("oy", bounce);
+    const word = t("ha");
+    const born = spawn("ha", 4, Math.random, this.origin());
+    for (const p of born) p.text = word;
+    this.parts.push(...born);
+    this.invalidate();
+  }
+
+  /**
+   * A pirouette: a little hop, and he turns all the way round on the spot
+   * (his back to us halfway), then lands with a squash. Turning about his own
+   * upright axis, never a lean.
+   */
+  private pirouette(seconds: number) {
+    this.turn = 0;
+    this.react("happy", seconds * 1000 + 600, "none");
+    this.anim("oy", [[-12, seconds * 0.45, Ease.out], [0, seconds * 0.55, Ease.easeIn]]);
+    this.anim("turn", [[Math.PI * 2, seconds, Ease.inOut]], () => {
+      this.turn = 0;
+      this.squash(0.8);
+    });
+  }
+
+  // ── Shades and the sign ───────────────────────────────────────────────────
+
+  /**
+   * Dark shades over his face (a path from the manifest), or off again (null).
+   * They slide down onto his eyes and settle with a little bounce and a glint
+   * on the lens; on the way off they lift and fade. `keepFace`: the face
+   * accessory he has on stays under them (a mustache); otherwise it fades out
+   * while they are on (glasses). The trader's own look is never changed.
+   */
+  wearShades(src: string | null, keepFace = false) {
+    const instant = !this.active || !this.drawn;
+    if (src) {
+      const coming = this.shades == null || this.shadeA < 0.5 || this.tweens.has("shadeA");
+      this.shades = src;
+      this.keepFace = keepFace;
+      if (instant) {
+        this.tweens.delete("shadeY");
+        this.tweens.delete("shadeA");
+        this.shadeY = 0;
+        this.shadeA = 1;
+        this.invalidate(true);
         return;
       }
-      this.anim("hands", [[1, 0.18, Ease.back]]);
-      at(0.15, () => {
-        this.waveFrom = now();
-        this.waveUntil = this.waveFrom + 1.0;
-        this.invalidate();
-      });
-      at(1.15, () => this.anim("hands", [[0, 0.25, Ease.easeIn]]));
+      if (!coming) return;
+      this.shadeY = -26;
+      this.shadeA = 0;
+      this.anim("shadeA", [[1, 0.14, Ease.out]]);
+      this.anim("shadeY", [[0, 0.42, Ease.back]], () => this.glint());
+      return;
+    }
+    if (!this.shades) return;
+    if (instant) {
+      this.tweens.delete("shadeY");
+      this.tweens.delete("shadeA");
+      this.shades = null;
+      this.shadeY = 0;
+      this.shadeA = 0;
+      this.invalidate(true);
+      return;
+    }
+    this.anim("shadeY", [[-20, 0.3, Ease.easeIn]]);
+    this.anim("shadeA", [[0, 0.3, Ease.easeIn]], () => {
+      this.shades = null;
+      this.shadeY = 0;
     });
-    at(2.85, () => this.anim("ox", [[0, 0.6, Ease.inOut]], () => this.blinkOnce(0.14)));
+  }
+
+  /** The shades are on (or on their way). */
+  get wearingShades(): boolean {
+    return this.shades != null;
+  }
+
+  /** A glint off the right lens as the shades land. */
+  private glint() {
+    if (!this.active) return;
+    this.parts.push({ kind: "spark", x: 86, y: 53, vx: 0, vy: 0, age: 0, life: 0.55, rot: 0.4, size: 1.5 });
+    this.invalidate();
+  }
+
+  /**
+   * Holds up a little sign in front of his tummy, his eyes peeking over it:
+   * today's PnL (sign.ts), green or red. Null lowers it. Words only ever go in
+   * as text.
+   */
+  holdSign(sign: PnlSign | null) {
+    if (this.signTimer != null) window.clearTimeout(this.signTimer);
+    this.signTimer = null;
+    const el = this.signEl;
+    if (!sign) {
+      if (!el || el.hidden) return;
+      el.classList.remove("up");
+      el.classList.add("down");
+      this.signTimer = window.setTimeout(() => {
+        this.signTimer = null;
+        el.hidden = true;
+        el.classList.remove("down");
+      }, 200);
+      return;
+    }
+    const sEl = el ?? this.buildSign();
+    const [label, big, small] = [".sign-label", ".sign-big", ".sign-small"].map((q) => sEl.querySelector<HTMLElement>(q)!);
+    label.textContent = sign.label;
+    big.textContent = sign.big;
+    small.textContent = sign.small;
+    big.hidden = !sign.big;
+    small.hidden = !sign.small;
+    sEl.dataset.tone = sign.tone;
+    sEl.classList.toggle("empty", !sign.big);
+    // His hands on its edges, in his colour of the moment and under his colour filter.
+    const pal = this.palette();
+    const mid = pal ? mixRGB(pal.top, pal.bottom, 0.55) : null;
+    for (const paw of sEl.querySelectorAll<HTMLElement>(".sign-paw")) {
+      paw.style.background = mid ? `rgb(${mid.map(Math.round).join(",")})` : "";
+      paw.style.filter = this.frameCv.style.filter;
+    }
+    if (!sEl.hidden && sEl.classList.contains("up")) return;
+    sEl.hidden = false;
+    sEl.classList.remove("down", "up");
+    void sEl.offsetWidth;
+    sEl.classList.add("up");
+  }
+
+  /** The sign is up (or on its way up). */
+  get holdingSign(): boolean {
+    return !!this.signEl && !this.signEl.hidden && this.signEl.classList.contains("up");
+  }
+
+  /** Moves the sign sideways (px), so it stays inside whatever holds the mascot. */
+  nudgeSign(dx: number) {
+    this.signEl?.style.setProperty("--sign-dx", `${Math.round(dx)}px`);
+  }
+
+  /** The sign's box on the page, while it shows. */
+  signRect(): DOMRect | null {
+    return this.signEl && !this.signEl.hidden ? this.signEl.querySelector(".sign-card")!.getBoundingClientRect() : null;
+  }
+
+  private buildSign(): HTMLElement {
+    const part = (tag: string, cls: string) => {
+      const e = document.createElement(tag);
+      e.className = cls;
+      return e;
+    };
+    const card = part("div", "sign-card");
+    card.append(part("i", "sign-paw l"), part("i", "sign-paw r"), part("span", "sign-label"), part("b", "sign-big"), part("span", "sign-small"));
+    const el = part("div", "mascot-sign");
+    el.hidden = true;
+    el.append(card);
+    // Over the body, under the speech bubble and the badge.
+    this.el.insertBefore(el, this.fxEl);
+    this.signEl = el;
+    return el;
   }
 
   /** The art he has on now has arms of its own (a costume): see hasArms. */
@@ -724,16 +1065,20 @@ export class Mascot {
    */
   emit(kind: ParticleKind, n = 4, size?: number) {
     if (!this.active) return;
-    const rig = readyArt(this.def?.frames[0], false)?.rig;
-    const body = rig?.body;
-    const wick = rig ? wickOf(rig)?.op.box : undefined;
-    const at = body ? { x: body.x + body.w / 2, y: body.y, w: body.w, wick: wick ? { x: wick.x + wick.w / 2, y: wick.y } : undefined } : undefined;
     // One flame at a time: a new one takes the old one's place.
     if (kind === "flame") this.parts = this.parts.filter((p) => p.kind !== "flame");
-    const born = spawn(kind, n, Math.random, at);
+    const born = spawn(kind, n, Math.random, this.origin());
     if (size != null) for (const p of born) p.size *= size;
     this.parts.push(...born);
     this.invalidate();
+  }
+
+  /** Where particles start: the top of the body the art has on now, and its wick; Candy's own spot until it loads. */
+  private origin(): Origin | undefined {
+    const rig = readyArt(this.def?.frames[0], false)?.rig;
+    const body = rig?.body;
+    const wick = rig ? wickOf(rig)?.op.box : undefined;
+    return body ? { x: body.x + body.w / 2, y: body.y, w: body.w, wick: wick ? { x: wick.x + wick.w / 2, y: wick.y } : undefined } : undefined;
   }
 
   /** The whole drawing turns over `turns` times, then lands with a squash. */
@@ -944,7 +1289,7 @@ export class Mascot {
 
   /** Stops every timer while the mascot cannot be seen. */
   setActive(on: boolean) {
-    if (this.active === on) return;
+    if (this.active === on || (on && this.disposed)) return;
     this.active = on;
     this.el.classList.toggle("paused", !on);
     this.syncNotes();
@@ -960,6 +1305,15 @@ export class Mascot {
       this.raf = 0;
       this.finishTweens();
       this.chewUntil = 0;
+      this.laughUntil = 0;
+      this.danceUntil = 0;
+      // The sign goes down at once: nothing left showing for the reveal.
+      if (this.signTimer != null) window.clearTimeout(this.signTimer);
+      this.signTimer = null;
+      if (this.signEl) {
+        this.signEl.hidden = true;
+        this.signEl.classList.remove("up", "down");
+      }
       this.slot = this.slotT;
       this.slotV = 0;
       this.swing = this.swingV = 0;
@@ -1004,9 +1358,11 @@ export class Mascot {
     this.paint();
     this.frame = 0;
     this.el.dataset.state = state;
-    // Asleep he sinks a little into the island, slowly; awake he rises again.
-    const sink = state === "sleepy" ? SLEEP_SINK : 0;
-    if (this.active && this.sink !== sink) this.anim("sink", [[sink, sink ? 2.4 : 0.5, Ease.inOut]]);
+    // Asleep he sinks a little into the island, slowly (into his bed's
+    // mattress, at once); awake he rises again.
+    const inBed = state === "sleepy" && this.asleepInBed;
+    const sink = inBed ? BED_SINK : state === "sleepy" ? SLEEP_SINK : 0;
+    if (this.active && this.sink !== sink) this.anim("sink", [[sink, inBed ? 0.6 : sink ? 2.4 : 0.5, Ease.inOut]]);
     else if (!this.active) this.sink = sink;
     if (!def) {
       this.invalidate(true);
@@ -1125,7 +1481,7 @@ export class Mascot {
    * Settings) draws it once, and asks for nothing more.
    */
   private invalidate(still = false) {
-    if (this.raf) return;
+    if (this.raf || this.disposed) return;
     if (!this.active) {
       if (still)
         this.raf = requestAnimationFrame(() => {
@@ -1210,10 +1566,10 @@ export class Mascot {
       this.parts = stepParticles(this.parts, dt);
       moving = true;
     }
-    if (t < this.waveUntil) moving = true;
+    if (t < this.waveUntil || t < this.laughUntil) moving = true;
 
-    // The dance keeps the frames coming for as long as the music does.
-    const dancing = this.wantDance && dancesIn(this.state);
+    // The dance keeps the frames coming for as long as the music does (or the dance emote).
+    const dancing = (this.wantDance && dancesIn(this.state)) || t < this.danceUntil;
     this.danceLevel = stepDanceLevel(this.danceLevel, dancing, dt);
     if (dancing || this.danceLevel > 0) moving = true;
 
@@ -1247,7 +1603,7 @@ export class Mascot {
     // A multiple of 24 px, grown only: the island resizes the mascot every
     // frame while it opens, and a new canvas size each frame would be waste.
     const want = Math.ceil((size * ((128 + 2 * OVERHANG) / 128) * dpr) / 24) * 24;
-    if (want > this.frameCv.width) for (const cv of [this.frameCv, this.topCv]) cv.width = cv.height = want;
+    if (want > this.frameCv.width) for (const cv of [this.frameCv, this.topCv, this.bedBackCv, this.bedFrontCv]) cv.width = cv.height = want;
     return this.frameCv.width / (128 + 2 * OVERHANG);
   }
 
@@ -1259,8 +1615,20 @@ export class Mascot {
     const frameSrc = def ? (this.open < 0.35 && def.blink && !def.eyes ? def.blink : (def.frames[this.frame] ?? def.frames[0])) : null;
     const frame = readyArt(frameSrc, false);
     const body = frame?.rig?.body ?? null;
-    const mouth = this.slot > 0.03 ? { open: Math.min(1.2, this.slot), chew: 0 } : t < this.chewUntil ? { open: 0, chew: Math.abs(Math.sin(t * 22)) } : null;
-    const look: Look = { yaw: body ? this.yaw : 0, pitch: body ? this.pitch : 0, palette: this.palette(), mouth, blush: this.blush };
+    // A pirouette past the quarter turn: his back to us, no face.
+    const back = this.turn !== 0 && Math.cos(this.turn) < 0;
+    // Laughing: the mouth opens and shuts, "ha, ha, ha", about five times a second.
+    const laughing = t < this.laughUntil ? t - this.laughFrom : -1;
+    const mouth = back
+      ? null
+      : laughing >= 0
+        ? { open: 0.4 + 0.6 * Math.abs(Math.sin(laughing * Math.PI * 5.5)), chew: 0, grin: true }
+        : this.slot > 0.03
+          ? { open: Math.min(1.2, this.slot), chew: 0 }
+          : t < this.chewUntil
+            ? { open: 0, chew: Math.abs(Math.sin(t * 22)) }
+            : null;
+    const look: Look = { yaw: body ? this.yaw : 0, pitch: body ? this.pitch : 0, palette: this.palette(), mouth, blush: this.blush, pyjamas: this.pyjamas, melt: this.melt };
 
     for (const cv of [this.frameCv, this.topCv]) {
       const c = cv.getContext("2d");
@@ -1287,6 +1655,15 @@ export class Mascot {
         c.rotate(this.roll);
         c.translate(-64, -cy);
       }
+      if (this.turn) {
+        // A pirouette about his upright middle: he narrows to his edge, shows
+        // his back, narrows again and faces us. Never a lean.
+        const k = Math.cos(this.turn);
+        const w = (k < 0 ? -1 : 1) * Math.max(0.1, Math.abs(k));
+        c.translate(FOOT.x, 0);
+        c.scale(w, 1);
+        c.translate(-FOOT.x, 0);
+      }
       c.translate(FOOT.x, FOOT.y);
       c.scale(this.sx, this.sy);
       c.translate(-FOOT.x, -FOOT.y);
@@ -1294,21 +1671,35 @@ export class Mascot {
         // The hello's hands, behind the body (in its colour, under the frame's filter).
         // Never on art with arms of its own (a costume put on mid-hello).
         if (frame?.rig && this.hands > 0.01 && !hasArms(frame.rig)) drawHands(c, frame.rig, look, this.hands, waving);
-        this.drawFrame(c, frame, look);
+        this.drawFrame(c, frame, look, back);
       }
       else {
-        this.drawTop(c, body, look);
+        if (!back) this.drawTop(c, body, look);
+        else this.drawHat(c, body, look);
         // Particles fly free of the squash and the spin, with the hop only.
         c.setTransform(u, 0, 0, u, OVERHANG * u, OVERHANG * u);
         c.translate(this.ox, this.oy);
         drawParticles(c, this.parts);
       }
     }
+    // His bed stands still on the island while he breathes and sinks into it.
+    if (this.bed > 0.001 || this.bedDrawn > 0.001) {
+      for (const [cv, part] of [[this.bedBackCv, "back"], [this.bedFrontCv, "front"]] as const) {
+        const c = cv.getContext("2d");
+        if (!c) continue;
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, cv.width, cv.height);
+        c.setTransform(u, 0, 0, u, OVERHANG * u, OVERHANG * u);
+        drawBed(c, part, this.bed);
+      }
+      this.bedDrawn = this.bed;
+    }
     this.drawn = true;
   }
 
-  private drawFrame(c: CanvasRenderingContext2D, frame: Art | null, look: Look) {
-    if (frame?.rig) drawRig(c, frame.rig, (op) => op.part !== "eyes", look, frame.rig.body, wickOf(frame.rig)?.op ?? null);
+  private drawFrame(c: CanvasRenderingContext2D, frame: Art | null, look: Look, back = false) {
+    const keep = back ? (op: Op) => BACK_PARTS.has(op.part) : (op: Op) => op.part !== "eyes";
+    if (frame?.rig) drawRig(c, frame.rig, keep, look, frame.rig.body, wickOf(frame.rig)?.op ?? null);
     else if (frame?.img) c.drawImage(frame.img, 0, 0, 128, 128);
   }
 
@@ -1347,12 +1738,29 @@ export class Mascot {
         c.restore();
       }
     }
-    if (this.face) {
+    // The face accessory fades out under the shades (unless it sits below the eyes).
+    const faceA = this.shades && !this.keepFace ? 1 - this.shadeA : 1;
+    if (this.face && faceA > 0.01) {
       c.save();
+      c.globalAlpha = faceA;
       if (body) turnTo(c, body.x + body.w / 2, body, look);
+      c.translate(0, mouthShift(this.manifest, this.face));
       this.drawAccessory(c, this.face);
       c.restore();
     }
+    if (this.shades && this.shadeA > 0.01) {
+      c.save();
+      c.globalAlpha = this.shadeA;
+      if (body) turnTo(c, body.x + body.w / 2, body, look);
+      c.translate(0, this.shadeY);
+      this.drawAccessory(c, this.shades);
+      c.restore();
+    }
+    this.drawHat(c, body, look);
+  }
+
+  /** The hat, swinging on its springs, dropping in or flying off. */
+  private drawHat(c: CanvasRenderingContext2D, body: Box | null, look: Look) {
     if (this.hat && this.hatA > 0.01) {
       c.save();
       c.globalAlpha = this.hatA;

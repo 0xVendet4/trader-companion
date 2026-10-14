@@ -11,6 +11,15 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import astronaut from "./costumes/astronaut.mjs";
+import bear from "./costumes/bear.mjs";
+import bee from "./costumes/bee.mjs";
+import bull from "./costumes/bull.mjs";
+import dino from "./costumes/dino.mjs";
+import ghost from "./costumes/ghost.mjs";
+import ninja from "./costumes/ninja.mjs";
+import penguin from "./costumes/penguin.mjs";
+import robot from "./costumes/robot.mjs";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "mascot");
 
@@ -447,6 +456,226 @@ Object.assign(OUTFITS, {
   ),
 });
 
+// Twelve more hats: the wardrobe's third row. Whatever stands up from the
+// middle of the head is at least as wide as the wick, which it hides.
+const bell = (cx, cy) =>
+  `<circle cx="${cx}" cy="${cy}" r="4.6" fill="#facc15" stroke="${RIM}" stroke-width="2.5"/>` +
+  `<path d="M${cx - 2.6} ${cy + 1.2} L${cx + 2.6} ${cy + 1.2}" stroke="${RIM}" stroke-width="1.6" stroke-linecap="round"/>` +
+  `<circle cx="${cx - 1.5}" cy="${cy - 1.6}" r="1.2" fill="#fef9c3"/>`;
+Object.assign(OUTFITS, {
+  "outfits/sombrero.svg": wrap(
+    `<path d="M42 31 Q40 12 50 6 Q64 0 78 6 Q88 12 86 31 Z" fill="#fcd34d" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M42.6 20 Q64 24 85.4 20 L86 29 Q64 33 42 29 Z" fill="#dc2626"/>` +
+      `<path d="M44 26.5 L48 22.5 L52 27 L56 23 L60 27.5 L64 23.5 L68 27.5 L72 23 L76 27 L80 22.5 L84 26.5" fill="none" stroke="#4ade80" stroke-width="2.2" stroke-linejoin="round"/>` +
+      `<path d="M54 9 Q50 14 49 19" fill="none" stroke="#fef3c7" stroke-opacity="0.7" stroke-width="2.5" stroke-linecap="round"/>` +
+      `<path d="M5 27 Q12 21 25 26 Q64 37 103 26 Q116 21 123 27 Q114 41 64 41 Q14 41 5 27 Z" fill="#fbbf24" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M14 31 Q64 45 114 31" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="4 3"/>`,
+  ),
+  // A builder's hat with a lamp: crypto's other kind of miner.
+  "outfits/hardhat.svg": wrap(
+    `<path d="M34 32 Q33 8 64 8 Q95 8 94 32 Z" fill="#facc15" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M58 9 Q64 7.6 70 9 L70 16 L58 16 Z" fill="#eab308" stroke="${RIM}" stroke-width="2.5" stroke-linejoin="round"/>` +
+      `<path d="M42 28 Q41 17 49 12" fill="none" stroke="#fef9c3" stroke-opacity="0.75" stroke-width="2.5" stroke-linecap="round"/>` +
+      `<path d="M23 30 L105 30 Q110 30 109 35 Q64 41 19 35 Q18 30 23 30 Z" fill="#eab308" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<rect x="54" y="15" width="20" height="13" rx="4" fill="#4b5563" stroke="${RIM}" stroke-width="3"/>` +
+      `<circle cx="64" cy="21.5" r="4.5" fill="#fef9c3" stroke="${RIM}" stroke-width="1.5"/>` +
+      `<circle cx="62.6" cy="20" r="1.4" fill="#ffffff"/>`,
+  ),
+  // The tassel hangs from the button on top.
+  "outfits/fez.svg": cut(
+    "outfits/fez.svg",
+    `<path d="M45 33 L50 6 Q64 2.5 78 6 L83 33 Q64 37 45 33 Z" fill="#dc2626" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M53 11 L50.5 29" stroke="#fca5a5" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>` +
+      `<path d="M47.2 27 Q64 30.5 80.8 27" fill="none" stroke="#991b1b" stroke-width="2.5"/>` +
+      `<circle cx="64" cy="5.5" r="2.6" fill="#fbbf24" stroke="${RIM}" stroke-width="1.6"/>`,
+    [
+      {
+        name: "tassel",
+        art:
+          `<path d="M64 5.5 Q76 4 81 10 L82 20" fill="none" stroke="${RIM}" stroke-width="4.5" stroke-linecap="round"/>` +
+          `<path d="M64 5.5 Q76 4 81 10 L82 20" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>` +
+          `<path d="M79 19 L85 19 L87 31 L77 31 Z" fill="#fbbf24" stroke="${RIM}" stroke-width="2.2" stroke-linejoin="round"/>` +
+          `<path d="M80 22 L79.5 29 M82 22 L82 29 M84 22 L84.5 29" stroke="#b45309" stroke-width="1.2" stroke-linecap="round"/>`,
+        pivot: [64, 6],
+        swing: 1.5,
+        spread: 0.35,
+        bob: 0.6,
+      },
+    ],
+  ),
+  // Three floppy points, a bell on each tip.
+  "outfits/jester.svg": cut(
+    "outfits/jester.svg",
+    `<path d="M50 29 Q57 16 64 9.5 Q71 16 78 29 Z" fill="#a855f7" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M58 29 C54 6 24 0 12 28 C20 18 28 20 34 31 Z" fill="#ef4444" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M70 29 C74 6 104 0 116 28 C108 18 100 20 94 31 Z" fill="#ef4444" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M51 18 Q42 13 33 16 M77 18 Q86 13 95 16" fill="none" stroke="#fca5a5" stroke-opacity="0.7" stroke-width="2.4" stroke-linecap="round"/>` +
+      `<path d="M30 27 Q64 18 98 27 L98 36 Q64 27 30 36 Z" fill="#facc15" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      // Diamonds along the band's middle, which bows up like its edges.
+      [38, 51, 64, 77, 90]
+        .map((x) => {
+          const t = (x - 30) / 68;
+          const y = 31.5 - 18 * t * (1 - t);
+          return `<path d="M${x} ${(y - 3).toFixed(1)} L${x + 2.6} ${y.toFixed(1)} L${x} ${(y + 3).toFixed(1)} L${x - 2.6} ${y.toFixed(1)} Z" fill="#a855f7"/>`;
+        })
+        .join(""),
+    [
+      { name: "left", art: bell(12.5, 32), pivot: [12.5, 28], swing: 1.4, spread: -0.5, bob: 1 },
+      { name: "middle", art: bell(64, 7), pivot: [64, 10], swing: 1.2, bob: 1.2 },
+      { name: "right", art: bell(115.5, 32), pivot: [115.5, 28], swing: 1.6, spread: 0.5, bob: 1 },
+    ],
+  ),
+  "outfits/bucket.svg": wrap(
+    `<path d="M41 26 Q40 6 64 6 Q88 6 87 26 Z" fill="#14b8a6" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M41 19 Q64 22 87 19 L87.3 25 L40.7 25 Z" fill="#0f766e"/>` +
+      `<path d="M46 9.5 Q64 6 82 9.5" fill="none" stroke="#99f6e4" stroke-width="1.8" stroke-dasharray="3 2.5"/>` +
+      `<path d="M38 23 Q64 28 90 23 L107 38 Q64 47 21 38 Z" fill="#2dd4bf" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M28 35.5 Q64 43 100 35.5" fill="none" stroke="#ccfbf1" stroke-width="1.8" stroke-dasharray="3 2.5"/>`,
+  ),
+  // Big frog eyes on top: memecoin season.
+  "outfits/frog.svg": wrap(
+    `<path d="M30 36 Q30 13 64 13 Q98 13 98 36 Z" fill="#65a30d" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M30 33 Q64 25 98 33 L98 36 L30 36 Z" fill="#bef264" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>` +
+      [46, 82]
+        .map(
+          (x) =>
+            `<circle cx="${x}" cy="14" r="10.5" fill="#65a30d" stroke="${RIM}" stroke-width="4"/>` +
+            `<circle cx="${x}" cy="13.5" r="6.8" fill="#ffffff"/>` +
+            `<circle cx="${x + 1}" cy="14.5" r="3.4" fill="${INK}"/>` +
+            `<circle cx="${x + 2.2}" cy="12.8" r="1.2" fill="#ffffff"/>`,
+        )
+        .join("") +
+      `<path d="M52 25 Q64 31 76 25" fill="none" stroke="${RIM}" stroke-width="2.8" stroke-linecap="round"/>` +
+      `<ellipse cx="42" cy="27" rx="4" ry="2.4" fill="#f9a8d4" opacity="0.8"/><ellipse cx="86" cy="27" rx="4" ry="2.4" fill="#f9a8d4" opacity="0.8"/>`,
+  ),
+  // Two springy antennae on a headband, glowing at the tips, and a little
+  // alien's head in the middle of the band, over the wick (a wick between
+  // the antennae read as a third one with its ball missing).
+  "outfits/alien.svg": cut(
+    "outfits/alien.svg",
+    `<path d="M30 34 Q64 14 98 34" fill="none" stroke="${RIM}" stroke-width="7" stroke-linecap="round"/>` +
+      `<path d="M30 34 Q64 14 98 34" fill="none" stroke="#cbd5e1" stroke-width="3.5" stroke-linecap="round"/>` +
+      `<path d="M64 26 C56 26 52.5 18 52.5 12.5 C52.5 6 57.5 2.5 64 2.5 C70.5 2.5 75.5 6 75.5 12.5 C75.5 18 72 26 64 26 Z" fill="#a3e635" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M54.6 10.8 Q60.8 9.4 63 16.6 Q56.4 17.6 54.6 10.8 Z M73.4 10.8 Q67.2 9.4 65 16.6 Q71.6 17.6 73.4 10.8 Z" fill="${INK}"/>` +
+      `<circle cx="58" cy="12.6" r="1.3" fill="#f7fee7"/><circle cx="70" cy="12.6" r="1.3" fill="#f7fee7"/>` +
+      `<path d="M61.5 20.5 Q64 22 66.5 20.5" fill="none" stroke="${RIM}" stroke-width="1.5" stroke-linecap="round"/>` +
+      `<path d="M56 9 Q57.5 5.5 61 4.8" fill="none" stroke="#f7fee7" stroke-opacity="0.7" stroke-width="1.6" stroke-linecap="round"/>`,
+    [-1, 1].map((s) => {
+      const bx = 64 + s * 16;
+      const tx = 64 + s * 27;
+      return {
+        name: s < 0 ? "left" : "right",
+        art:
+          `<path d="M${bx} 26 Q${64 + s * 17} 15 ${tx} 9" fill="none" stroke="${RIM}" stroke-width="5.5" stroke-linecap="round"/>` +
+          `<path d="M${bx} 26 Q${64 + s * 17} 15 ${tx} 9" fill="none" stroke="#cbd5e1" stroke-width="2.2" stroke-linecap="round"/>` +
+          `<circle cx="${tx}" cy="8" r="9" fill="#bef264" fill-opacity="0.3"/>` +
+          `<circle cx="${tx}" cy="8" r="5.8" fill="#a3e635" stroke="${RIM}" stroke-width="2.5"/>` +
+          `<circle cx="${tx - 1.8}" cy="6.2" r="1.7" fill="#f7fee7"/>`,
+        pivot: [bx, 26],
+        swing: s < 0 ? 1.2 : 1.4,
+        spread: s * 0.45,
+        bob: 1.4,
+      };
+    }),
+  ),
+  // A leaf on a stem, all of it loose: it nods along with every hop.
+  "outfits/sprout.svg": cut("outfits/sprout.svg", null, [
+    {
+      name: "sprout",
+      art:
+        `<path d="M64 25 L64 13" stroke="${RIM}" stroke-width="10" stroke-linecap="round"/>` +
+        `<path d="M64 25 L64 13" stroke="#22c55e" stroke-width="5" stroke-linecap="round"/>` +
+        `<path d="M63 15 Q48 0 29 7 Q41 26 63 15 Z" fill="#4ade80" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+        `<path d="M65 13 Q82 -2 101 6 Q89 24 65 13 Z" fill="#4ade80" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+        `<path d="M60 14.5 Q47 10 35 9 M68 12.5 Q82 8 95 7" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"/>`,
+      pivot: [64, 24],
+      swing: 1.3,
+      spread: 0.3,
+      bob: 0.6,
+    },
+  ]),
+  "outfits/mushroom.svg": wrap(
+    `<path d="M26 32 Q64 25 102 32 Q64 41 26 32 Z" fill="#fef3c7" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M15 31 Q14 3 64 3 Q114 3 113 31 Q64 22 15 31 Z" fill="#ef4444" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      [[64, 10, 5.5], [42, 15, 4.6], [86, 15, 4.6], [27, 24, 3], [101, 24, 3], [53, 21, 2.6], [75, 21, 2.8]]
+        .map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f8fafc" stroke="${RIM}" stroke-width="1.5"/>`)
+        .join(""),
+  ),
+  // A headband knotted at the side; the knot's two ends flap.
+  "outfits/sweatband.svg": cut(
+    "outfits/sweatband.svg",
+    `<path d="M28 33 Q64 23 100 33 L100 43 Q64 33 28 43 Z" fill="#ef4444" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M30 38 Q64 28 98 38" fill="none" stroke="#f8fafc" stroke-width="2.5"/>` +
+      `<ellipse cx="100" cy="38" rx="5.5" ry="6" fill="#dc2626" stroke="${RIM}" stroke-width="3"/>`,
+    [
+      {
+        name: "upper",
+        art: `<path d="M100 35 L121 38 L119 47 L99 41 Z" fill="#ef4444" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>`,
+        pivot: [101, 37],
+        swing: 1.2,
+        spread: 0.3,
+        under: true,
+      },
+      {
+        name: "lower",
+        art: `<path d="M99 40 L115 56 L108 60 L96 43 Z" fill="#dc2626" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>`,
+        pivot: [100, 41],
+        swing: 1.5,
+        spread: 0.5,
+        under: true,
+      },
+    ],
+  ),
+  "outfits/unicorn.svg": wrap(
+    `<defs><linearGradient id="uh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fef9c3"/><stop offset="0.55" stop-color="#fde047"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>` +
+      [-1, 1]
+        .map((s) => {
+          const x = 64 + s * 24;
+          return (
+            `<path d="M${x - s * 9} 32 Q${x - s * 7} 12 ${x + s * 2} 5 Q${x + s * 11} 19 ${x + s * 5} 32 Z" fill="#f8fafc" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+            `<path d="M${x - s * 4.5} 29 Q${x - s * 3.5} 17 ${x + s * 1.5} 12 Q${x + s * 6} 20 ${x + s * 2} 29 Z" fill="#f9a8d4"/>`
+          );
+        })
+        .join("") +
+      `<path d="M30 33 Q64 21 98 33" fill="none" stroke="${RIM}" stroke-width="7" stroke-linecap="round"/>` +
+      `<path d="M30 33 Q64 21 98 33" fill="none" stroke="#c4b5fd" stroke-width="3.5" stroke-linecap="round"/>` +
+      `<path d="M54 31 Q59 14 64 1.5 Q69 14 74 31 Q64 34 54 31 Z" fill="url(#uh)" stroke="${RIM}" stroke-width="3.5" stroke-linejoin="round"/>` +
+      `<path d="M56.2 26.8 L71.8 21.6 M58.6 19.6 L69.6 15.6 M60.9 12.6 L67.4 10" stroke="#b45309" stroke-width="2.2" stroke-linecap="round"/>` +
+      `<path d="M58 29 Q60 18 63 8" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="1.6" stroke-linecap="round"/>`,
+  ),
+  "outfits/fedora.svg": wrap(
+    `<path d="M41 30 Q40 9 48 4.5 Q56 9.5 64 6.5 Q72 9.5 80 4.5 Q88 9 87 30 Z" fill="#a8a29e" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M55 9.5 Q64 15 73 9.5" fill="none" stroke="#78716c" stroke-width="2.5" stroke-linecap="round"/>` +
+      `<path d="M46.5 10 Q44.5 15 44.5 19" fill="none" stroke="#e7e5e4" stroke-width="2.2" stroke-linecap="round"/>` +
+      `<path d="M41.4 20 Q64 23.5 86.6 20 L87 28.5 L41 28.5 Z" fill="#292524"/>` +
+      `<path d="M79 24 Q86 10 97 3 Q94 15 83 26 Z" fill="#f97316" stroke="${RIM}" stroke-width="2.2" stroke-linejoin="round"/>` +
+      `<path d="M82 23.5 Q88 13 95 6.5" fill="none" stroke="#fed7aa" stroke-width="1.3" stroke-linecap="round"/>` +
+      `<path d="M21 30 Q29 24.5 41 27.5 L87 27.5 Q99 24.5 107 30 Q97 37.5 64 36.5 Q31 37.5 21 30 Z" fill="#8a837e" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M27 30.5 Q34 28 41 29.5 M87 29.5 Q94 28 101 30.5" fill="none" stroke="#d6d3d1" stroke-width="1.8" stroke-linecap="round"/>`,
+  ),
+});
+
+// The nightcap, worn with the pyjamas after midnight (src/mascot/night.ts),
+// and in anyone's wardrobe: a long striped cap flopping over to the left, its
+// pompom hanging off the tip and swinging like the Santa hat's.
+const CAP_CONE = "M95 31 C95 10 80 3 61 4 C42 5 28 13 21 26 C17 33 15 39 15 45 C22 39 29 34 37 31 Z";
+Object.assign(OUTFITS, {
+  "outfits/nightcap.svg": cut(
+    "outfits/nightcap.svg",
+    `<defs><clipPath id="nc"><path d="${CAP_CONE}"/></clipPath></defs>` +
+      `<path d="${CAP_CONE}" fill="#6366f1"/>` +
+      `<g clip-path="url(#nc)" fill="none" stroke="#c7d2fe" stroke-width="5.5">` +
+      `<path d="M84 2 Q87 16 87 32"/><path d="M68 0 Q71 15 71 32"/><path d="M52 2 Q53 16 53 32"/><path d="M37 8 Q36 20 40 32"/><path d="M24 20 Q22 30 25 40"/>` +
+      `</g>` +
+      `<path d="${CAP_CONE}" fill="none" stroke="${RIM}" stroke-width="4" stroke-linejoin="round"/>` +
+      `<path d="M76 9 Q86 13 89 24" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2.5" stroke-linecap="round"/>` +
+      `<rect x="31" y="26" width="66" height="11" rx="5.5" fill="#e0e7ff" stroke="${RIM}" stroke-width="4"/>` +
+      `<path d="M40 31.5 L88 31.5" stroke="#a5b4fc" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round"/>`,
+    // It hangs off the tip and swings with every turn and hop.
+    [{ name: "pompom", art: `<circle cx="15" cy="49" r="6.5" fill="#f8fafc" stroke="${RIM}" stroke-width="3"/>`, pivot: [15, 44], swing: 1.6, bob: 1.3 }],
+  ),
+});
+
 // Face accessories: worn with any hat, drawn under it.
 const heartAt = (cx, cy, s, fill) => {
   const d = `M${cx} ${cy + 6 * s} C${cx - 10 * s} ${cy - 1 * s} ${cx - 6 * s} ${cy - 9 * s} ${cx} ${cy - 4 * s} C${cx + 6 * s} ${cy - 9 * s} ${cx + 10 * s} ${cy - 1 * s} ${cx} ${cy + 6 * s} Z`;
@@ -608,6 +837,226 @@ Object.assign(FACES, {
     ],
   ),
 });
+
+// Eleven more faces: the wardrobe's Face shelf, three full rows. Whatever goes
+// over the eyes covers them in every mood, wide-eyed and looking around
+// included (Candy's at 50 and 78, the costumes' too); whatever goes in the
+// mouth sits where every mouth is, about (64, 82).
+/** The left half, and its mirror image for the right. */
+const both = (left) => `${left}<g transform="translate(128 0) scale(-1 1)">${left}</g>`;
+/** A spiral of half circles about (cx, cy), `turns` turns out to about `r` (as the dizzy eyes'). */
+const halfSpiral = (cx, cy, r, turns) => {
+  const n = turns * 2;
+  const g = r / (n - 0.25);
+  const f2 = (v) => +v.toFixed(2);
+  let d = `M${f2(cx - g / 2)} ${cy}`;
+  for (let i = 0; i < n; i++) {
+    const rr = 0.75 * g + g * i;
+    d += ` a${f2(rr)} ${f2(rr)} 0 1 1 ${f2((i % 2 ? -2 : 2) * rr)} 0`;
+  }
+  return d;
+};
+// The aviators' teardrop: a nearly straight top, drooping to its lowest by
+// the nose. Wide eyes (r 12.5) and the pupils' travel stay under it.
+const AVIATOR = "M36 48.6 C44 47 54 47 60 48.4 C63.4 49.4 64 52.6 63.6 57 C62.8 66 59.6 74 52 74.4 C43 74.8 35.4 67.4 33.8 59 C33 53 33 49.6 36 48.6 Z";
+// The cat-eye: a bold frame round below, its top swept up into a point at the
+// temple; the lens inside it, where the eyes are.
+const CATEYE_FRAME = "M63.6 55.4 C63.6 48 53 46.6 45 47 C38 47.4 31.6 44.6 26.6 39.6 C27.6 49.6 31 60 35.2 66.4 C40.4 74.4 55 75.8 60.8 69.6 C64.2 66 64.6 60.2 63.6 55.4 Z";
+const CATEYE_LENS = "M60.2 56.4 C60.2 52 52.6 51.2 46.4 51.4 C41.4 51.6 37.6 51 35 49.6 C35.8 56.6 37.8 62.2 40.6 65.8 C44.4 70.8 54 71.6 57.6 67.8 C60 65.2 60.6 60.6 60.2 56.4 Z";
+// The party horn's paper strip, out of the mouthpiece and rolled up at its end.
+// The mouthpiece is fat enough (y 75.8-86.8) to be in every mouth: they sit
+// from y 76 (the astronaut's) to 86.5 (the dino's grin), and a horn on a lip
+// reads as resting there, not blown.
+const HORN = "M72.6 81.4 L88 85.4 C96.4 87.8 99.6 94.4 96 98.8 C92.6 102.8 86 100.4 86.6 95.4 C87 92.4 90.4 91.6 92 93.6";
+// The gold chain hangs from the sides of the body to its foot.
+const chainAt = (t) => {
+  const [x0, y0, cx, cy, x1, y1] = [30, 84, 64, 117, 98, 84];
+  const u = 1 - t;
+  return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1];
+};
+const CHAIN_D = "M30 84 Q64 117 98 84";
+Object.assign(FACES, {
+  // Mirrored: the sky above a bright horizon, gold below; a thin gold frame.
+  "faces/aviators.svg": wrap(
+    `<defs><linearGradient id="av" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="0.45" stop-color="#bae6fd"/><stop offset="0.55" stop-color="#fde68a"/><stop offset="1" stop-color="#d97706"/></linearGradient></defs>` +
+      `<path d="M34.5 52 L26.5 50 M93.5 52 L101.5 50" stroke="${RIM}" stroke-width="4" stroke-linecap="round"/>` +
+      `<path d="M34.5 52 L26.5 50 M93.5 52 L101.5 50" stroke="#facc15" stroke-width="1.6" stroke-linecap="round"/>` +
+      `<path d="M60 49.6 L68 49.6 M61 56.6 Q64 53.6 67 56.6" fill="none" stroke="${RIM}" stroke-width="4.4" stroke-linecap="round"/>` +
+      both(`<path d="${AVIATOR}" fill="url(#av)" stroke="${RIM}" stroke-width="4.6" stroke-linejoin="round"/><path d="${AVIATOR}" fill="none" stroke="#facc15" stroke-width="1.7" stroke-linejoin="round"/>`) +
+      `<path d="M60 49.6 L68 49.6 M61 56.6 Q64 53.6 67 56.6" fill="none" stroke="#facc15" stroke-width="1.8" stroke-linecap="round"/>` +
+      both(`<path d="M38.6 57.6 Q39.6 52.4 45 51.4" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="2.6" stroke-linecap="round"/><path d="M41.4 64.6 L44.4 61.8" stroke="#ffffff" stroke-opacity="0.6" stroke-width="2" stroke-linecap="round"/>`),
+  ),
+  // Soft and padded, a stitched edge; two sleeping eyes drawn on it.
+  "faces/sleepmask.svg": wrap(
+    `<path d="M31 55 L24 53 M97 55 L104 53" stroke="${RIM}" stroke-width="5" stroke-linecap="round"/>` +
+      `<path d="M31 55 L24 53 M97 55 L104 53" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round"/>` +
+      `<path d="M30 56 C29.6 46 42 42.6 52 45.4 C58 47 70 47 76 45.4 C86 42.6 98.4 46 98 56 C97.6 67.6 91 75 80 75 C72 75 68 71.4 64 68.6 C60 71.4 56 75 48 75 C37 75 30.4 67.6 30 56 Z" fill="#c4b5fd" stroke="${RIM}" stroke-width="3.6" stroke-linejoin="round"/>` +
+      `<path d="M34.6 56 C34.4 48.6 43.6 46.6 51.4 48.8 C58 50.6 70 50.6 76.6 48.8 C84.4 46.6 93.6 48.6 93.4 56 C93 65.6 88.2 70.8 80 70.8 C73 70.8 69 67 64 64 C59 67 55 70.8 48 70.8 C39.8 70.8 35 65.6 34.6 56 Z" fill="none" stroke="#ede9fe" stroke-width="1.6" stroke-dasharray="2.6 2.2" stroke-linecap="round"/>` +
+      `<path d="M38 50.6 Q44 47.8 51 49.4" fill="none" stroke="#ede9fe" stroke-opacity="0.9" stroke-width="2.4" stroke-linecap="round"/>` +
+      both(
+        `<path d="M42 58.6 Q50 65.6 58 58.6" fill="none" stroke="${RIM}" stroke-width="3.2" stroke-linecap="round"/>` +
+          `<path d="M44.2 62.2 L42.4 65.6 M50 63.6 L50 67.4 M55.8 62.2 L57.6 65.6" stroke="${RIM}" stroke-width="2.2" stroke-linecap="round"/>`,
+      ),
+  ),
+  // A diving mask, clear glass in an orange frame, the tube up beside the head.
+  "faces/snorkel.svg": wrap(
+    `<path d="M100 71 Q109.5 71 109.5 61 L109.5 14" fill="none" stroke="${RIM}" stroke-width="10" stroke-linecap="round"/>` +
+      `<path d="M100 71 Q109.5 71 109.5 61 L109.5 14" fill="none" stroke="#facc15" stroke-width="5.6" stroke-linecap="round"/>` +
+      `<path d="M106.4 28 L112.6 28 M106.4 40 L112.6 40" stroke="#f97316" stroke-width="3"/>` +
+      `<rect x="103.5" y="5" width="12" height="11" rx="4" fill="#f97316" stroke="${RIM}" stroke-width="3"/>` +
+      `<path d="M107 8 L107 12" stroke="#fed7aa" stroke-width="1.8" stroke-linecap="round"/>` +
+      `<path d="M30 59 L24 58 M98 59 L104 58" stroke="${RIM}" stroke-width="6" stroke-linecap="round"/>` +
+      `<path d="M30 59 L24 58 M98 59 L104 58" stroke="#334155" stroke-width="2.6" stroke-linecap="round"/>` +
+      `<rect x="34" y="45.4" width="60" height="27" rx="11" fill="#bae6fd" fill-opacity="0.3" stroke="${RIM}" stroke-width="7.6"/>` +
+      `<rect x="34" y="45.4" width="60" height="27" rx="11" fill="none" stroke="#fb923c" stroke-width="4.4"/>` +
+      `<path d="M58 45.4 L70 45.4" stroke="#fdba74" stroke-width="1.6" stroke-linecap="round"/>` +
+      `<path d="M41 62 L49 51.6 M46 64 L52.6 55.6" stroke="#ffffff" stroke-opacity="0.75" stroke-width="2.4" stroke-linecap="round"/>` +
+      `<rect x="101" y="55" width="7" height="8" rx="2" fill="#334155" stroke="${RIM}" stroke-width="2"/>`,
+  ),
+  // Upswept frames, a rhinestone at each tip.
+  "faces/cateye.svg": wrap(
+    `<path d="M61.6 57 Q64 54 66.4 57" fill="none" stroke="${RIM}" stroke-width="4"/>` +
+      both(
+        `<path d="${CATEYE_LENS}" fill="#ffffff" fill-opacity="0.14"/>` +
+          `<path fill-rule="evenodd" d="${CATEYE_FRAME} ${CATEYE_LENS}" fill="#db2777" stroke="${RIM}" stroke-width="2.8" stroke-linejoin="round"/>` +
+          `<path d="M30.4 44.4 Q37 49.4 46 49.2 Q54 48.8 59.6 50.6" fill="none" stroke="#f9a8d4" stroke-width="1.5" stroke-linecap="round"/>` +
+          `<circle cx="29.6" cy="43.2" r="2.7" fill="#e0f2fe" stroke="${RIM}" stroke-width="1.3"/>` +
+          `<path d="M29.6 38.6 L29.6 40.2 M25 43.2 L26.6 43.2" stroke="#ffffff" stroke-width="1.3" stroke-linecap="round"/>`,
+      ),
+  ),
+  // Round lenses, a black spiral on white: the stare that makes a coin pump.
+  "faces/hypno.svg": wrap(
+    `<path d="M37.4 57 L28.4 54.4 M90.6 57 L99.6 54.4" stroke="${RIM}" stroke-width="3.6" stroke-linecap="round"/>` +
+      `<path d="M62 58 Q64 55 66 58" fill="none" stroke="${RIM}" stroke-width="3.8"/>` +
+      [L, R]
+        .map(
+          (x) =>
+            `<circle cx="${x}" cy="${EY}" r="13.4" fill="#f8fafc" stroke="${RIM}" stroke-width="4.6"/>` +
+            `<path d="${halfSpiral(x, EY, 11.4, 2)}" fill="none" stroke="${RIM}" stroke-width="2.8" stroke-linecap="round"/>`,
+        )
+        .join("") +
+      [L, R].map((x) => `<circle cx="${x}" cy="${EY}" r="13.4" fill="none" stroke="#a855f7" stroke-width="1.6"/>`).join(""),
+  ),
+  // A riveted steel plate over the right eye; a red lens glowing in it.
+  "faces/cyborg.svg": wrap(
+    `<defs><linearGradient id="cy" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#f1f5f9"/><stop offset="0.5" stop-color="#a8b3c2"/><stop offset="1" stop-color="#64748b"/></linearGradient></defs>` +
+      `<path d="M97 62 L104 60" stroke="${RIM}" stroke-width="4.4" stroke-linecap="round"/><path d="M97 62 L104 60" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>` +
+      `<path d="M66.6 46.4 L88 43.6 Q96.6 43 97.4 51 L98.4 68 Q98.6 76 90.6 76.4 L70 75.8 Q63.6 75.4 63.6 68.6 L63.6 51.6 Q63.6 47 66.6 46.4 Z" fill="url(#cy)" stroke="${RIM}" stroke-width="3.6" stroke-linejoin="round"/>` +
+      `<path d="M68 49.4 L87 47" stroke="#ffffff" stroke-opacity="0.75" stroke-width="2" stroke-linecap="round"/>` +
+      `<path d="M66.6 71.4 L72 71.4 L74.4 68.4 M95.2 66 L91.2 66 L89.4 70.6" fill="none" stroke="#475569" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>` +
+      [[67.6, 50.6], [93.6, 48], [94.4, 72.2], [67.6, 63.6]]
+        .map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.5" fill="#475569" stroke="${RIM}" stroke-width="0.8"/>`)
+        .join("") +
+      `<circle cx="${R + 1}" cy="${EY}" r="13" fill="#ef4444" fill-opacity="0.28"/>` +
+      `<circle cx="${R + 1}" cy="${EY}" r="8.4" fill="#1f2937" stroke="${RIM}" stroke-width="2.6"/>` +
+      `<circle cx="${R + 1}" cy="${EY}" r="5.6" fill="#ef4444"/>` +
+      `<circle cx="${R + 1}" cy="${EY}" r="2.6" fill="#fecaca"/>` +
+      `<circle cx="${R - 1.6}" cy="${EY - 2.6}" r="1.3" fill="#ffffff"/>`,
+  ),
+  // A paper blower in the mouth: the striped strip and its curl are loose, so
+  // they flick out and bounce back as he turns and hops.
+  "faces/partyhorn.svg": cut(
+    "faces/partyhorn.svg",
+    `<path d="M59 76 L70.8 75.8 Q73.8 75.8 73.8 79 L73.8 83.6 Q73.8 86.8 70.8 86.8 L59 86.6 Q55.4 86.4 55.4 81.3 Q55.4 76.2 59 76 Z" fill="#ec4899" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>` +
+      `<path d="M59.2 78.8 L70 78.6" stroke="#fbcfe8" stroke-width="1.8" stroke-linecap="round"/>` +
+      `<path d="M59.6 84.4 L70.2 84.4" stroke="#be185d" stroke-opacity="0.55" stroke-width="1.4" stroke-linecap="round"/>`,
+    [
+      {
+        name: "curl",
+        art:
+          `<path d="${HORN}" fill="none" stroke="${RIM}" stroke-width="10" stroke-linejoin="round"/>` +
+          `<path d="${HORN}" fill="none" stroke="#fde047" stroke-width="6.4" stroke-linejoin="round"/>` +
+          `<path d="${HORN}" fill="none" stroke="#ef4444" stroke-width="6.4" stroke-dasharray="2.6 6.2"/>` +
+          `<path d="${HORN}" fill="none" stroke="#3b82f6" stroke-width="6.4" stroke-dasharray="2.6 6.2" stroke-dashoffset="-4.4"/>`,
+        pivot: [73, 81.2],
+        swing: 1.2,
+        spread: 0.7,
+        bob: 0.4,
+      },
+    ],
+  ),
+  // The ring dangles from the knob.
+  "faces/pacifier.svg": cut(
+    "faces/pacifier.svg",
+    `<path d="M64 76.4 C70 71.6 81.4 73.4 81.4 81.2 C81.4 89 70.6 90.4 64 87.2 C57.4 90.4 46.6 89 46.6 81.2 C46.6 73.4 58 71.6 64 76.4 Z" fill="#93c5fd" stroke="${RIM}" stroke-width="3.2" stroke-linejoin="round"/>` +
+      `<path d="M50.4 79 Q52 75.6 57 75.6 M71 75.6 Q76 75.6 77.6 79" fill="none" stroke="#dbeafe" stroke-width="2" stroke-linecap="round"/>` +
+      `<circle cx="53.4" cy="82.4" r="1.8" fill="#1e40af"/><circle cx="74.6" cy="82.4" r="1.8" fill="#1e40af"/>` +
+      `<circle cx="64" cy="82" r="5.4" fill="#f9a8d4" stroke="${RIM}" stroke-width="2.6"/>` +
+      `<circle cx="62.4" cy="80.4" r="1.5" fill="#ffffff" fill-opacity="0.85"/>`,
+    [
+      {
+        name: "ring",
+        art:
+          `<circle cx="64" cy="94.6" r="7.2" fill="none" stroke="${RIM}" stroke-width="6.4"/>` +
+          `<circle cx="64" cy="94.6" r="7.2" fill="none" stroke="#f472b6" stroke-width="3.2"/>` +
+          `<path d="M59.4 90.6 Q61.4 89 63.6 88.8" fill="none" stroke="#fbcfe8" stroke-width="1.4" stroke-linecap="round"/>`,
+        pivot: [64, 86.4],
+        swing: 1.5,
+        spread: 0.4,
+        bob: 0.6,
+      },
+    ],
+  ),
+  // A red rose held in the teeth, its stem across the mouth.
+  "faces/rose.svg": wrap(
+    `<path d="M34 88 Q62 79.4 90 77" fill="none" stroke="${RIM}" stroke-width="6.4" stroke-linecap="round"/>` +
+      `<path d="M34 88 Q62 79.4 90 77" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>` +
+      `<path d="M47.4 84 Q44 92.4 36.4 94.4 Q37.6 86.4 47.4 84 Z" fill="#22c55e" stroke="${RIM}" stroke-width="2.4" stroke-linejoin="round"/>` +
+      `<path d="M45.6 86.6 Q42.6 90.4 39 92.2" fill="none" stroke="#15803d" stroke-width="1.3" stroke-linecap="round"/>` +
+      `<path d="M74 79 Q77 70.6 85.6 69.6 Q83.4 78.6 74 79 Z" fill="#22c55e" stroke="${RIM}" stroke-width="2.4" stroke-linejoin="round"/>` +
+      `<path d="M76 77.4 Q79 73.6 83 71.8" fill="none" stroke="#15803d" stroke-width="1.3" stroke-linecap="round"/>` +
+      // The bloom: a cup of petals around a curled bud.
+      `<path d="M86.6 69.4 Q85.6 59.4 95.6 58.6 Q100 55.6 104.4 59 Q109.4 61.4 108.2 69.4 Q107.2 79.6 97.4 80.4 Q87.6 79.6 86.6 69.4 Z" fill="#dc2626" stroke="${RIM}" stroke-width="3" stroke-linejoin="round"/>` +
+      `<path d="M92.6 66.4 Q93 61.4 98.4 61.6 Q103.4 62.2 102.6 66.6 Q101.6 70.4 97 69.6 Q94.6 68.8 95.6 66" fill="none" stroke="#7f1d1d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="M86.8 67.4 Q87.6 79 97.6 81 Q95.6 72.6 86.8 67.4 Z" fill="#ef4444" stroke="${RIM}" stroke-width="2" stroke-linejoin="round"/>` +
+      `<path d="M108 67.4 Q107.4 79 97.2 81 Q99.6 72.6 108 67.4 Z" fill="#ef4444" stroke="${RIM}" stroke-width="2" stroke-linejoin="round"/>` +
+      `<path d="M91 72.4 Q97.4 83.6 104 72.4 Q97.4 77.4 91 72.4 Z" fill="#f87171" stroke="${RIM}" stroke-width="2" stroke-linejoin="round"/>` +
+      `<path d="M90.4 63.4 Q92 60.4 95 60.2" fill="none" stroke="#fca5a5" stroke-width="1.6" stroke-linecap="round"/>` +
+      `<path d="M92 79.6 L97.4 84.6 L102.8 79.6 L97.4 81.6 Z" fill="#22c55e" stroke="${RIM}" stroke-width="1.8" stroke-linejoin="round"/>`,
+  ),
+  // Under the mouth, where the scarf sits: red with white polka dots.
+  "faces/bowtie.svg": wrap(
+    both(
+      `<path d="M64 100 L45.6 90.6 Q40.6 100 45.6 109.4 Z" fill="#ef4444" stroke="${RIM}" stroke-width="3.4" stroke-linejoin="round"/>` +
+        `<path d="M48 93.6 Q46 100 48 106.4" fill="none" stroke="#b91c1c" stroke-width="2" stroke-linecap="round"/>` +
+        `<circle cx="52.6" cy="96" r="1.5" fill="#fef2f2"/><circle cx="51.2" cy="103.4" r="1.5" fill="#fef2f2"/><circle cx="57.4" cy="100" r="1.3" fill="#fef2f2"/>`,
+    ) +
+      `<rect x="58.6" y="94.6" width="10.8" height="10.8" rx="3.6" fill="#b91c1c" stroke="${RIM}" stroke-width="3.2"/>` +
+      `<path d="M61.4 97.4 L64.6 97.4" stroke="#fca5a5" stroke-width="1.6" stroke-linecap="round"/>`,
+  ),
+  // Thick gold links down to the foot of the body, a coin swinging from them.
+  "faces/goldchain.svg": cut(
+    "faces/goldchain.svg",
+    `<path d="${CHAIN_D}" fill="none" stroke="${RIM}" stroke-width="8" stroke-linecap="round"/>` +
+      `<path d="${CHAIN_D}" fill="none" stroke="#facc15" stroke-width="4.6" stroke-linecap="round"/>` +
+      Array.from({ length: 15 }, (_, i) => {
+        const t = (i + 0.5) / 15;
+        const [x, y] = chainAt(t);
+        const [ax, ay] = chainAt(t - 0.01);
+        const [bx, by] = chainAt(t + 0.01);
+        const deg = ((Math.atan2(by - ay, bx - ax) * 180) / Math.PI).toFixed(1);
+        const at = `${x.toFixed(2)} ${y.toFixed(2)}`;
+        return i % 2
+          ? `<ellipse cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" rx="2.6" ry="1" transform="rotate(${deg} ${at})" fill="#a16207"/>`
+          : `<ellipse cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" rx="2" ry="0.9" transform="rotate(${deg} ${at})" fill="#fef08a"/>`;
+      }).join(""),
+    [
+      {
+        name: "coin",
+        art:
+          `<path d="M64 100.4 L64 104" stroke="${RIM}" stroke-width="4.4" stroke-linecap="round"/><path d="M64 100.4 L64 104" stroke="#facc15" stroke-width="2" stroke-linecap="round"/>` +
+          `<circle cx="64" cy="110.4" r="7.6" fill="#facc15" stroke="${RIM}" stroke-width="2.8"/>` +
+          `<circle cx="64" cy="110.4" r="5" fill="none" stroke="#ca8a04" stroke-width="1.2"/>` +
+          `<text x="64" y="113.9" font-family="Arial, sans-serif" font-size="9.5" font-weight="700" fill="#92400e" text-anchor="middle">$</text>` +
+          `<path d="M59.6 107 Q60.6 104.8 62.8 104.2" fill="none" stroke="#fef9c3" stroke-width="1.4" stroke-linecap="round"/>`,
+        pivot: [64, 100.6],
+        swing: 1.4,
+        spread: 0.3,
+        bob: 0.8,
+      },
+    ],
+  ),
+});
 delete OUTFITS["outfits/shades.svg"];
 delete OUTFITS["outfits/laser.svg"];
 
@@ -637,6 +1086,19 @@ const MANIFEST = {
     pumpkin: "outfits/pumpkin.svg",
     catears: "outfits/catears.svg",
     rocket: "outfits/rocket.svg",
+    sombrero: "outfits/sombrero.svg",
+    hardhat: "outfits/hardhat.svg",
+    fez: "outfits/fez.svg",
+    jester: "outfits/jester.svg",
+    bucket: "outfits/bucket.svg",
+    frog: "outfits/frog.svg",
+    alien: "outfits/alien.svg",
+    sprout: "outfits/sprout.svg",
+    mushroom: "outfits/mushroom.svg",
+    sweatband: "outfits/sweatband.svg",
+    unicorn: "outfits/unicorn.svg",
+    fedora: "outfits/fedora.svg",
+    nightcap: "outfits/nightcap.svg",
   },
   faces: {
     shades: "faces/shades.svg",
@@ -663,7 +1125,21 @@ const MANIFEST = {
     dollareyes: "faces/dollareyes.svg",
     facemask: "faces/facemask.svg",
     scarf: "faces/scarf.svg",
+    aviators: "faces/aviators.svg",
+    sleepmask: "faces/sleepmask.svg",
+    snorkel: "faces/snorkel.svg",
+    cateye: "faces/cateye.svg",
+    hypno: "faces/hypno.svg",
+    cyborg: "faces/cyborg.svg",
+    partyhorn: "faces/partyhorn.svg",
+    pacifier: "faces/pacifier.svg",
+    rose: "faces/rose.svg",
+    bowtie: "faces/bowtie.svg",
+    goldchain: "faces/goldchain.svg",
   },
+  // Held in the mouth or hung under it: on a costume whose mouth sits lower
+  // (its mouthDrop), these go down with it.
+  mouthFaces: ["lollipop", "bubblegum", "partyhorn", "pacifier", "rose", "bowtie", "goldchain"],
   // The loose bits of an accessory, by the accessory's path (see CUTS).
   pieces: Object.fromEntries(
     Object.entries(CUTS).map(([src, { base, parts }]) => {
@@ -1553,6 +2029,20 @@ MANIFEST.costumes = {
   v: { name: "V", states: costumeStates("V", VD, V_LOOK) },
 };
 
+// Costumes drawn in modules of their own (scripts/costumes/<id>.mjs): each is
+// handed the same kit of shared parts and gives back its name, its files
+// (frames, eye layers, still.svg) and a look for every mood. A new costume is
+// one import and one entry in DRAWN.
+const KIT = { EYES, EYE_LAYERS, BROWS, MOUTHS, EXTRAS, INK, RIM, mirror, stopSign, star, heart, turned, wrap };
+const DRAWN = { astronaut, ninja, robot, dino, bull, bear, ghost, penguin, bee };
+const DRAWN_FILES = {};
+for (const [id, draw] of Object.entries(DRAWN)) {
+  const dir = `costumes/${id}/`;
+  const { name, frames, look, mouthDrop } = draw({ ...KIT, dir });
+  DRAWN_FILES[dir] = frames;
+  MANIFEST.costumes[id] = { name, states: costumeStates(name, dir, look), ...(mouthDrop ? { mouthDrop } : {}) };
+}
+
 for (const dir of ["outfits", "faces", "eyes", "still", YD, SD, HD, VD]) mkdirSync(join(OUT, dir), { recursive: true });
 for (const [name, art] of Object.entries(YV_FRAMES)) writeFileSync(join(OUT, YD, name), yovich(art));
 for (const [name, art] of Object.entries(YV_EYE_FILES)) writeFileSync(join(OUT, YD, name), wrap(art));
@@ -1567,6 +2057,10 @@ writeFileSync(join(OUT, SD, "still.svg"), spidermax({ lens: "open" }));
 writeFileSync(join(OUT, VD, "still.svg"), vee({}));
 writeFileSync(join(OUT, HD, "still.svg"), shadow({}).replace("</svg>", `${SH_EYES.stern}
 </svg>`));
+for (const [dir, files] of Object.entries(DRAWN_FILES)) {
+  mkdirSync(join(OUT, dir), { recursive: true });
+  for (const [name, art] of Object.entries(files)) writeFileSync(join(OUT, dir, name), art);
+}
 for (const [name, art] of Object.entries(FRAMES)) {
   writeFileSync(join(OUT, name), svg(art));
 }

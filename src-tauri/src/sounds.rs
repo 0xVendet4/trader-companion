@@ -54,8 +54,8 @@ pub fn custom_sound(name: String) -> Result<tauri::ipc::Response, String> {
     std::fs::read(&path).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
 }
 
-/// Settings → Open sounds folder: creates it if needed and shows it.
-#[tauri::command]
+/// Settings → Open sounds folder: creates it if needed and shows it (the
+/// command is lib.rs's reveal_sounds_folder).
 pub fn reveal_sounds_folder() {
     let dir = folder();
     let _ = std::fs::create_dir_all(&dir);

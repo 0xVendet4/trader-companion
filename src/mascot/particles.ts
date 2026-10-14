@@ -21,7 +21,8 @@ export type ParticleKind =
   | "rain"
   | "tear"
   | "smoke"
-  | "flame";
+  | "flame"
+  | "ha";
 
 export interface Particle {
   kind: ParticleKind;
@@ -34,6 +35,8 @@ export interface Particle {
   life: number;
   rot: number;
   size: number;
+  /** What a laugh's "ha" reads, in the trader's language (the mascot sets it). */
+  text?: string;
 }
 
 /** Where a burst starts: the top of the body, as its box says. */
@@ -67,6 +70,7 @@ const GRAVITY: Record<ParticleKind, number> = {
   tear: 60,
   smoke: -4,
   flame: 0,
+  ha: 22,
 };
 
 /** Where the wick's tip is when the art has no wick: just over the middle of the head. */
@@ -156,6 +160,17 @@ export function spawn(kind: ParticleKind, n: number, rand: () => number, at: Ori
       p.vy = -(14 + rand() * 6);
       p.life = 1.8 + rand() * 0.4;
       p.age = 0 - i * 0.25;
+    } else if (kind === "ha") {
+      // A laugh: one "ha" off one side of the head, the next off the other,
+      // each popping out and slowing as it rises.
+      const side = i % 2 === 0 ? 1 : -1;
+      p.x = at.x + side * (at.w * 0.38 + rand() * 4);
+      p.y = at.y + 10 + rand() * 6;
+      p.vx = side * (16 + rand() * 8);
+      p.vy = -(30 + rand() * 10);
+      p.life = 0.95 + rand() * 0.2;
+      p.age = 0 - i * 0.24;
+      p.size = 0.95 + rand() * 0.2;
     } else if (kind === "flame") {
       // Sits on the wick and flickers; `size` is how big it burns.
       const tip = wickTip(at);

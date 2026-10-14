@@ -13,16 +13,20 @@ import { Companion } from "../companion";
 import { FULL_NAME, MASCOT_NAME } from "../core/brand";
 import { hotkeyLabel } from "../core/hotkey";
 import { Sound, type SoundName } from "../core/sound";
-import { DEFAULT_HOTKEY, State, normalizeSettings, type Quote, type Skin, type TrendingItem, type WatchToken } from "../core/state";
+import type { PanelKind, SettingsSection } from "../core/panel";
+import { DEFAULT_HOTKEY, State, normalizeSettings, type Placement, type Quote, type Skin, type Theme, type TrendingItem, type WatchToken } from "../core/state";
 import { todayKey } from "../discipline/discipline";
 import { Island } from "../island/island";
-import { tokenKey } from "../market/chains";
+import { EVM_CHAINS, tokenKey } from "../market/chains";
 import { Mascot, accessory, loadManifest, type Manifest, type MascotState, type Motion } from "../mascot/mascot";
 import { skinFilter } from "../mascot/skins";
 import { EXPANDED_W } from "../core/layout";
 import { Music } from "../core/music";
 import { gazeAt } from "../mascot/gaze";
-import { DEMO_TOKENS, avatar, demoQuotes, driftLive, freshLive } from "./market";
+import { CHART_INTERVALS, INTERVAL_MS, type Candle as Ohlc } from "../market/chart";
+import { chartKey } from "../market/charts";
+import { closeChart } from "../views/chart-popover";
+import { DEMO_EVM_TOKENS, DEMO_TOKENS, avatar, demoQuotes, driftLive, freshLive } from "./market";
 import { liveAudio, renderSoundtrack, type FxName } from "./soundtrack";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -66,6 +70,7 @@ Object.assign(window, { __demoCues: cues, __renderSoundtrack: renderSoundtrack }
 
 const TOKENS = DEMO_TOKENS;
 const [CANDLE, FROGE, WICK, SPARK] = TOKENS;
+const [FLAME, EMBER] = DEMO_EVM_TOKENS;
 const live$ = freshLive();
 const quotes = () => demoQuotes(live$);
 const drift = () => driftLive(live$);
@@ -126,7 +131,7 @@ function seedWallet() {
     historyChecked: true,
     fromHistory: true,
   });
-  c.wallets = [{ address: WALLET, label: "Main", mine: true, baselineUsd: 5_200, addedAt: now - 3 * 86_400_000 }];
+  c.wallets = [{ address: WALLET, label: "Main", family: "solana", mine: true, baselineUsd: 5_200, addedAt: now - 3 * 86_400_000 }];
   c.book = {
     wallets: [WALLET],
     positions: {
@@ -139,6 +144,107 @@ function seedWallet() {
     activity: [],
   };
   State.wallets[WALLET] = { sol: 12.4, holdings: {}, values: {}, totalUsd: 14_850, top: [], checkedAt: now, error: null };
+  State.notify();
+}
+
+/** A fictional 0x wallet, followed on Ethereum, BSC and Base. */
+const EVM_WALLET = "0xDE3C0A11E700000000000000000000000000Ca5d";
+const EVM_FOLLOWED = "0xF2060000000000000000000000000000000000F2";
+const SOL_FOLLOWED = "DemoFo11ower11111111111111111111111111111111";
+
+/** A quote with only a price, for the coins the EVM wallet pays gas in. */
+function coinQuote(address: string, priceUsd: number): Quote {
+  const zero = { m5: 0, h1: 0, h6: 0, h24: 0 };
+  return { address, pairAddress: "", priceUsd, marketCap: null, liquidityUsd: null, change: zero, volume: zero, txnsM5: { buys: 0, sells: 0 }, updatedAt: Date.now() };
+}
+
+/** The two EVM coins on the watchlist, priced, with ETH and BNB priced for the wallet's coins. */
+function seedEvmMarket() {
+  const c = State.companion;
+  for (const tok of DEMO_EVM_TOKENS) if (!c.watchlist.some((x) => x.key === tok.key)) c.watchlist.push(tok);
+  c.chains = ["solana", "bsc", "ethereum", "base"];
+  const q = quotes();
+  for (const tok of DEMO_EVM_TOKENS) {
+    State.quotes[tok.key] = q[tok.key];
+    State.positionQuotes[tok.key] = q[tok.key];
+  }
+  State.natives = { ...State.natives, ETH: coinQuote("ETH", 2_640), BNB: coinQuote("BNB", 612) };
+}
+
+/** An EVM wallet of the trader's own, holding FLAME (up) and EMBER (down), with ETH and BNB on the side. */
+function seedEvmWallet() {
+  seedEvmMarket();
+  const c = State.companion;
+  const now = Date.now();
+  const position = (t: WatchToken, amount: number, multiple: number) => ({
+    mint: t.key,
+    symbol: t.symbol,
+    amounts: { [EVM_WALLET]: amount },
+    costUsd: (amount * live$[t.symbol].price) / multiple,
+    realizedUsd: 0,
+    openedAt: now - 9 * 3_600_000,
+    fromTracking: false,
+    alerted: [],
+    historyChecked: true,
+    fromHistory: true,
+  });
+  c.wallets = [{ address: EVM_WALLET, label: "Main", family: "evm", chains: [...EVM_CHAINS], mine: true, baselineUsd: 4_100, addedAt: now - 2 * 86_400_000 }];
+  const holdings = { [FLAME.key]: 48_000, [EMBER.key]: 2_500_000 };
+  const values = { [FLAME.key]: 48_000 * live$.FLAME.price, [EMBER.key]: 2_500_000 * live$.EMBER.price };
+  c.book = {
+    wallets: [EVM_WALLET],
+    positions: { [FLAME.key]: position(FLAME, 48_000, 1.9), [EMBER.key]: position(EMBER, 2_500_000, 0.74) },
+    day: todayKey(),
+    realizedToday: 210,
+    activity: [
+      { t: now - 9 * 3_600_000, mint: FLAME.key, symbol: "FLAME", side: "opened", usd: 810, realizedUsd: 0 },
+      { t: now - 7 * 3_600_000, mint: EMBER.key, symbol: "EMBER", side: "opened", usd: 2_940, realizedUsd: 0 },
+      { t: now - 50 * 60_000, mint: FLAME.key, symbol: "FLAME", side: "sold", usd: 620, realizedUsd: 210 },
+    ],
+  };
+  const natives = { ethereum: 0.42, bsc: 1.8, base: 0.15 };
+  const totalUsd = values[FLAME.key] + values[EMBER.key] + (0.42 + 0.15) * 2_640 + 1.8 * 612;
+  State.wallets[EVM_WALLET] = { sol: 0, natives, holdings, values, totalUsd, top: [], checkedAt: now, error: null };
+  State.notify();
+}
+
+/** Two wallets followed: a Solana one and a 0x one, each with its last move and what it holds. */
+function seedFollowing() {
+  seedEvmMarket();
+  const c = State.companion;
+  const now = Date.now();
+  c.following = true;
+  c.wallets = [
+    { address: SOL_FOLLOWED, label: "Degen Dan", family: "solana", mine: false, baselineUsd: 31_400, addedAt: now - 5 * 86_400_000 },
+    { address: EVM_FOLLOWED, label: "0xFrog", family: "evm", chains: [...EVM_CHAINS], mine: false, baselineUsd: 12_900, addedAt: now - 86_400_000 },
+  ];
+  State.wallets[SOL_FOLLOWED] = {
+    sol: 84.2,
+    holdings: { [CANDLE.address]: 1_500_000, [WICK.address]: 2_000_000 },
+    values: { [CANDLE.address]: 6_300, [WICK.address]: 1_900 },
+    totalUsd: 31_400,
+    top: [
+      { address: CANDLE.address, symbol: "CANDLE", usd: 6_300 },
+      { address: WICK.address, symbol: "WICK", usd: 1_900 },
+    ],
+    checkedAt: now - 40_000,
+    error: null,
+  };
+  State.wallets[EVM_FOLLOWED] = {
+    sol: 0,
+    natives: { ethereum: 3.1, bsc: 12, base: 0.6 },
+    holdings: { [FLAME.key]: 75_000, [EMBER.key]: 1_300_000 },
+    values: { [FLAME.key]: 2_400, [EMBER.key]: 1_150 },
+    totalUsd: 12_900,
+    top: [
+      { address: FLAME.key, symbol: "FLAME", usd: 2_400 },
+      { address: EMBER.key, symbol: "EMBER", usd: 1_150 },
+    ],
+    checkedAt: now - 20_000,
+    error: null,
+  };
+  State.walletMoves[SOL_FOLLOWED] = { side: "bought", symbol: "CANDLE", t: now - 12 * 60_000 };
+  State.walletMoves[EVM_FOLLOWED] = { side: "sold", symbol: "EMBER", t: now - 3 * 60_000 };
   State.notify();
 }
 
@@ -865,8 +971,48 @@ function closeUp(el: Element | null, k: number, extra: Partial<Shot> = {}): Shot
 
 // ── Stills for the README (scripts/screenshots.mjs) ─────────────────────────
 
-const STILLS = ["hero", "ticker", "alert", "search", "wallet", "discipline", "wardrobe", "sidebar", "share"] as const;
-type Still = (typeof STILLS)[number];
+const STILLS = ["hero", "ticker", "alert", "search", "wallet", "wallet-evm", "wallet-add", "following", "discipline", "wardrobe", "sidebar", "share", "dayend", "dayend-red"] as const;
+/** The hover chart (src/views/chart-popover.ts) in its states, for checking it by eye: not README pictures. */
+const CHART_STILLS = ["chart", "chart-1m", "chart-24h", "chart-wallet", "chart-wallet-evm", "chart-nochain", "chart-busy"] as const;
+type Still = (typeof STILLS)[number] | (typeof CHART_STILLS)[number];
+
+/**
+ * Candles for every demo coin at every size, so the hover chart has something
+ * to draw without the API: a seeded walk that ends at the coin's price now.
+ */
+function seedCharts() {
+  const now = Date.now();
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  for (const tok of [...TOKENS, ...DEMO_EVM_TOKENS]) {
+    for (const interval of CHART_INTERVALS) {
+      const step = INTERVAL_MS[interval];
+      const n = 100;
+      const end = live$[tok.symbol].price;
+      // Walk backwards from the price now: the chart ends where the row's price is.
+      const candles: Ohlc[] = [];
+      let close = end;
+      const start = Math.floor(now / step) * step;
+      for (let i = 0; i < n; i++) {
+        const swing = Math.sqrt(step / 60_000) * 0.004;
+        const open = close / (1 + (rnd() - 0.48) * swing * 2);
+        const hi = Math.max(open, close) * (1 + rnd() * swing);
+        const lo = Math.min(open, close) / (1 + rnd() * swing);
+        candles.unshift({ t: start - i * step, o: open, h: hi, l: lo, c: close, v: 1000 + rnd() * 9000 });
+        close = open;
+      }
+      State.charts[chartKey(tok.chainId, tok.pairAddress, interval)] = { candles, fetchedAt: now };
+    }
+  }
+}
+
+/** Rests the pointer on a row, as far as the page can tell, so its chart opens. */
+async function hoverRow(selector: string) {
+  const row = document.querySelector<HTMLElement>(selector);
+  if (!row) return console.warn(`demo: no row at ${selector}`);
+  row.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+  await wait(700);
+}
 
 /** What the screenshot takes: an area of the page, or an image of its own. */
 type StillShot = { clip: { x: number; y: number; width: number; height: number } } | { png: string };
@@ -886,11 +1032,45 @@ async function still(name: Still): Promise<StillShot> {
   if (field) field.value = "";
   $<HTMLElement>("#demo-cursor").style.opacity = "0";
   island.fsm.homeToPetitDelay = 600;
+  // A chart left open by the still before, and the chain a still took away.
+  closeChart();
+  CANDLE.chainId = "solana";
   const open = async (view: Parameters<Island["setView"]>[0]) => {
     island.setView(view);
     await settle();
   };
   switch (name) {
+    case "chart":
+    case "chart-1m":
+    case "chart-24h":
+    case "chart-nochain":
+    case "chart-busy": {
+      seedCharts();
+      State.companion.chartInterval = name === "chart-1m" ? "1m" : name === "chart-24h" ? "24h" : "15m";
+      if (name === "chart-nochain") CANDLE.chainId = "robinhood";
+      if (name === "chart-busy") {
+        State.chartBusyUntil = Date.now() + 60_000;
+        delete State.charts[chartKey(CANDLE.chainId, CANDLE.pairAddress, "15m")];
+      } else State.chartBusyUntil = 0;
+      await open("watchlist");
+      await hoverRow("#island .watchlist .rows .row");
+      return { clip: boxOf($("#island"), 14) };
+    }
+    case "chart-wallet":
+      seedWallet();
+      seedCharts();
+      State.companion.chartInterval = "1h";
+      await open("positions");
+      await hoverRow("#island .positions .rows .pos-row");
+      return { clip: boxOf($("#island"), 14) };
+    case "chart-wallet-evm":
+      // An EVM holding ("bsc:0x…"): its chart is asked for on its own chain.
+      seedEvmWallet();
+      seedCharts();
+      State.companion.chartInterval = "1h";
+      await open("positions");
+      await hoverRow("#island .positions .rows .pos-row");
+      return { clip: boxOf($("#island"), 14) };
     case "hero":
       camera(SHOTS.wide, 0, { drift: false });
       await open("watchlist");
@@ -916,6 +1096,20 @@ async function still(name: Still): Promise<StillShot> {
       seedWallet();
       await open("positions");
       return { clip: boxOf($("#island"), 14) };
+    case "wallet-evm":
+      seedEvmWallet();
+      await open("positions");
+      return { clip: boxOf($("#island"), 14) };
+    case "wallet-add":
+      // No wallet yet: the field that tells a 0x address from a Solana one.
+      State.companion.wallets = [];
+      State.companion.book = { wallets: [], positions: {}, day: todayKey(), realizedToday: 0, activity: [] };
+      await open("positions");
+      return { clip: boxOf($("#island"), 14) };
+    case "following":
+      seedFollowing();
+      await open("wallets");
+      return { clip: boxOf($("#island"), 14) };
     case "discipline":
       await open("discipline");
       return { clip: boxOf($("#island"), 14) };
@@ -936,6 +1130,27 @@ async function still(name: Still): Promise<StillShot> {
       let s = "";
       for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
       return { png: btoa(s) };
+    }
+    case "dayend":
+    case "dayend-red": {
+      // The end of the day: three trades behind him (a green day, or a red one), three hours at the desk.
+      const t0 = Date.now();
+      const trade = (hoursAgo: number, pnl: number, symbol: string) => ({ t: t0 - hoursAgo * 3600_000, pnl, tradePnl: pnl, symbol });
+      State.companion.log = {
+        day: todayKey(),
+        entries:
+          name === "dayend-red"
+            ? [trade(3, -0.8, CANDLE.symbol), trade(2, 0.4, SPARK.symbol), trade(1, -1.3, FROGE.symbol)]
+            : [trade(3, 1.2, WICK.symbol), trade(2, -0.4, FROGE.symbol), trade(1, 2.1, CANDLE.symbol)],
+      };
+      State.sessionStart = t0 - (3 * 3600_000 + 12 * 60_000);
+      State.settings.placement = "top";
+      island.applySettings();
+      camera(SHOTS.wide, 0, { drift: false });
+      Companion.replayDayEnd();
+      // The whole show: Candy steps forward, the numbers count up, the finale, the buttons.
+      await wait(3800);
+      return { clip: boxOf($("#island"), 14) };
     }
   }
 }
@@ -1514,7 +1729,7 @@ async function run() {
   await answerCards(["No", "Got it"]);
   // The cooldown is waived and the day turns green again: Candy smiles.
   Companion.endCooldown();
-  Companion.recordTrade(2.1, "", { quiet: true });
+  Companion.recordTrade(2.1, "", { quiet: true, symbol: SPARK.symbol });
   await wait(400);
 
   // Share my day: the card comes up to the camera, the island falls back.
@@ -1522,7 +1737,7 @@ async function run() {
   await openIsland();
   await click(titled("Discipline"));
   await wait(300);
-  await click(document.querySelector("#island a.share"), { click: false });
+  await click(document.querySelector("#island .discipline a.share"), { click: false });
   fx("shutter");
   const share = $<HTMLElement>("#demo-share");
   const img = document.createElement("img");
@@ -1626,7 +1841,7 @@ async function main() {
   island.applySettings();
   Companion.onEvent = (e) => island.showEvent(e);
   Companion.onFeeling = (state, line) => island.feel(state, line);
-  Companion.recordTrade(0.8, "", { quiet: true });
+  Companion.recordTrade(0.8, "", { quiet: true, symbol: WICK.symbol });
   State.events.length = 0;
 
   seedChart();
@@ -1646,9 +1861,28 @@ async function main() {
   if (params.has("still")) return;
   if (params.has("stills")) {
     // A day with a win and a loss behind it, for the discipline still.
-    Companion.recordTrade(-0.4, "", { quiet: true });
-    Companion.recordTrade(1.3, "", { quiet: true });
-    Object.assign(window, { __demoStills: STILLS, __demoStill: still });
+    Companion.recordTrade(-0.4, "", { quiet: true, symbol: FROGE.symbol });
+    Companion.recordTrade(1.3, "", { quiet: true, symbol: CANDLE.symbol });
+    // The compact island on or off, for stills of both (Settings → Compact island).
+    const compact = (on: boolean) => {
+      State.companion.compactIsland = on ? "on" : "off";
+      island.applySettings();
+    };
+    // A look (Settings → Island theme, and the transparency under it) and a placement, for stills of each theme.
+    const look = (theme: Theme, transparency = 0, placement: Placement = State.settings.placement) => {
+      State.companion.theme = theme;
+      State.companion.islandTransparency = transparency;
+      State.settings.placement = placement;
+      island.applySettings();
+    };
+    // Settings or the Closet open in the island (null closes it), as the gear and the wardrobe open them.
+    // The camera holds the whole desktop still (no push-in): a panel fills most of it.
+    const panel = (kind: PanelKind | null, section?: SettingsSection) => {
+      camera(SHOTS.wide, 0, { drift: false, free: true });
+      if (kind) island.openPanel(kind, { section });
+      else island.closePanel();
+    };
+    Object.assign(window, { __demoStills: STILLS, __demoChartStills: CHART_STILLS, __demoStill: still, __demoCompact: compact, __demoLook: look, __demoPanel: panel });
     return;
   }
   if (params.has("clips")) {

@@ -2,11 +2,12 @@
 // limit, cooldown; with the trader's own wallet set, its sales count by
 // themselves (typing one in stays one click away), otherwise quick logging. "Journal": the last 7 days as a bar
 // chart, win rate, recent trades with notes, and a CSV export. Both share a
-// footer with "Share my day": a recap image to post (see src/share).
+// footer with "Share my day": a recap image to post (see src/share; My wallet
+// has the same links, so the PnL can be shared with Discipline off).
 
 import { h, clear } from "./dom";
 import { ICONS } from "./icons";
-import { btn, field, iconBtn, type ViewActions, type ViewHost } from "./shared";
+import { btn, field, iconBtn, shareLinks, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
 import { Bridge, IS_TAURI } from "../core/bridge";
 import { formatClock, formatDuration, formatPnl, parseAmount } from "../core/format";
@@ -24,7 +25,6 @@ import {
   todayKey,
   weekStats,
 } from "../discipline/discipline";
-import { weekRange } from "../share/recap";
 
 const RECENT = 4;
 /** The check-in's answer, next to a trade in the journal. */
@@ -101,7 +101,8 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const endLeft = h("span");
   const endOff = h("a", { text: "✕", title: t("No end"), onclick: () => Companion.setSessionEnd(null) });
   const endSet = h("span", {}, endLeft, " ", endOff);
-  const endChoices = h("span", {}, ` · ${t("end in")} `);
+  // The dot before either is CSS's (.session-line): it goes when the line wraps there.
+  const endChoices = h("span", {}, `${t("end in")} `);
   ([[30, "30m"], [60, "1h"], [120, "2h"]] as const).forEach(([min, label], i) => {
     if (i) endChoices.append(" ");
     endChoices.append(h("a", { text: label, title: t("An alert in {time}", { time: label }), onclick: () => (actions.blip(), Companion.setSessionEnd(min)) }));
@@ -111,7 +112,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     const on = State.sessionEndAt > 0;
     endSet.style.display = on ? "" : "none";
     endChoices.style.display = on ? "none" : "";
-    if (on) endLeft.textContent = ` · ${t("ends in {duration}", { duration: formatDuration(Math.max(0, State.sessionEndAt - Date.now())) })}`;
+    if (on) endLeft.textContent = t("ends in {duration}", { duration: formatDuration(Math.max(0, State.sessionEndAt - Date.now())) });
   }
 
   // How much to put in: the bank and the share risked are kept, the stop is per trade.
@@ -161,7 +162,7 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   const todayEl = h(
     "div",
     { class: "pane today" },
-    h("div", { class: "line" }, session, sessionEnd),
+    h("div", { class: "line session-line" }, session, sessionEnd),
     today,
     h("div", { class: "line" }, bar, barLabel),
     autoLine,
@@ -272,13 +273,19 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     }
 
     clear(stats);
+    // One span a piece: a line too long for the pane wraps between them, never inside one.
+    const pieces: (string | false)[] = [
+      t("7 days:"),
+      `· ${tn(w.count, "{n} trade", "{n} trades")}`,
+      w.count > 0 && `· ${t("{pct}% wins", { pct: Math.round(w.winRate * 100) })}`,
+      w.best > 0 && `· ${t("best {pnl}", { pnl: formatPnl(w.best, unitTxt) })}`,
+      w.worst < 0 && `· ${t("worst {pnl}", { pnl: formatPnl(w.worst, unitTxt) })}`,
+    ];
+    const [label, ...rest] = pieces.filter((p): p is string => !!p);
     stats.append(
-      `${t("7 days:")} `,
+      h("span", { text: label }),
       h("span", { class: w.total > 0 ? "up" : w.total < 0 ? "down" : "", text: formatPnl(w.total, unitTxt) }),
-      ` · ${tn(w.count, "{n} trade", "{n} trades")}`,
-      w.count ? ` · ${t("{pct}% wins", { pct: Math.round(w.winRate * 100) })}` : "",
-      w.best > 0 ? ` · ${t("best {pnl}", { pnl: formatPnl(w.best, unitTxt) })}` : "",
-      w.worst < 0 ? ` · ${t("worst {pnl}", { pnl: formatPnl(w.worst, unitTxt) })}` : "",
+      ...rest.map((text) => h("span", { text })),
     );
 
     clear(recent);
@@ -320,58 +327,8 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
   segToday.addEventListener("click", () => setMode(false));
   segJournal.addEventListener("click", () => setMode(true));
 
-  // Share my day: the recap card, with or without amounts.
-  const shareNote = h("span", { class: "share-note" });
-  let sharing = false;
-  const shareLink = h("a", {
-    class: "share",
-    text: t("Share my day"),
-    title: t("A recap image of today, copied to paste on X or Telegram"),
-    onclick: async () => {
-      if (sharing) return;
-      sharing = true;
-      shareNote.textContent = t("Drawing…");
-      try {
-        shareNote.textContent = await actions.shareDay();
-        actions.blip();
-      } catch (err) {
-        shareNote.textContent = t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) });
-      } finally {
-        sharing = false;
-        window.setTimeout(() => (shareNote.textContent = ""), 4000);
-      }
-    },
-  });
-  // Share my week: this week so far, as a 9:16 story.
-  const shareWeekLink = h("a", {
-    class: "share",
-    text: t("my week"),
-    title: t("This week so far as a story image (9:16), copied for Instagram, TikTok or Telegram"),
-    onclick: async () => {
-      if (sharing) return;
-      sharing = true;
-      shareNote.textContent = t("Drawing…");
-      try {
-        shareNote.textContent = await actions.shareWeek(weekRange(new Date(), "this"), "story");
-        actions.blip();
-      } catch (err) {
-        shareNote.textContent = t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) });
-      } finally {
-        sharing = false;
-        window.setTimeout(() => (shareNote.textContent = ""), 4000);
-      }
-    },
-  });
-  const moneyToggle = h("a", {
-    class: "money",
-    title: t("Show or hide amounts on the image (signs and % stay)"),
-    onclick: () => {
-      State.companion.recapHideMoney = !State.companion.recapHideMoney;
-      Companion.save();
-      actions.blip();
-      update();
-    },
-  });
+  // Share my day · my week: the recap cards (see shareLinks).
+  const share = shareLinks(actions);
 
   const el = h(
     "div",
@@ -382,31 +339,31 @@ export function buildDiscipline(actions: ViewActions): ViewHost {
     h(
       "div",
       { class: "foot" },
-      shareNote,
-      shareLink,
-      " · ",
-      shareWeekLink,
-      " ",
-      moneyToggle,
-      ` · ${t("Your rules.")} `,
-      h("a", { onclick: () => actions.openSettings(), text: t("Edit") }),
-      " · ",
-      h("a", {
-        text: t("Turn off"),
-        title: t("Hides this tab and stops every reminder; Settings → Discipline turns it back on. Trades are still kept."),
-        onclick: () => {
-          actions.blip();
-          Companion.setDiscipline(false);
-          actions.setView("watchlist");
-        },
-      }),
+      share.el,
+      // The rules' links stay whole: a long share note wraps before them.
+      h(
+        "span",
+        { class: "rules" },
+        ` · ${t("Your rules.")} `,
+        h("a", { onclick: () => actions.openSettings("discipline"), text: t("Edit") }),
+        " · ",
+        h("a", {
+          text: t("Turn off"),
+          title: t("Hides this tab and stops every reminder; Settings → Discipline turns it back on. Trades are still kept."),
+          onclick: () => {
+            actions.blip();
+            Companion.setDiscipline(false);
+            actions.setView("watchlist");
+          },
+        }),
+      ),
     ),
   );
 
   let journalKey = "";
 
   function update() {
-    moneyToggle.textContent = State.companion.recapHideMoney ? t("($ hidden)") : t("($ shown)");
+    share.sync();
     segToday.classList.toggle("on", !State.journalOpen);
     segJournal.classList.toggle("on", State.journalOpen);
     todayEl.style.display = State.journalOpen ? "none" : "";

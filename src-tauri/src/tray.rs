@@ -1,6 +1,6 @@
-// Notification-area icon: the version, Open, Wardrobe, Try the demo, Settings,
-// Pause, Quit (in the trader's language: set_labels); and Candy itself, in its
-// mood and colour (set_icon).
+// Notification-area icon: the version, Open, Wardrobe, Closet, Try the demo,
+// Settings, Pause, Quit (in the trader's language: set_labels); and Candy
+// itself, in its mood and colour (set_icon).
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -11,7 +11,7 @@ use crate::island::WINDOW_LABEL;
 
 const TRAY_ID: &str = "companion";
 
-/// The menu's items, in order: Open, Wardrobe, Try the demo, Settings, Pause, Quit.
+/// The menu's items, in order: Open, Wardrobe, Closet, Try the demo, Settings, Pause, Quit.
 struct TrayItems(Vec<MenuItem<tauri::Wry>>);
 
 /// The menu in the trader's language (src/core/i18n.ts): one label per item,
@@ -40,6 +40,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let version = MenuItem::with_id(app, "version", &name, false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
     let wardrobe = MenuItem::with_id(app, "wardrobe", "Wardrobe…", true, None::<&str>)?;
+    let closet = MenuItem::with_id(app, "closet", "Closet…", true, None::<&str>)?;
     let demo = MenuItem::with_id(app, "demo", "Try the demo", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause", "Pause / resume", true, None::<&str>)?;
@@ -48,16 +49,15 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let sep2 = PredefinedMenuItem::separator(app)?;
     let sep0 = PredefinedMenuItem::separator(app)?;
 
-    let menu = Menu::with_items(app, &[&version, &sep0, &open, &wardrobe, &demo, &sep1, &settings, &pause, &sep2, &quit])?;
+    let menu = Menu::with_items(app, &[&version, &sep0, &open, &wardrobe, &closet, &demo, &sep1, &settings, &pause, &sep2, &quit])?;
     // Kept to be relabelled in the trader's language (set_labels).
-    app.manage(TrayItems(vec![open, wardrobe, demo, settings, pause, quit]));
+    app.manage(TrayItems(vec![open, wardrobe, closet, demo, settings, pause, quit]));
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(&name)
         .menu(&menu)
         .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
             "quit" => app.exit(0),
-            "settings" => crate::show_settings_window(app),
             id => {
                 let _ = app.emit_to(WINDOW_LABEL, "tray", id.to_string());
             }

@@ -4,20 +4,61 @@
 // wallet's history when it was added. A click on an entry price lets the
 // trader type the real one over the estimate.
 
+import { wireChartHover } from "./chart-popover";
 import { h, clear } from "./dom";
 import { ICONS } from "./icons";
-import { btn, field, iconBtn, pct, tokenImg, type ViewActions, type ViewHost } from "./shared";
+import { addressHint, btn, chainTag, field, iconBtn, pct, shareLinks, tokenImg, walletChainTags, type ViewActions, type ViewHost } from "./shared";
 import { Companion } from "../companion";
 import { Bridge } from "../core/bridge";
 import { formatAge, formatPct, formatPrice, formatUsd, pctClass, shortAddress } from "../core/format";
 import { N_, t, tn } from "../core/i18n";
-import { State, type ActivityItem, type WatchToken } from "../core/state";
+import { State, type ActivityItem, type TrackedWallet, type WalletSnapshot, type WatchToken } from "../core/state";
+import { NATIVE_SYMBOL } from "../wallets/evm";
+import { isEvmChain, splitKey } from "../market/chains";
+import { explorerLink } from "../market/links";
 import { todayKey } from "../discipline/discipline";
 import { entrySource, formatMultiple, formatSignedUsd, sinceWords } from "../positions/positions";
-import { allocation, byDay, progressOf, sortHeld, type PositionSort, type Progress } from "../positions/board";
+import { allocation, byDay, progressOf, sortHeld, type NativeValue, type PositionSort, type Progress } from "../positions/board";
 
-/** The allocation bar's colours, biggest token first (SOL keeps its own). */
+/** The allocation bar's colours, biggest token first (the wallet's coins keep their own). */
 const ALLOC_COLORS = ["#34d399", "#60a5fa", "#f59e0b", "#f472b6", "#a78bfa"];
+const COIN_COLORS: Record<string, string> = { SOL: "#a78bfa", ETH: "#93c5fd", BNB: "#facc15" };
+
+/** A wallet's coin, what it holds of it and what that is worth. */
+interface Coin extends NativeValue {
+  amount: number;
+}
+
+/** The coins in a wallet: SOL, or an EVM wallet's ETH and BNB (ETH on two chains counted once). */
+function coinsOf(snap: WalletSnapshot | undefined): Coin[] {
+  if (!snap) return [];
+  const out = new Map<string, number>();
+  if (snap.sol > 0) out.set("SOL", snap.sol);
+  for (const [chain, amount] of Object.entries(snap.natives ?? {})) {
+    if (!isEvmChain(chain) || !(amount! > 0)) continue;
+    const sym = NATIVE_SYMBOL[chain];
+    out.set(sym, (out.get(sym) ?? 0) + amount!);
+  }
+  return [...out].map(([symbol, amount]) => ({ symbol, amount, value: amount * Companion.coinPrice(symbol as "SOL" | "ETH" | "BNB") }));
+}
+
+/** Several wallets' coins together, by symbol. */
+function sumCoins(lists: Coin[][]): Coin[] {
+  const out = new Map<string, Coin>();
+  for (const c of lists.flat()) {
+    const seen = out.get(c.symbol);
+    if (seen) {
+      seen.amount += c.amount;
+      seen.value += c.value;
+    } else out.set(c.symbol, { ...c });
+  }
+  return [...out.values()];
+}
+
+/** "12.4 SOL", "0.42 ETH · 1.2 BNB". */
+function coinsText(coins: Coin[], decimals = 3): string {
+  return coins.map((c) => `${c.amount.toFixed(c.amount < 10 ? decimals : 1)} ${c.symbol}`).join(" · ");
+}
 
 const SIDE_WORDS: Record<ActivityItem["side"], string> = {
   tracked: N_("Held"),
@@ -89,16 +130,23 @@ export function buildPositions(actions: ViewActions): ViewHost {
     "div",
     { class: "history-line err" },
     rpcBefore,
-    h("a", { class: "link", text: t("add it in Settings"), onclick: () => actions.openSettings() }),
+    h("a", { class: "link", text: t("add it in Settings"), onclick: () => actions.openSettings("rpc") }),
     rpcAfter,
   );
-  const fine = h("div", {
-    class: "fine-print",
-    text: t("Click an entry to type yours · ○ held before tracking · the line under a row: the way to your target, stop or next x"),
-  });
+  // One line (its title has the whole of it where the line is short).
+  const fineText = t("Click an entry to type yours · ○ held before tracking · the line under a row: the way to your target, stop or next x");
+  const fine = h("div", { class: "fine-print", text: fineText, title: fineText });
+  // Share my day · my week: the PnL as a recap card, here as well as on the
+  // Discipline tab (which can be turned off). On the fine print's line; while
+  // the share note shows (copied, or what went wrong) it takes the fine
+  // print's place, so the links never leave the island.
+  const foot = h("div", { class: "foot-line" });
+  const share = shareLinks(actions, (showing) => foot.classList.toggle("noting", showing));
+  foot.append(fine, h("span", { class: "foot" }, share.el));
 
   // No wallet yet: add it right here.
   const address = field(actions, { placeholder: t("Your wallet address (public)"), class: "field" });
+  const hint = addressHint(address);
   const add = btn(t("Add my wallet"), "secondary", () => submit());
   const note = h("span", { class: "note" });
   const setup = h(
@@ -108,7 +156,8 @@ export function buildPositions(actions: ViewActions): ViewHost {
       class: "empty",
       text: t("Add your own wallet: its buys and sells are recorded, with the profit of every token, and closed trades go into your journal. Public address only — never a seed phrase or a key."),
     }),
-    h("div", { class: "add-bar" }, address, add, note),
+    h("div", { class: "fine-print", text: t("A Solana address, or a 0x address followed on Ethereum, BSC and Base at once.") }),
+    h("div", { class: "add-bar" }, address, hint, add, note),
   );
   function submit() {
     const res = Companion.addWallet(address.value, "", true);
@@ -117,6 +166,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
     window.setTimeout(() => (note.textContent = ""), 3500);
     if (res.ok) {
       address.value = "";
+      address.dispatchEvent(new Event("input"));
       address.blur();
       actions.blip();
       actions.relayout();
@@ -127,8 +177,8 @@ export function buildPositions(actions: ViewActions): ViewHost {
   function tokenFor(mint: string, symbol: string): WatchToken {
     return State.token(mint) ?? {
       key: mint,
-      chainId: "solana",
-      address: mint,
+      chainId: splitKey(mint).chainId,
+      address: splitKey(mint).address,
       symbol,
       name: symbol,
       pairAddress: State.positionQuotes[mint]?.pairAddress ?? "",
@@ -206,7 +256,18 @@ export function buildPositions(actions: ViewActions): ViewHost {
     const snap = State.wallets[address];
     if (!snap) return { text: t("reading…"), err: false };
     if (snap.error) return { text: t("couldn't read it: {error}", { error: snap.error }), err: true };
-    return { text: `${snap.sol.toFixed(snap.sol < 10 ? 3 : 1)} SOL · ${formatUsd(snap.totalUsd)}`, err: false };
+    const coins = coinsText(coinsOf(snap), 2);
+    return { text: `${coins ? `${coins} · ` : ""}${formatUsd(snap.totalUsd)}`, err: false };
+  }
+
+  /** The wallet's chains: SOL, or the EVM chains ticked for it (click to change). */
+  function chainsOf(w: TrackedWallet): HTMLElement {
+    return walletChainTags(w, (chains) => {
+      Companion.setWalletChains(w.address, chains);
+      actions.blip();
+      key = "";
+      actions.relayout();
+    });
   }
 
   function renderMine() {
@@ -218,7 +279,9 @@ export function buildPositions(actions: ViewActions): ViewHost {
           "span",
           { class: "mine-chip", title: w.address },
           h("b", { text: w.label }),
-          ` ${shortAddress(w.address)}`,
+          // An EVM wallet's chain switches take the address's place (it is in the tooltip).
+          w.family === "evm" ? " " : ` ${shortAddress(w.address)}`,
+          chainsOf(w),
           h("span", { class: `mine-status ${status.err ? "err" : ""}`, text: ` · ${status.text}` }),
           iconBtn(ICONS.xmark, t("Remove this wallet"), () => {
             Companion.removeWallet(w.address);
@@ -267,11 +330,11 @@ export function buildPositions(actions: ViewActions): ViewHost {
       value += x.s.valueUsd;
       cost += x.s.costUsd;
     }
-    // The wallet's whole value: the SOL in it as well as the tokens.
+    // The wallet's whole value: its coins (SOL, or ETH and BNB) as well as the tokens.
     const mine = c.wallets.filter((w) => w.mine);
-    const sol = mine.reduce((sum, w) => sum + (State.wallets[w.address]?.sol ?? 0), 0);
-    const solValue = sol * (State.sol?.priceUsd ?? 0);
-    const whole = value + solValue;
+    const coins = sumCoins(mine.map((w) => coinsOf(State.wallets[w.address])));
+    const coinValue = coins.reduce((sum, x) => sum + x.value, 0);
+    const whole = value + coinValue;
 
     for (const x of list) {
       const { p, price, s } = x;
@@ -295,14 +358,17 @@ export function buildPositions(actions: ViewActions): ViewHost {
         }),
         iconBtn(ICONS.copy, t("Copy the CA"), (e) => {
           e.stopPropagation();
-          void Bridge.copy(p.mint).then((ok) => ok && actions.blip());
+          void Bridge.copy(tok.address).then((ok) => ok && actions.blip());
         }, 2),
         ...(State.token(tok.key)
           ? []
           : [
               iconBtn(ICONS.plus, t("Add to the watchlist"), (e) => {
                 e.stopPropagation();
-                void Companion.addToken(p.mint).then(() => actions.relayout());
+                // An EVM token goes in with its chain (its explorer's link names it:
+                // the same 0x address can be another token on another chain).
+                const input = tok.chainId === "solana" ? tok.address : (explorerLink(tok.chainId, tok.address)?.url ?? tok.address);
+                void Companion.addToken(input).then(() => actions.relayout());
               }),
             ]),
       );
@@ -322,6 +388,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
               "span",
               { class: "sym-line" },
               h("span", { class: "sym", text: p.symbol }),
+              tok.chainId === "solana" ? null : chainTag(tok.chainId),
               p.fromTracking ? h("span", { class: "since", text: "○", title: t("Held before tracking began: numbers start from then") }) : null,
               goals ? h("span", { class: "goal-mark", text: "◎", title: goals }) : null,
             ),
@@ -348,6 +415,12 @@ export function buildPositions(actions: ViewActions): ViewHost {
         bar,
       );
       row.addEventListener("click", () => actions.openToken(tok.key, tok));
+      // The pointer resting on the row opens its candles (src/views/chart-popover.ts); the pool comes with the quote.
+      // An EVM holding's key is "chain:0x…" (tokenFor splits it): its chart is asked for on that chain.
+      wireChartHover(row, p.mint, () => {
+        const now = tokenFor(p.mint, p.symbol);
+        return { symbol: p.symbol, chainId: now.chainId, pairAddress: now.pairAddress };
+      }, actions);
       rows.append(row);
     }
 
@@ -370,9 +443,9 @@ export function buildPositions(actions: ViewActions): ViewHost {
               text: t("{amount} in all", { amount: formatSignedUsd(totalNow - baseline) }),
               title: t("Since you added the wallet"),
             })
-          : `${sol.toFixed(sol < 10 ? 2 : 1)} SOL`,
+          : coinsText(coins, 2),
         "",
-        t("Tokens and SOL in your wallet"),
+        t("Tokens and coins in your wallet"),
       ),
       card(
         t("Open PnL"),
@@ -391,14 +464,14 @@ export function buildPositions(actions: ViewActions): ViewHost {
       ),
     );
 
-    // Each token's share of the wallet, SOL included.
+    // Each token's share of the wallet, its coins included.
     clear(alloc);
-    const slices = allocation(list, solValue);
+    const slices = allocation(list, coins);
     alloc.style.display = slices.length ? "" : "none";
     const barEl = h("div", { class: "alloc-bar" });
     const legend = h("div", { class: "alloc-legend" });
     slices.forEach((sl, i) => {
-      const color = sl.key === "SOL" ? "#a78bfa" : sl.key === "others" ? "#4b5563" : ALLOC_COLORS[i % ALLOC_COLORS.length];
+      const color = COIN_COLORS[sl.key] ?? (sl.key === "others" ? "#4b5563" : ALLOC_COLORS[i % ALLOC_COLORS.length]);
       const pctText = `${Math.round(sl.share * 100)}%`;
       barEl.append(h("i", { style: `flex:${sl.share};background:${color}`, title: `${sl.symbol} ${pctText} · ${formatUsd(sl.value)}` }));
       if (i < 5) legend.append(h("span", {}, h("i", { style: `background:${color}` }), `${sl.symbol} ${pctText}`));
@@ -406,13 +479,17 @@ export function buildPositions(actions: ViewActions): ViewHost {
     alloc.append(barEl, legend);
 
     // Nothing held: say what the wallet does hold, and where its trades are.
-    quiet.textContent =
-      sol > 0
-        ? t("No tokens held right now ({sol} SOL in the wallet). Buys show up here within a minute; your recent trades are under Activity.", { sol: sol.toFixed(3) })
+    const evmOnly = mine.length > 0 && mine.every((w) => w.family === "evm");
+    quiet.textContent = coins.length
+      ? evmOnly
+        ? t("No watched tokens held right now ({coins} in the wallet). A watchlist token it holds shows up here within a minute.", { coins: coinsText(coins) })
+        : t("No tokens held right now ({coins} in the wallet). Buys show up here within a minute; your recent trades are under Activity.", { coins: coinsText(coins) })
+      : evmOnly
+        ? t("No watched tokens held right now. A watchlist token it holds shows up here within a minute.")
         : t("No tokens held right now. Buys show up here within a minute; your recent trades are under Activity.");
     quiet.style.display = list.length ? "none" : "block";
     head.style.display = list.length ? "" : "none";
-    fine.style.display = list.length ? "" : "none";
+    fine.style.visibility = list.length ? "" : "hidden";
   }
 
   function renderActivity() {
@@ -424,13 +501,14 @@ export function buildPositions(actions: ViewActions): ViewHost {
           "div",
           { class: "empty" },
           `${t("No buys or sells seen yet. New ones show up here within a minute.")} `,
-          State.historyRead
+          // An EVM wallet's trades are not read back: only Solana ones have the link.
+          State.historyRead || !State.companion.wallets.some((x) => x.mine && x.family !== "evm")
             ? null
             : h("a", {
                 class: "link",
                 text: t("Read my recent trades"),
                 onclick: () => {
-                  const w = State.companion.wallets.find((x) => x.mine);
+                  const w = State.companion.wallets.find((x) => x.mine && x.family !== "evm");
                   if (w) void Companion.readTradeHistory(w.address);
                 },
               }),
@@ -481,8 +559,11 @@ export function buildPositions(actions: ViewActions): ViewHost {
     mineLine.style.display = has ? "" : "none";
     segHoldings.classList.toggle("on", !State.walletActivity);
     segActivity.classList.toggle("on", State.walletActivity);
-    for (const e of [summary, alloc, head, rows, quiet, fine]) e.style.display = showHold ? "" : "none";
+    for (const e of [summary, alloc, head, rows, quiet]) e.style.display = showHold ? "" : "none";
+    fine.style.visibility = showHold ? "" : "hidden";
+    foot.style.display = has ? "" : "none";
     activity.style.display = showAct ? "" : "none";
+    share.sync();
     rpcHint.style.display = has && publicRpcFailing() ? "" : "none";
     if (!has) {
       historyLine.style.display = "none";
@@ -497,11 +578,11 @@ export function buildPositions(actions: ViewActions): ViewHost {
   /** An own wallet couldn't be read, and the app is on the public RPC. */
   function publicRpcFailing(): boolean {
     if (State.settings.rpcUrl) return false;
-    const mine = State.companion.wallets.filter((w) => w.mine);
+    const mine = State.companion.wallets.filter((w) => w.mine && w.family !== "evm");
     return !!State.historyRead?.error || mine.some((w) => !!State.wallets[w.address]?.error);
   }
 
-  const el = h("div", { class: "view positions" }, seg, mineLine, historyLine, rpcHint, setup, summary, alloc, head, rows, quiet, activity, fine);
+  const el = h("div", { class: "view positions" }, seg, mineLine, historyLine, rpcHint, setup, summary, alloc, head, rows, quiet, activity, foot);
 
   let key = "";
   function sync() {
@@ -513,7 +594,7 @@ export function buildPositions(actions: ViewActions): ViewHost {
       `${State.walletActivity}|` +
       State.companion.wallets
         .filter((w) => w.mine)
-        .map((w) => `${w.address}${w.label}:${walletStatus(w.address).text}`)
+        .map((w) => `${w.address}${w.label}${(w.chains ?? []).join("")}:${walletStatus(w.address).text}`)
         .join(",") +
       `|${JSON.stringify(State.historyRead)}|${publicRpcFailing()}|${State.companion.walletSort}` +
       "|" +
@@ -521,8 +602,11 @@ export function buildPositions(actions: ViewActions): ViewHost {
         .map((p) => `${p.mint}:${p.costUsd}:${Companion.positionPrice(p.mint) ?? ""}:${Object.values(p.amounts).join("+")}:${p.target ?? ""}:${p.stop ?? ""}`)
         .join("|") +
       `#${book.day}:${book.realizedToday}#${book.activity.length}:${book.activity.at(-1)?.t ?? 0}` +
-      // The SOL in the wallet counts in its Value.
-      `#${State.companion.wallets.filter((w) => w.mine).map((w) => State.wallets[w.address]?.sol ?? 0).join("+")}:${State.sol?.priceUsd ?? 0}`;
+      // The coins in the wallet count in its Value.
+      `#${State.companion.wallets
+        .filter((w) => w.mine)
+        .map((w) => coinsOf(State.wallets[w.address]).map((c) => `${c.symbol}${c.amount}:${c.value}`).join("+"))
+        .join("|")}`;
     if (next === key) return;
     key = next;
     render();

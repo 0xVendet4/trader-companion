@@ -620,6 +620,30 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
     }
 }
 
+/// The compositor gives the keyboard back when the island stops taking it
+/// (set_activating): nothing to remember.
+pub fn remember_foreground(_win: &WebviewWindow) {}
+
+pub fn restore_foreground(_win: &WebviewWindow) {}
+
+pub fn note_foreground(_win: &WebviewWindow) {}
+
+/// A panel steps behind the app the trader went to: an X11 window can; a
+/// layer surface sits over every window and can't (island::handoff closes
+/// the panel instead).
+pub fn lower_island(win: &WebviewWindow) -> bool {
+    if !can_lower() {
+        return false;
+    }
+    let _ = win.set_always_on_top(false);
+    true
+}
+
+/// Whether the island can step behind another window: not a layer surface.
+pub fn can_lower() -> bool {
+    !LAYER_SURFACE.load(Ordering::Relaxed)
+}
+
 /// Only this rectangle (window-logical px) takes the mouse; `None`: the whole
 /// window does. Everything outside goes to the window underneath.
 pub fn set_input_region(win: &WebviewWindow, rect: Region) {
@@ -651,10 +675,6 @@ pub fn update_dir() -> PathBuf {
     xdg("XDG_CACHE_HOME", ".cache").join("candy").join("source")
 }
 
-/// Not yet: on Linux the island says how to update by hand (README → Install).
-pub fn unpack_and_install(_dir: &Path, _archive: &Path, _root: &Path) -> Result<(), String> {
-    Err("on Linux, update from the Candy folder: git pull (or a new ZIP), then npm ci and npm run setup".into())
-}
 
 #[cfg(test)]
 mod tests {

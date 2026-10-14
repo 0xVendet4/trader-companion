@@ -2,7 +2,18 @@
 // native coin (for the header prices), which trading terminals support it, and
 // how its addresses look.
 
-export type ChainId = "solana" | "bsc" | "ethereum" | "robinhood";
+export type ChainId = "solana" | "bsc" | "ethereum" | "base" | "robinhood";
+
+/** The chains an EVM wallet (one 0x address) is followed on. */
+export const EVM_CHAINS = ["ethereum", "bsc", "base"] as const;
+export type EvmChain = (typeof EVM_CHAINS)[number];
+
+export function isEvmChain(x: unknown): x is EvmChain {
+  return typeof x === "string" && (EVM_CHAINS as readonly string[]).includes(x);
+}
+
+/** A wallet's family: a Solana (base58) address, or one 0x address followed on the EVM chains. */
+export type WalletFamily = "solana" | "evm";
 
 export interface Chain {
   id: ChainId;
@@ -60,6 +71,18 @@ export const CHAINS: Record<ChainId, Chain> = {
     basedbot: "eth",
     rugcheck: false,
   },
+  base: {
+    id: "base",
+    label: "Base",
+    tag: "BASE",
+    color: "#60a5fa",
+    // Base pays gas in ETH: its header price is ETH's.
+    native: { symbol: "ETH", chain: "ethereum", address: WETH },
+    gmgn: "base",
+    axiom: false,
+    basedbot: null,
+    rugcheck: false,
+  },
   robinhood: {
     id: "robinhood",
     label: "Robinhood",
@@ -74,7 +97,7 @@ export const CHAINS: Record<ChainId, Chain> = {
   },
 };
 
-export const ALL_CHAINS: ChainId[] = ["solana", "bsc", "ethereum", "robinhood"];
+export const ALL_CHAINS: ChainId[] = ["solana", "bsc", "ethereum", "base", "robinhood"];
 
 export function isChain(x: unknown): x is ChainId {
   return typeof x === "string" && (ALL_CHAINS as string[]).includes(x);
@@ -92,8 +115,32 @@ export function tokenKey(chainId: ChainId, address: string): string {
   return chainId === "solana" ? address : `${chainId}:${address.toLowerCase()}`;
 }
 
+/**
+ * The chain and address behind a token key: "chain:address" for an EVM
+ * token, a bare address for a Solana one (see tokenKey).
+ */
+export function splitKey(key: string): { chainId: ChainId; address: string } {
+  const i = key.indexOf(":");
+  if (i > 0) {
+    const chain = key.slice(0, i);
+    if (isChain(chain)) return { chainId: chain, address: key.slice(i + 1) };
+  }
+  return { chainId: "solana", address: key };
+}
+
 export const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * What kind of wallet address was typed: a 0x + 40 hex address (checksum
+ * casing optional) is an EVM wallet, base58 a Solana one, anything else none.
+ */
+export function walletFamily(input: string): WalletFamily | null {
+  const s = input.trim();
+  if (EVM_ADDRESS.test(s)) return "evm";
+  if (SOLANA_ADDRESS.test(s)) return "solana";
+  return null;
+}
 /** Uniswap v4 pool ids (Robinhood Chain pairs) are 32-byte hashes. */
 export const EVM_POOL_ID = /^0x[0-9a-fA-F]{64}$/;
 

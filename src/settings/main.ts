@@ -1,27 +1,34 @@
-// Settings window: watchlist, alerts, discipline rules, trading terminal,
-// general preferences and a preview of every mascot expression.
-// Every change is saved at once; Rust broadcasts it back to the island.
+// Settings, in a panel of the island (Island.openPanel, core/panel.ts):
+// watchlist, alerts, discipline rules, trading terminal, general preferences
+// and a preview of every mascot expression. Every change is saved at once;
+// the island hears it back (settings-changed) as from any save. Mounted in a
+// shadow root of its own (mountSettings): its styles and the island's stay
+// apart, and the island's theme colours still reach it (CSS variables).
 
-import "./settings.css";
+import css from "./settings.css?inline";
 import { describeRule } from "../alerts/alerts";
-import { Bridge, IS_TAURI, emitToWindow, onEvent, onSettingsChanged } from "../core/bridge";
+import { Bridge, IS_TAURI, onSettingsChanged, type ShowOff } from "../core/bridge";
+import type { PanelHost, PanelPage, SettingsSection } from "../core/panel";
 import { SOUND_NAMES, Sound, soundFile, type SoundName } from "../core/sound";
 import { shortAddress } from "../core/format";
 import { SHORTCUTS, keysLabel, recordPress, shortcutKeys, statusLabel, twice, type ShortcutId, type ShortcutStatus } from "../core/shortcuts";
-import { ISLAND_THEMES } from "../core/themes";
+import { ISLAND_THEMES, themeSwatch } from "../core/themes";
+import { COMPACT_SCREEN_H } from "../core/layout";
 import { APP_NAME } from "../core/brand";
 import { enableNotifications, notify } from "../core/notify";
 import { parseShared, shareEntry, shareText } from "../core/share";
 import {
-  EDITION_NAME,
+  MAX_ISLAND_TRANSPARENCY,
   MAX_WALLETS,
   MAX_WATCHLIST,
   OFFERED_COSTUMES,
   State,
   THEME_IDS,
   VOLUME_ALERT_CHOICES,
+  costumeName,
   normalizeSettings,
   validRpcUrl,
+  type CompactIsland,
   type Costume,
   type Face,
   type Outfit,
@@ -31,26 +38,66 @@ import {
   type Terminal,
   type Theme,
 } from "../core/state";
-import { isAddress } from "../wallets/wallets";
-import { ALL_CHAINS, CHAINS, isChain, tokenKey, type ChainId } from "../market/chains";
+import { ALL_CHAINS, CHAINS, EVM_CHAINS, isChain, tokenKey, walletFamily, type ChainId } from "../market/chains";
 import { parseInput, resolveAddress } from "../market/dexscreener";
 import { majorFor } from "../market/majors";
 import { AXIOM_REFERRAL_URL, RPC_KEY_SITES, TERMINALS } from "../market/links";
-import { MASCOT_STATES, Mascot, accessory, dressed, loadManifest, type Manifest } from "../mascot/mascot";
+import { MASCOT_STATES, Mascot, accessory, dressed, type Manifest } from "../mascot/mascot";
 import { BASE_HUE, DEFAULT_CUSTOM_SKIN, customSwatch, skinFilter } from "../mascot/skins";
 import { parseLevels } from "../positions/positions";
 import { MAX_FOLDERS, MAX_FOLDER_NAME, cleanFolderName } from "../market/folders";
 import { CALENDAR_LEADS } from "../market/calendar";
-import { LANGS, N_, devLang, pickLang, systemLangs, t, tn, useLang, type LangSetting } from "../core/i18n";
+import { dayEndChoices } from "../share/dayend";
+import { LANGS, N_, pickLang, systemLangs, t, tn, type LangSetting } from "../core/i18n";
+import { nightKey } from "../mascot/night";
 import { seasonKey } from "../mascot/seasons";
 import { clear, h, svg } from "../views/dom";
 import { ICONS } from "../views/icons";
 
 let settings: Settings = normalizeSettings(null);
+/** The island around the panel (set by mountSettings). */
+let host: PanelHost;
+/** What mountSettings set up outside its own elements: undone by its dispose. */
+let cleanups: (() => void)[] = [];
+/** Every Candy the page draws (the gallery, the looks): let go of on dispose, so none keeps running in the island. */
+const mascots = new Set<Mascot>();
+
+/** A Candy for the page, let go of when the panel closes (or sooner, with release). */
+function candy(): Mascot {
+  const m = new Mascot("mascot preview");
+  mascots.add(m);
+  return m;
+}
+
+/** Candies taken off the page (a grid of looks drawn again). */
+function release(list: Mascot[]) {
+  for (const m of list) {
+    m.dispose();
+    mascots.delete(m);
+  }
+  list.length = 0;
+}
+
+/** A row a link opens Settings at (core/panel.ts SETTINGS_TARGETS): reveal finds it and lights it up. */
+function target<T extends HTMLElement>(el: T, id: SettingsSection): T {
+  el.dataset.section = id;
+  return el;
+}
 
 function save() {
-  void Bridge.saveSettings(settings);
+  host.save(settings);
 }
+
+/** A listener on the window or the document, taken off when the panel closes. */
+function listen<K extends keyof WindowEventMap>(target: Window, type: K, fn: (e: WindowEventMap[K]) => void, capture?: boolean): void;
+function listen<K extends keyof DocumentEventMap>(target: Document, type: K, fn: (e: DocumentEventMap[K]) => void, capture?: boolean): void;
+function listen(target: Window | Document, type: string, fn: (e: Event) => void, capture = false) {
+  target.addEventListener(type, fn, capture);
+  cleanups.push(() => target.removeEventListener(type, fn, capture));
+}
+
+/** The field has the keyboard (in the panel's shadow root, document.activeElement is the root's host). */
+const focused = (el: Element) => el.matches(":focus");
 
 // ── Small controls ────────────────────────────────────────────────────────────
 
@@ -87,10 +134,32 @@ function toggle(get: () => boolean, set: (v: boolean) => void): HTMLElement {
   return el;
 }
 
+/**
+ * A toggle with a "Show me" beside it: plays that look on Candy in the island
+ * for a few seconds, without waiting for the night, an idle while or a drop.
+ */
+function showable(control: HTMLElement, what: ShowOff): HTMLElement {
+  const show = h("button", { class: "btn show-me", type: "button", text: t("Show me"), title: t("Plays it on Candy in the island for a few seconds, whatever the time or the market.") });
+  show.addEventListener("click", (e) => {
+    e.preventDefault();
+    // The button glows for as long as it plays: Candy plays it big at the panel's top.
+    const ms = host.showOff(what);
+    show.classList.remove("playing");
+    void show.offsetWidth;
+    if (ms > 0) {
+      show.style.setProperty("--playing", `${ms}ms`);
+      show.classList.add("playing");
+    }
+  });
+  show.addEventListener("animationend", () => show.classList.remove("playing"));
+  // The toggle comes first (drawn last): a click on the row's words still flips it.
+  return h("span", { class: "with-show" }, control, show);
+}
+
 function number(get: () => number, set: (v: number) => void, min: number, max: number, step = 1): HTMLInputElement {
   const el = h("input", { class: "field num", type: "number", min, max, step }) as HTMLInputElement;
   const paint = () => {
-    if (document.activeElement !== el) el.value = String(get());
+    if (!focused(el)) el.value = String(get());
   };
   el.addEventListener("change", () => {
     const v = Math.min(max, Math.max(min, Number(el.value.replace(",", ".")) || 0));
@@ -362,8 +431,7 @@ function alertsSection(): HTMLElement {
       const pick = select<string>(soundChoices, () => settings.companion.folderSounds[f] ?? "", (v) => {
         if (v) settings.companion.folderSounds[f] = v;
         else delete settings.companion.folderSounds[f];
-        Sound.setEnabled(true);
-        if (v) Sound.play(v as SoundName);
+        if (v) Sound.preview(v as SoundName);
       });
       folderSounds.append(row(t("Alert sound: {folder}", { folder: f }), pick));
     }
@@ -453,6 +521,15 @@ function disciplineSection(): HTMLElement {
       toggle(() => settings.companion.checkIn, (v) => (settings.companion.checkIn = v)),
       t("When a trade closes: did you follow your plan? Yes, partly or no goes into the journal, and into the Monday recap."),
     ),
+    row(
+      t("Day ends at"),
+      select<string>(
+        dayEndChoices(settings.companion.dayEndAt).map((v): [string, string] => [v, v || t("Off")]),
+        () => settings.companion.dayEndAt,
+        (v) => (settings.companion.dayEndAt = v),
+      ),
+      t("Candy sums the day up on the island then: PnL, trades, win rate, best and worst trade, with Share. Once a day, on days with a trade or an open position; a session end set in the Discipline tab ends the day instead. Plays with Discipline off too."),
+    ),
   );
 }
 
@@ -532,11 +609,8 @@ function generalSection(): HTMLElement {
       select<LangSetting>(
         [["auto", t("Same as the system ({language})", { language: system })], ...LANGS.map(([id, name]): [LangSetting, string] => [id, name])],
         () => settings.companion.language,
-        (v) => {
-          settings.companion.language = v;
-          // Saved first; then this window is drawn again in the new words (the island relabels itself).
-          window.setTimeout(() => location.reload(), 300);
-        },
+        // Saved; the island relabels itself in the new words, and draws this panel again in them.
+        (v) => (settings.companion.language = v),
       ),
     ),
     // Where the window can't be placed (plain Wayland) the island stays at the top edge.
@@ -553,6 +627,19 @@ function generalSection(): HTMLElement {
         (v) => (settings.placement = v),
       ),
       t("Floating: drag the ticker where you want it; it stays on screen."),
+    ),
+    row(
+      t("Compact island"),
+      select<CompactIsland>(
+        [
+          ["auto", t("Auto (on a small screen)")],
+          ["on", t("On")],
+          ["off", t("Off")],
+        ],
+        () => settings.companion.compactIsland,
+        (v) => (settings.companion.compactIsland = v),
+      ),
+      t("A lower island with smaller type and fewer columns, for a laptop. Auto turns it on when the screen is {height} px tall or less at the system's display scaling: a 1080p monitor at 125 % counts as 864 px.", { height: COMPACT_SCREEN_H }),
     ),
     row(t("Refresh prices every"), select<number>([[10, t("{n} s", { n: 10 })], [15, t("{n} s", { n: 15 })], [20, t("{n} s", { n: 20 })], [30, t("{n} s", { n: 30 })], [60, t("1 min")]], () => settings.companion.pollSeconds, (v) => (settings.companion.pollSeconds = v))),
     row(t("Keep the ticker on screen"), toggle(() => settings.companion.keepTickerVisible, (v) => (settings.companion.keepTickerVisible = v)), t("When off, the island hides after a minute and comes back when the mouse touches its edge of the screen.") + (State.cursorPoll ? " " + t("Hold Ctrl over the island to click what is behind it.") : "")),
@@ -587,7 +674,7 @@ function rpcRow(): HTMLElement {
   }) as HTMLInputElement;
   const note = h("span", { class: "note" });
   const paint = () => {
-    if (document.activeElement !== input) input.value = settings.rpcUrl;
+    if (!focused(input)) input.value = settings.rpcUrl;
   };
   input.addEventListener("change", () => {
     const v = input.value.trim();
@@ -605,11 +692,11 @@ function rpcRow(): HTMLElement {
   });
   paint();
   refreshers.push(paint);
-  return row(
+  return target(row(
     "Solana RPC",
     h("span", { class: "rpc-field" }, input, note),
     t("Optional. Your wallets are read from Solana's public RPC, which is shared and often busy. A free key from Helius, Alchemy or QuickNode is faster: paste its https URL. Only read-only calls go to it, and it stays on this PC."),
-  );
+  ), "rpc");
 }
 
 /** Where to get a free key, under the RPC field. */
@@ -644,8 +731,9 @@ function walletList(mine: boolean): { list: HTMLElement; add: HTMLElement; note:
     const a = address.value.trim();
     const wallets = settings.companion.wallets;
     note.className = "note err";
-    if (!isAddress(a)) return void (note.textContent = t("That doesn't look like a Solana address."));
-    const known = wallets.find((w) => w.address === a);
+    const family = walletFamily(a);
+    if (!family) return void (note.textContent = t("Not a Solana or 0x address."));
+    const known = wallets.find((w) => w.address === a || (family === "evm" && w.address.toLowerCase() === a.toLowerCase()));
     if (known && known.mine === mine) return void (note.textContent = mine ? t("That's already your wallet.") : t("Already following that wallet."));
     if (known) {
       // The same address can't be both: it moves to this list.
@@ -654,7 +742,7 @@ function walletList(mine: boolean): { list: HTMLElement; add: HTMLElement; note:
       if (wallets.length >= MAX_WALLETS) return void (note.textContent = tn(MAX_WALLETS, "{n} wallet max.", "{n} wallets max."));
       const same = wallets.filter((w) => w.mine === mine).length;
       const name = label.value.trim().slice(0, 24) || (mine ? (same ? `My wallet ${same + 1}` : "My wallet") : `Wallet ${same + 1}`);
-      wallets.push({ address: a, label: name, mine, baselineUsd: null, addedAt: Date.now() });
+      wallets.push({ address: a, label: name, family, ...(family === "evm" ? { chains: [...EVM_CHAINS] } : {}), mine, baselineUsd: null, addedAt: Date.now() });
     }
     save();
     address.value = "";
@@ -680,7 +768,9 @@ function walletList(mine: boolean): { list: HTMLElement; add: HTMLElement; note:
         save();
         for (const fn of refreshers) fn();
       });
-      list.append(h("div", { class: "item" }, name, h("code", { class: "grow", text: shortAddress(w.address), title: w.address }), remove));
+      // Where it is followed: Solana, or the EVM chains ticked for it.
+      const where = w.family === "evm" ? (w.chains ?? [...EVM_CHAINS]).map((c) => CHAINS[c].tag).join(" · ") : CHAINS.solana.tag;
+      list.append(h("div", { class: "item" }, name, h("code", { class: "grow", text: shortAddress(w.address), title: w.address }), h("span", { class: "dim", text: where }), remove));
     }
   }
   paint();
@@ -811,6 +901,19 @@ const OUTFITS: [Outfit, string][] = [
   ["pumpkin", N_("Pumpkin")],
   ["catears", N_("Cat ears")],
   ["rocket", N_("Rocket")],
+  ["sombrero", N_("Sombrero")],
+  ["hardhat", N_("Hard hat")],
+  ["fez", N_("Fez")],
+  ["jester", N_("Jester hat")],
+  ["bucket", N_("Bucket hat")],
+  ["frog", N_("Frog hat")],
+  ["alien", N_("Alien antennae")],
+  ["sprout", N_("Sprout")],
+  ["mushroom", N_("Mushroom")],
+  ["sweatband", N_("Sweatband")],
+  ["unicorn", N_("Unicorn horn")],
+  ["fedora", N_("Fedora")],
+  ["nightcap", N_("Nightcap")],
 ];
 
 const FACES: [Face, string][] = [
@@ -839,16 +942,17 @@ const FACES: [Face, string][] = [
   ["dollareyes", N_("Dollar eyes")],
   ["facemask", N_("Face mask")],
   ["scarf", N_("Scarf")],
-];
-
-/** "none" is Candy itself. Only the costumes this build offers are shown (see OFFERED_COSTUMES). */
-const COSTUMES: [Costume, string][] = [
-  ["none", "Candy"],
-  ["gengar", "Gengar"],
-  ["spiderman", "Spiderman"],
-  ["shadow", "Shadow"],
-  ["v", "V"],
-  ["edition", EDITION_NAME],
+  ["aviators", N_("Aviators")],
+  ["sleepmask", N_("Sleep mask")],
+  ["snorkel", N_("Snorkel")],
+  ["cateye", N_("Cat-eye glasses")],
+  ["hypno", N_("Hypno glasses")],
+  ["cyborg", N_("Cyborg eye")],
+  ["partyhorn", N_("Party horn")],
+  ["pacifier", N_("Pacifier")],
+  ["rose", N_("Red rose")],
+  ["bowtie", N_("Bow tie")],
+  ["goldchain", N_("Gold chain")],
 ];
 
 const SKINS: [Skin, string][] = [
@@ -872,7 +976,7 @@ const SKINS: [Skin, string][] = [
   ["ice", N_("Ice")],
   ["ocean", N_("Ocean")],
   ["navy", N_("Navy")],
-  ["ghost", N_("Ghost")],
+  ["ghost", N_("Ghost white")],
   ["slate", N_("Slate")],
   ["charcoal", N_("Charcoal")],
   ["custom", N_("Custom")],
@@ -887,10 +991,13 @@ function appearanceSection(manifest: Manifest): HTMLElement {
   /** Previews that follow the current colour, retinted live by the sliders. */
   let tinted: Mascot[] = [];
   let customPreview: Mascot | null = null;
+  /** Every preview drawn by the last paint: let go of when it paints again. */
+  const looks: Mascot[] = [];
 
   /** A little Candy wearing a hat, a face accessory and a colour, or a costume (which keeps its own colours). */
   const preview = (outfit: Outfit, face: Face, skin: Skin, costume: Costume = settings.companion.costume) => {
-    const m = new Mascot("mascot preview");
+    const m = candy();
+    looks.push(m);
     // Still: a hundred of these are drawn again on every pick, and a running
     // one would keep animating after it left the page.
     m.setActive(false);
@@ -953,14 +1060,58 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     swatch.style.background = customSwatch(c);
   };
 
+  // The island's transparency. As the thumb moves the island (this panel's
+  // own background) only previews it, nothing written; one save keeps it
+  // when the thumb is let go. While the thumb is held it is what counts: a
+  // settings-changed from the island meanwhile must not pull it back. The
+  // hold ends with the pointer, or with the window's focus (Alt+Tab mid-drag
+  // loses the change event), never on a flag alone.
+  const alpha = h("input", { type: "range", min: 0, max: MAX_ISLAND_TRANSPARENCY, step: 1, class: "range" }) as HTMLInputElement;
+  const alphaValue = h("span", { class: "range-value" });
+  let held = false;
+  let moved = false;
+  const paintAlpha = () => {
+    if (held) return;
+    alpha.value = String(settings.companion.islandTransparency);
+    alphaValue.textContent = `${settings.companion.islandTransparency}%`;
+  };
+  const letGo = () => {
+    held = false;
+    if (!moved) return paintAlpha();
+    moved = false;
+    // The panel keeps showing it (no flash of the old value before the save comes back), then is a panel again.
+    host.previewTransparency(Number(alpha.value), true);
+    settings.companion.islandTransparency = Number(alpha.value);
+    alphaValue.textContent = `${alpha.value}%`;
+    save();
+  };
+  alpha.addEventListener("pointerdown", () => {
+    held = true;
+  });
+  alpha.addEventListener("input", () => {
+    moved = true;
+    alphaValue.textContent = `${alpha.value}%`;
+    host.previewTransparency(Number(alpha.value));
+  });
+  for (const ev of ["change", "pointerup", "pointercancel"]) alpha.addEventListener(ev, letGo);
+  listen(window, "blur", letGo);
+  // Closed mid-drag: nothing of the preview stays on the island.
+  cleanups.push(() => {
+    if (held || moved) host.previewTransparency(null);
+    held = moved = false;
+  });
+  paintAlpha();
+  refreshers.push(paintAlpha);
+
   const paint = () => {
     const c = settings.companion;
+    release(looks);
     tinted = [];
     customPreview = null;
     clear(themes);
     for (const [id, label] of THEMES) {
       const swatch = h("i", { class: "swatch" });
-      swatch.style.background = ISLAND_THEMES[id].background;
+      swatch.style.background = themeSwatch(id);
       if (ISLAND_THEMES[id].ring) swatch.style.boxShadow = ISLAND_THEMES[id].ring!;
       const b = h("button", { class: `choice ${c.theme === id ? "on" : ""}`, type: "button" }, swatch, t(label));
       b.addEventListener("click", () => {
@@ -997,9 +1148,12 @@ function appearanceSection(manifest: Manifest): HTMLElement {
         el.append(b);
       }
     };
-    // A look picked during a season wins until the season ends.
-    const ownPick = () => (c.seasonOff = seasonKey(new Date()) ?? c.seasonOff);
-    // Hats and faces in the trader's words; costumes keep their own names.
+    // A look picked during a season wins until the season ends; picked at night, over the pyjamas until morning.
+    const ownPick = () => {
+      c.seasonOff = seasonKey(new Date()) ?? c.seasonOff;
+      c.nightOff = nightKey(new Date()) ?? c.nightOff;
+    };
+    // Hats and faces in the trader's words; costumes by costumeName: characters keep their names, the nouns are translated.
     const translated = (items: [string, string][]) => items.map(([id, label]): [string, string] => [id, t(label)]);
     grid(outfits, translated(OUTFITS), c.outfit, (id) => preview(id as Outfit, c.face, c.skin), (id) => {
       c.outfit = id as Outfit;
@@ -1011,7 +1165,8 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     });
     grid(
       costumes,
-      COSTUMES.filter(([id]) => OFFERED_COSTUMES.includes(id)),
+      // "none" is Candy itself; only the costumes this build offers (see OFFERED_COSTUMES).
+      OFFERED_COSTUMES.map((id): [string, string] => [id, costumeName(id)]),
       c.costume,
       (id) => preview(c.outfit, c.face, c.skin, id as Costume),
       (id) => (c.costume = id as Costume),
@@ -1028,6 +1183,11 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     null,
     h("p", { class: "sub", text: t("Island theme") }),
     themes,
+    row(
+      t("Transparency"),
+      h("span", { class: "with-unit" }, alpha, alphaValue),
+      t("What is behind the island shows through its background; the words, the cards and Candy stay solid. Glass is see-through on its own, and the slider adds to that."),
+    ),
     h("p", { class: "sub", text: t("Colour (tints every mood but a loss: like a candle, Candy goes red then)") }),
     skins,
     custom,
@@ -1038,7 +1198,10 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     h("p", { class: "sub", text: t("Costume (redraws the whole mascot, every mood included; it keeps its own colours)") }),
     costumes,
     row(t("BTC and Fear & Greed"), toggle(() => settings.companion.headerMarket, (v) => (settings.companion.headerMarket = v)), t("In the island's header, next to your chains' coins.")),
-    row(t("Seasonal looks"), toggle(() => settings.companion.seasonal, (v) => (settings.companion.seasonal = v)), t("A Santa hat in December, a pumpkin at Halloween, a party hat at New Year, heart glasses on Valentine's Day. Your own look comes back after.")),
+    target(row(t("Seasonal looks"), toggle(() => settings.companion.seasonal, (v) => (settings.companion.seasonal = v)), t("A Santa hat in December, a pumpkin at Halloween, a party hat at New Year, heart glasses on Valentine's Day. Your own look comes back after.")), "seasonal"),
+    row(t("Pyjamas after midnight"), showable(toggle(() => settings.companion.pyjamas, (v) => (settings.companion.pyjamas = v)), "pyjamas"), t("From midnight to 6 am Candy wears striped pyjamas and a nightcap, and yawns more. A costume, or a look you pick that night, wins.")),
+    row(t("Nap in a little bed"), showable(toggle(() => settings.companion.napBed, (v) => (settings.companion.napBed = v)), "nap"), t("Now and then, when you've been away a while and the market is calm, Candy naps in a little bed in the island. He wakes up when you're back, and with a start on an alert.")),
+    row(t("Melt on a strong drop"), showable(toggle(() => settings.companion.meltOnDrop, (v) => (settings.companion.meltOnDrop = v)), "melt"), t("When your biggest position, or the first token on your watchlist, falls 15% within the hour, Candy's wax runs down his body. It firms up as the price recovers.")),
     row(t("Lively"), toggle(() => settings.companion.lively, (v) => (settings.companion.lively = v)), t("Candy's eyes follow your mouse, and it fidgets now and then.")),
     row(t("Music card"), toggle(() => settings.companion.musicCard, (v) => (settings.companion.musicCard = v)), IS_TAURI ? t("What plays on this PC (Spotify, a browser video…) gets a Music tab in the island: cover, progress, play, pause, next.") : t("In the app only.")),
     row(t("Dance when music plays"), toggle(() => settings.companion.danceToMusic, (v) => (settings.companion.danceToMusic = v)), IS_TAURI ? t("Candy bobs along while the island is on screen, folded or open.") : t("In the app only.")),
@@ -1118,7 +1281,7 @@ function shortcutRows(): HTMLElement[] {
     if (!recording) return;
     recording = null;
     window.removeEventListener("keydown", onKey, true);
-    void emitToWindow("island", "shortcuts-resume");
+    host.shortcuts.resume();
     paintAll();
   };
   const onKey = (e: KeyboardEvent) => {
@@ -1140,16 +1303,17 @@ function shortcutRows(): HTMLElement[] {
     if (recording === id) return stopRecording();
     if (!recording) {
       window.addEventListener("keydown", onKey, true);
-      void emitToWindow("island", "shortcuts-suspend");
+      host.shortcuts.suspend();
     }
     recording = id;
     paintAll();
   };
-  // A click anywhere else, or the window losing focus, stops recording.
-  document.addEventListener("mousedown", (e) => {
-    if (recording && !(e.target as HTMLElement).closest?.(".keys.recording")) stopRecording();
+  // A click anywhere else, the window losing focus, or the panel closing, stops recording.
+  listen(document, "mousedown", (e) => {
+    if (recording && !e.composedPath().some((el) => el instanceof Element && el.matches(".keys.recording"))) stopRecording();
   });
-  window.addEventListener("blur", stopRecording);
+  listen(window, "blur", stopRecording);
+  cleanups.push(stopRecording);
 
   const rows = SHORTCUTS.map((def) => {
     const keys = h("button", { class: "keys", type: "button" }) as HTMLButtonElement;
@@ -1185,10 +1349,13 @@ function shortcutRows(): HTMLElement[] {
   paintAll();
 
   // How each registration went, from the island (another app holding the keys…).
-  void onEvent<Partial<Record<ShortcutId, ShortcutStatus>>>("shortcuts-status", (s) => {
-    status = s;
-    paintAll();
-  }).then(() => emitToWindow("island", "shortcuts-ask"));
+  status = host.shortcuts.status();
+  cleanups.push(
+    host.shortcuts.onStatus(() => {
+      status = host.shortcuts.status();
+      paintAll();
+    }),
+  );
 
   const where = !IS_TAURI
     ? t("In the browser they only work while the page has focus.")
@@ -1264,54 +1431,112 @@ function shareSection(): HTMLElement {
 
 function mascotSection(manifest: Manifest): HTMLElement {
   const grid = h("div", { class: "gallery" });
+  const cells = new Map<Element, Mascot>();
+  // Each one moves only while it is scrolled into view, and none once the panel closes.
+  const seen =
+    typeof IntersectionObserver !== "undefined"
+      ? new IntersectionObserver((entries) => {
+          for (const e of entries) cells.get(e.target)?.setActive(e.isIntersecting);
+        })
+      : null;
   for (const state of MASCOT_STATES) {
-    const m = new Mascot("mascot preview");
+    const m = candy();
+    m.setActive(false);
     m.use(manifest, false);
     m.setMood(state);
-    grid.append(h("div", { class: "cell" }, m.el, h("span", { text: state })));
+    const cell = h("div", { class: "cell" }, m.el, h("span", { text: state }));
+    cells.set(cell, m);
+    seen?.observe(cell);
+    grid.append(cell);
   }
+  if (seen) cleanups.push(() => seen.disconnect());
   return section(t("Mascot"), t("Everything the mascot can feel."), grid);
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ── Mount ─────────────────────────────────────────────────────────────────────
 
-async function main() {
-  const root = document.getElementById("settings-root");
-  if (!root) return;
-  const [boot, manifest] = await Promise.all([Bridge.boot(), loadManifest()]);
-  settings = boot.settings;
-  State.os = boot.os ?? "browser";
-  State.cursorPoll = boot.cursorPoll ?? true;
-  State.canPlace = boot.canPlace ?? true;
-  await useLang(pickLang(devLang() ?? settings.companion.language, systemLangs()));
+/**
+ * Builds Settings into `container` (the island's panel), in a shadow root of
+ * its own, opened at `section` if given. Its dispose takes everything down:
+ * the page, its listeners and what it asked the island to hold.
+ */
+export function mountSettings(container: HTMLElement, panelHost: PanelHost, section?: SettingsSection): PanelPage {
+  host = panelHost;
+  for (const fn of cleanups) fn();
+  cleanups = [];
+  release([...mascots]);
+  refreshers.length = 0;
+  paintAlerts = () => {};
+  // A copy of its own, as the settings window had: the island's changes reach it as saves.
+  settings = normalizeSettings(JSON.parse(JSON.stringify(State.settings)));
 
-  const page = h(
-    "main",
-    {},
-    // Which Candy this is: what a friend asks when helping.
-    h("h1", {}, t("Settings"), h("span", { class: "app-version", text: `Candy ${boot.version}` })),
-    watchlistSection(),
-    alertsSection(),
-    myWalletSection(),
-    followingSection(),
-    disciplineSection(),
-    terminalSection(),
-    chainsSection(),
-    notificationsSection(),
-    appearanceSection(manifest),
-    shareSection(),
-    generalSection(),
-    mascotSection(manifest),
-  );
-  root.replaceChildren(page);
+  const el = h("div", { class: "panel-page settings-page" });
+  const shadow = el.attachShadow({ mode: "open" });
+  const sections: [SettingsSection | null, HTMLElement][] = [
+    ["watchlist", watchlistSection()],
+    ["alerts", alertsSection()],
+    ["wallet", myWalletSection()],
+    ["following", followingSection()],
+    ["discipline", disciplineSection()],
+    [null, terminalSection()],
+    [null, chainsSection()],
+    [null, notificationsSection()],
+    ["appearance", appearanceSection(host.manifest)],
+    [null, shareSection()],
+    ["general", generalSection()],
+    [null, mascotSection(host.manifest)],
+  ];
+  for (const [id, sec] of sections) if (id) sec.dataset.section = id;
+  shadow.append(h("style", { text: css }), h("main", {}, ...sections.map(([, sec]) => sec)));
+  container.append(el);
 
-  await onSettingsChanged((s) => {
-    // The app echoes every save back: the one this window just made changes
-    // nothing, and keeping the same object keeps what is drawn pointing at it.
+  let disposed = false;
+  void onSettingsChanged((s) => {
+    // Every save comes back, this panel's own too: that one changes nothing,
+    // and keeping the same object keeps what is drawn pointing at it.
     if (JSON.stringify(s) === JSON.stringify(settings)) return;
     settings = s;
     for (const fn of refreshers) fn();
-  });
-}
+  }).then((off) => (disposed ? off() : cleanups.push(off)));
 
-void main();
+  /** Scrolls to a section, or one row of one, and lights it up for a moment. */
+  const reveal = (id: SettingsSection) => {
+    const sec = shadow.querySelector<HTMLElement>(`[data-section="${id}"]`);
+    if (!sec) return;
+    const top = sec.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+    // A row in the middle of the view (its section's words above it); a section at the top.
+    const room = sec.tagName === "SECTION" ? 12 : Math.max(12, (el.clientHeight - sec.offsetHeight) / 3);
+    const to = Math.min(el.scrollHeight - el.clientHeight, Math.max(0, top - room));
+    // It lights up once it is there (a long way down takes a moment), so the trader sees it.
+    const light = () => {
+      if (disposed) return;
+      sec.classList.remove("lit");
+      void sec.offsetWidth;
+      sec.classList.add("lit");
+    };
+    if (Math.abs(el.scrollTop - to) < 2) return light();
+    let done = false;
+    const once = () => {
+      if (done) return;
+      done = true;
+      light();
+    };
+    el.addEventListener("scrollend", once, { once: true });
+    window.setTimeout(once, 1200);
+    el.scrollTo({ top: to, behavior: "smooth" });
+  };
+  if (section && section !== "watchlist") requestAnimationFrame(() => !disposed && reveal(section));
+
+  return {
+    reveal,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      for (const fn of cleanups) fn();
+      cleanups = [];
+      release([...mascots]);
+      refreshers.length = 0;
+      el.remove();
+    },
+  };
+}

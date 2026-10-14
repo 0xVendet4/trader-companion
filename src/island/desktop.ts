@@ -8,7 +8,9 @@ import { Bridge, emitToWindow, onEvent, type DesktopMode } from "../core/bridge"
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
 import { DESKTOP_EVENTS, DesktopController, type DesktopSnapshot } from "../mascot/desktop-logic";
+import type { Emote } from "../mascot/emotes";
 import type { MascotState, MouthCue } from "../mascot/mascot";
+import type { PnlSign } from "../mascot/sign";
 
 /** Label of the desktop Candy's window (desktop.rs LABEL). */
 const WINDOW = "candy";
@@ -18,16 +20,24 @@ export interface DesktopHost {
   /** Shows the island (compact) if it is hidden. */
   reveal(): void;
   /** The hat and face to wear right now (the trader's, or the season's), as art paths. */
-  /** What Candy wears right now, a look being tried on included: costume, hat and face art, colour filter. */
-  wearing(): { costume: string; hat: string | null; face: string | null; filter: string };
+  /**
+   * What Candy wears right now, a look being tried on included: costume, hat
+   * and face art, colour filter, his pyjamas after midnight and how far his
+   * wax has run on a drop.
+   */
+  wearing(): { costume: string; hat: string | null; face: string | null; filter: string; pyjamas: boolean; melt: number };
+  /** The face the market gives him now (a melt turns a grin nervous, see melt.ts). */
+  mood(): MascotState;
   /** A reaction on the island's own Candy. */
   react(state: MascotState, ms: number): void;
   /** A poke on the desktop Candy: the island's streak logic says what it does. */
   poked(): void;
   /** A link or address dropped on the desktop Candy: added like one dropped on the island. */
   dropped(text: string): void;
-  /** Right-click on the desktop Candy: the wardrobe in the island. */
-  wardrobe(): void;
+  /** Right-click on the desktop Candy: his menu, in the island. */
+  menu(): void;
+  /** His shades of the moment (a 2x) and what his sign says (today's PnL; null while he is home). */
+  extras(): { shades: string | null; keepFace: boolean; sign: PnlSign | null };
 }
 
 /** An event card is up: he comes home to show it (see DesktopController). */
@@ -79,7 +89,7 @@ export class DesktopLink {
     await onEvent<null>(DESKTOP_EVENTS.home, () => void this.controller.flyHome());
     await onEvent<null>(DESKTOP_EVENTS.poked, () => this.host.poked());
     await onEvent<string>(DESKTOP_EVENTS.drop, (text) => this.host.dropped(text));
-    await onEvent<null>(DESKTOP_EVENTS.wardrobe, () => this.host.wardrobe());
+    await onEvent<null>(DESKTOP_EVENTS.menu, () => this.host.menu());
     // The window's page (re)loaded: it knows nothing yet.
     await onEvent<null>(DESKTOP_EVENTS.ready, () => {
       this.pushed = "";
@@ -156,6 +166,16 @@ export class DesktopLink {
     void emitToWindow(WINDOW, DESKTOP_EVENTS.cue, c);
   }
 
+  /** An emote from the island's menu, for the desktop Candy to play. */
+  emote(e: Emote) {
+    void emitToWindow(WINDOW, DESKTOP_EVENTS.emote, e);
+  }
+
+  /** A reaction for the desktop Candy (he is the one on screen). */
+  react(state: MascotState, ms: number) {
+    void emitToWindow(WINDOW, DESKTOP_EVENTS.react, { state, ms });
+  }
+
   // ── State → desktop window ──────────────────────────────────────────────────
 
   private sync() {
@@ -165,16 +185,22 @@ export class DesktopLink {
 
   private push() {
     const wearing = this.host.wearing();
+    const extras = this.host.extras();
     const snapshot: DesktopSnapshot = {
-      state: State.mood.state,
+      state: this.host.mood(),
       costume: wearing.costume,
       hat: wearing.hat,
       face: wearing.face,
       filter: wearing.filter,
+      pyjamas: wearing.pyjamas,
+      melt: wearing.melt,
       soundEnabled: State.settings.soundEnabled,
       soundVolume: State.settings.soundVolume,
       paused: State.paused,
       dancing: State.music && State.companion.danceToMusic,
+      shades: extras.shades,
+      keepFace: extras.keepFace,
+      sign: extras.sign,
     };
     const key = JSON.stringify(snapshot);
     if (key === this.pushed) return;

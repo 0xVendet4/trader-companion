@@ -46,8 +46,11 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
+/** The streaks' and dots' colour: white, or the theme's (--fx-rgb, an "r, g, b" triple). */
+export const DEFAULT_FX_RGB = "255, 255, 255";
+
 /** Draws the backdrop `t` seconds in, the ring centred on (cx, cy), in CSS pixels. */
-export function drawArrivalFx(c: CanvasRenderingContext2D, w: number, h: number, cx: number, cy: number, t: number) {
+export function drawArrivalFx(c: CanvasRenderingContext2D, w: number, h: number, cx: number, cy: number, t: number, rgb = DEFAULT_FX_RGB) {
   c.clearRect(0, 0, w, h);
   if (t < 0.55) {
     const fade = 1 - seg(t, 0.4, 0.55);
@@ -55,7 +58,7 @@ export function drawArrivalFx(c: CanvasRenderingContext2D, w: number, h: number,
       if (t < s.t0) continue;
       const bottom = (t - s.t0) * s.speed;
       if (bottom <= 0) continue;
-      c.strokeStyle = `rgba(255,255,255,${s.alpha * fade})`;
+      c.strokeStyle = `rgba(${rgb},${s.alpha * fade})`;
       c.lineWidth = s.thick;
       c.beginPath();
       c.moveTo(s.x * w, Math.max(0, bottom - s.len));
@@ -70,7 +73,7 @@ export function drawArrivalFx(c: CanvasRenderingContext2D, w: number, h: number,
     const fade = (1 - k) * (k < 0.08 ? k / 0.08 : 1);
     for (const d of FX.ring) {
       const r = 1 + d.j;
-      c.fillStyle = `rgba(255,255,255,${d.al * fade})`;
+      c.fillStyle = `rgba(${rgb},${d.al * fade})`;
       c.fillRect(cx + Math.cos(d.a) * rx * r, cy + Math.sin(d.a) * ry * r, d.s, d.s);
     }
   }
@@ -87,10 +90,12 @@ export function playArrivalFx(canvas: HTMLCanvasElement, cx: number, cy: number)
   const c = canvas.getContext("2d");
   if (!c) return;
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // The theme's colour for the streaks, read once: white on the dark islands.
+  const rgb = getComputedStyle(canvas).getPropertyValue("--fx-rgb").trim() || DEFAULT_FX_RGB;
   const start = performance.now();
   const frame = () => {
     const t = (performance.now() - start) / 1000;
-    drawArrivalFx(c, w, h, cx, cy, t);
+    drawArrivalFx(c, w, h, cx, cy, t, rgb);
     if (t < ARRIVAL_FX_S) requestAnimationFrame(frame);
     else c.clearRect(0, 0, w, h);
   };

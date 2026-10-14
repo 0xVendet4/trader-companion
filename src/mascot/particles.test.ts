@@ -87,6 +87,18 @@ describe("particles", () => {
     expect(note.vy).toBeLessThan(0);
   });
 
+  it("laughs a 'ha' off one side of the head, then the other, each rising and slowing", () => {
+    const ps = spawn("ha", 4, seeded(5));
+    expect(ps.map((p) => Math.sign(p.x - CANDY_TOP.x))).toEqual([1, -1, 1, -1]);
+    expect(ps.map((p) => p.age)).toEqual([0, -0.24, -0.48, -0.72].map((a) => expect.closeTo(a, 6)));
+    const [p] = ps;
+    const vy0 = p.vy;
+    expect(vy0).toBeLessThan(0);
+    step([p], 0.2);
+    expect(p.vy).toBeGreaterThan(vy0);
+    expect(p.life).toBeLessThan(1.3);
+  });
+
   it("fades in over the first 15 % and out over the last 30 %", () => {
     const p: Particle = { kind: "z", x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, rot: 0, size: 1 };
     expect(alpha(p)).toBe(0);

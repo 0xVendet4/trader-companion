@@ -3,13 +3,19 @@
 // to the top edge and centred, to a side edge and vertically centred, or
 // floating (see Placement).
 
-import type { IslandMode, IslandViewName, Placement } from "./state";
+import type { CompactIsland, IslandMode, IslandViewName, Placement } from "./state";
 
 export const PANEL_W = 720;
 export const PANEL_H = 340;
 
 export const HIDDEN_W = 184;
 export const COMPACT_W = 350;
+/**
+ * The compact ticker's height, the normal one. The floating island's maths
+ * in island.rs (float_pill) use this value: the compact island's shorter
+ * ticker (Density.tickerH) still hangs from the same window edge, so the
+ * window's place is the same; only the pill sits a few px higher in it.
+ */
 export const COMPACT_H = 32;
 export const EXPANDED_W = 660;
 
@@ -64,47 +70,157 @@ export const FOLDERS_H = 24;
 export const MAX_ROWS = 6;
 export const WALLET_ROW_H = 48;
 
+/**
+ * The heights the island is built from: the normal ones, and the compact
+ * island's (Settings → Compact island), each a step smaller. Every number
+ * here pairs with a rule in style.css (body.compact for the second set).
+ */
+export interface Density {
+  /** The header with the tabs. */
+  headerH: number;
+  /** A watchlist, trending or search row, and the column heads over them. */
+  rowH: number;
+  headRowH: number;
+  /** A My wallet row: two lines, and the bar under them. */
+  posRowH: number;
+  /** An alert rule's row. */
+  alertRowH: number;
+  /** A followed wallet's card. */
+  walletRowH: number;
+  /** The watchlist's folder chips. */
+  foldersH: number;
+  /** Buttons and fields. */
+  fieldH: number;
+  /** A view's padding, above and below its content together. */
+  padY: number;
+  /** The least a tab view's body takes under the header. */
+  minBody: number;
+  /** The compact ticker's height, and the mascot in it. */
+  tickerH: number;
+  tickerMascot: number;
+  /** The mascot in the open island. */
+  mascot: number;
+  /** My wallet: rows shown before the list scrolls, and what is around them (the wallet line, the cards, the allocation bar, the heads, the fine print). */
+  posRows: number;
+  walletExtra: number;
+  /** Discipline: Today, and with the journal open. */
+  disciplineH: number;
+  journalH: number;
+  wardrobeH: number;
+  musicH: number;
+  /** Trending's two rows of switches. */
+  switchesH: number;
+}
+
+export const NORMAL: Density = {
+  headerH: HEADER_H,
+  rowH: ROW_H,
+  headRowH: 20,
+  posRowH: POS_ROW_H,
+  alertRowH: 28,
+  walletRowH: WALLET_ROW_H,
+  foldersH: FOLDERS_H,
+  fieldH: 28,
+  padY: 16,
+  minBody: 132,
+  tickerH: COMPACT_H,
+  tickerMascot: 28,
+  mascot: 84,
+  posRows: 5,
+  walletExtra: 203,
+  disciplineH: 196,
+  journalH: 280,
+  wardrobeH: 204,
+  musicH: 132,
+  switchesH: 96,
+};
+
+export const COMPACT: Density = {
+  headerH: 32,
+  rowH: 24,
+  headRowH: 18,
+  posRowH: 34,
+  alertRowH: 24,
+  walletRowH: 42,
+  foldersH: 22,
+  fieldH: 24,
+  padY: 12,
+  minBody: 112,
+  tickerH: 26,
+  tickerMascot: 22,
+  mascot: 72,
+  posRows: 4,
+  walletExtra: 150,
+  disciplineH: 168,
+  journalH: 258,
+  wardrobeH: 172,
+  musicH: 118,
+  switchesH: 86,
+};
+
+export function density(compact: boolean): Density {
+  return compact ? COMPACT : NORMAL;
+}
+
+/**
+ * Displays this tall or shorter get the compact island with "auto". The
+ * height is the one the island lays itself out in: logical px, after the
+ * system's display scaling (ScreenInfo.height in island.rs), since that is
+ * the room the island takes. A 1366 × 768 laptop and a 1440 × 900 MacBook Air
+ * qualify, a 1080p monitor at 100 % does not, and the same monitor at
+ * Windows' 125 % (864 px of room) does.
+ */
+export const COMPACT_SCREEN_H = 900;
+
+/** Whether the island is compact: the trader's choice, or by the display's height (logical px; 0: not known yet). */
+export function compactFor(setting: CompactIsland, screenHeight: number): boolean {
+  if (setting === "on") return true;
+  if (setting === "off") return false;
+  return screenHeight > 0 && screenHeight <= COMPACT_SCREEN_H;
+}
+
 /** Content heights below the header, per view, given how many rows they show. */
-export function viewHeight(view: IslandViewName, rows: number, maxRows = MAX_ROWS): number {
-  const minBody = 132;
+export function viewHeight(view: IslandViewName, rows: number, maxRows = MAX_ROWS, d: Density = NORMAL): number {
+  const { headerH, minBody } = d;
   switch (view) {
     case "watchlist": {
-      // The folder chips, then the list (or its empty line), then the field.
-      const list = rows === 0 ? 46 : Math.min(rows, maxRows) * ROW_H + 26;
-      return HEADER_H + Math.max(minBody, list + 50 + FOLDERS_H);
+      // The folder chips, then the list under its heads (or its empty line), then the field.
+      const list = rows === 0 ? d.padY + 30 : Math.min(rows, maxRows) * d.rowH + d.headRowH + 6;
+      return headerH + Math.max(minBody, list + d.fieldH + d.padY + 6 + d.foldersH);
     }
     case "trending": {
       // The Hot/New switch, then up to MAX_ROWS rows (scrolls past that).
-      const list = rows === 0 ? 46 : Math.min(rows, maxRows) * ROW_H;
+      const list = rows === 0 ? d.padY + 30 : Math.min(rows, maxRows) * d.rowH;
       // Two switch rows (list + chains, sort + window) above the table.
-      return HEADER_H + Math.max(minBody, list + 96);
+      return headerH + Math.max(minBody, list + d.switchesH);
     }
     case "alerts": {
-      const list = rows === 0 ? 40 : Math.min(rows, 4) * 28 + 8;
-      return HEADER_H + Math.max(minBody, list + 58);
+      const list = rows === 0 ? 40 : Math.min(rows, 4) * d.alertRowH + 8;
+      return headerH + Math.max(minBody, list + d.fieldH + 30);
     }
     case "positions": {
       // No wallet yet (0): the setup text and field. Otherwise the wallet line,
-      // a summary, the column heads, the rows and a line of fine print.
-      // The cards, the allocation bar and two-line rows (Activity rows are
-      // shorter, but have a heading per day).
-      if (rows === 0) return HEADER_H + minBody;
-      return HEADER_H + Math.max(minBody, Math.min(rows, 5) * POS_ROW_H + 218);
+      // a summary, the column heads, the rows and a line of fine print with
+      // Share my day. The cards, the allocation bar and two-line rows
+      // (Activity rows are shorter, but have a heading per day).
+      if (rows === 0) return headerH + minBody;
+      return headerH + Math.max(minBody, Math.min(rows, d.posRows) * d.posRowH + d.walletExtra);
     }
     case "wallets": {
-      const list = rows === 0 ? 52 : Math.min(rows, 4) * WALLET_ROW_H + 6;
-      return HEADER_H + Math.max(minBody, list + 62);
+      const list = rows === 0 ? 52 : Math.min(rows, 4) * d.walletRowH + 6;
+      return headerH + Math.max(minBody, list + d.fieldH + 34);
     }
     case "wardrobe":
-      // The Hat / Face / Colour switch and two rows of looks.
-      return HEADER_H + 158;
+      // The Hat / Face / Colour switch and the rows of looks: three on twelve
+      // columns (36 hats, 36 faces), three on the compact island's fourteen.
+      return headerH + d.wardrobeH;
     case "music":
       // The cover beside the title and artist, the progress bar, the buttons.
-      return HEADER_H + 132;
+      return headerH + d.musicH;
     case "discipline":
       // `rows` is 1 when the journal (week chart and recent trades) is open.
       // The journal fills the tallest island the window allows (PANEL_H − 20).
-      return HEADER_H + (rows > 0 ? 280 : 196);
+      return headerH + (rows > 0 ? d.journalH : d.disciplineH);
     case "event":
       // `rows`: lines of a "while you were away" card past the first two.
       return 168 + Math.max(0, rows - 2) * 19;
@@ -113,16 +229,23 @@ export function viewHeight(view: IslandViewName, rows: number, maxRows = MAX_ROW
   }
 }
 
-/** The sidebar's height for a view: two header rows and the mascot's band above it. */
-export function sidebarHeight(view: IslandViewName, rows: number): number {
+/**
+ * The sidebar's height for a view: two header rows and the mascot's band above
+ * it. The discipline pane's foot (Share my day · my week · Replay today · Your
+ * rules) takes two rows in the narrow sidebar; `wide`: the island wears a
+ * wider face (a monospace theme), and the session line takes a second row too.
+ */
+export function sidebarHeight(view: IslandViewName, rows: number, d: Density = NORMAL, wide = false): number {
   // The event card and the greeting: the mascot on top, the words under it.
-  if (view === "event") return viewHeight("event", rows) + 140;
-  if (view === "greeting") return viewHeight("greeting", rows) + 110;
-  // Every look on six columns: four rows of hats, faces or colours.
-  if (view === "wardrobe") return SIDEBAR_HEADER_H + SIDEBAR_BAND_H + 300;
-  // Trending's switches wrap onto a third row in the narrow sidebar.
-  const extra = view === "trending" ? 30 : 0;
-  return viewHeight(view, rows, SIDEBAR_ROWS) - HEADER_H + SIDEBAR_HEADER_H + SIDEBAR_BAND_H + extra;
+  if (view === "event") return viewHeight("event", rows, MAX_ROWS, d) + 140;
+  if (view === "greeting") return viewHeight("greeting", rows, MAX_ROWS, d) + 110;
+  // Every look on six columns, under the shelf switch and the closet button:
+  // six rows of hats (36) and of faces (36), four of colours, none scrolling.
+  if (view === "wardrobe") return SIDEBAR_HEADER_H + SIDEBAR_BAND_H + 440;
+  // Trending's switches wrap onto a third row in the narrow sidebar; the
+  // discipline foot onto a second (14 px), its session line too in a wider face.
+  const extra = view === "trending" ? 30 : view === "discipline" ? (wide ? 28 : 14) : 0;
+  return viewHeight(view, rows, SIDEBAR_ROWS, d) - d.headerH + SIDEBAR_HEADER_H + SIDEBAR_BAND_H + extra;
 }
 
 export function isSide(placement: Placement): boolean {
@@ -134,20 +257,26 @@ export function windowSize(placement: Placement): { w: number; h: number } {
   return isSide(placement) ? { w: SIDE_PANEL_W, h: SIDE_PANEL_H } : { w: PANEL_W, h: PANEL_H };
 }
 
-export function islandSize(mode: IslandMode, view: IslandViewName, rows: number, placement: Placement = "top"): { w: number; h: number } {
+/**
+ * The island's size. `compact`: the compact island (Density). `wide`: the
+ * theme wears a wider face (see sidebarHeight).
+ */
+export function islandSize(mode: IslandMode, view: IslandViewName, rows: number, placement: Placement = "top", compact = false, wide = false): { w: number; h: number } {
+  const d = density(compact);
   const side = isSide(placement);
   // A floating island never hides: there is no edge to wake it from.
   if (placement === "float" && mode === "hidden") mode = "compact";
   if (side && mode === "hidden") return { w: 0, h: SIDE_TAB_H };
-  if (side && mode === "compact") return { w: SIDE_TAB_W, h: SIDE_TAB_H };
-  if (side) return { w: SIDEBAR_W, h: Math.min(SIDE_PANEL_H - 20, sidebarHeight(view, rows)) };
+  // The side tab is the ticker stood upright: as thin as it is tall.
+  if (side && mode === "compact") return { w: d.tickerH, h: SIDE_TAB_H };
+  if (side) return { w: SIDEBAR_W, h: Math.min(SIDE_PANEL_H - 20, sidebarHeight(view, rows, d, wide)) };
   switch (mode) {
     case "hidden":
       return { w: HIDDEN_W, h: 0 };
     case "compact":
-      return { w: COMPACT_W, h: COMPACT_H };
+      return { w: COMPACT_W, h: d.tickerH };
     case "expanded":
-      return { w: EXPANDED_W, h: Math.min(PANEL_H - 20, viewHeight(view, rows)) };
+      return { w: EXPANDED_W, h: Math.min(PANEL_H - 20, viewHeight(view, rows, MAX_ROWS, d)) };
   }
 }
 
@@ -192,13 +321,14 @@ export interface MascotPlacement {
 }
 
 /** Where the mascot sits, relative to the island's top-left corner. */
-export function mascotPlacement(mode: IslandMode, view: IslandViewName, islandH: number, placement: Placement = "top"): MascotPlacement {
+export function mascotPlacement(mode: IslandMode, view: IslandViewName, islandH: number, placement: Placement = "top", compact = false): MascotPlacement {
+  const d = density(compact);
   const side = placement === "left" || placement === "right";
   if (placement === "float" && mode === "hidden") mode = "compact";
   // The side tab: the mascot on top, the ticker under it.
   if (side && mode === "hidden") return { cx: 0, cy: 22, size: 10, opacity: 0 };
-  // As on the top ticker (22, 16, 28), turned upright.
-  if (side && mode === "compact") return { cx: SIDE_TAB_W / 2, cy: 22, size: 28, opacity: 1 };
+  // As on the top ticker, turned upright.
+  if (side && mode === "compact") return { cx: d.tickerH / 2, cy: d.tickerH / 2 + 6, size: d.tickerMascot, opacity: 1 };
   if (side && mode === "expanded") {
     if (view === "greeting" || view === "event") return { cx: SIDEBAR_W / 2, cy: 62, size: 92, opacity: 1 };
     // In the band under the header, its line to the right of it.
@@ -208,18 +338,30 @@ export function mascotPlacement(mode: IslandMode, view: IslandViewName, islandH:
     case "hidden":
       return { cx: 24, cy: 6, size: 10, opacity: 0 };
     case "compact":
-      return { cx: 22, cy: 16, size: 28, opacity: 1 };
+      // 8 px in from the left edge, centred on the ticker's height.
+      return { cx: 8 + d.tickerMascot / 2, cy: d.tickerH / 2, size: d.tickerMascot, opacity: 1 };
     case "expanded": {
       if (view === "greeting") return { cx: 92, cy: 78, size: 104, opacity: 1 };
       if (view === "event") return { cx: 84, cy: 84, size: 104, opacity: 1 };
       // The mascot and its caption (up to two lines below it) sit as one group
       // in the middle of the left column, however tall the island grows. The
       // island's height is animated, so the mascot glides along as it opens.
-      const size = 84;
+      const size = d.mascot;
       const group = size + MASCOT_CAPTION_H;
-      const body = islandH - HEADER_H;
-      const groupTop = HEADER_H + Math.max(0, (body - group) / 2);
+      const body = islandH - d.headerH;
+      const groupTop = d.headerH + Math.max(0, (body - group) / 2);
       return { cx: SIDE_W / 2 + 6, cy: groupTop + size / 2, size, opacity: 1 };
     }
   }
+}
+
+/**
+ * Where the mascot sits in the ticker (logical px from the island's top-left
+ * corner, under the band over a notch): where Candy's flights to and from the
+ * desktop start and end. The island pushes it to Rust (set_ticker_seat), whose
+ * desktop.rs falls back to the normal top seat until it has.
+ */
+export function tickerSeat(placement: Placement, compact: boolean): { cx: number; cy: number } {
+  const { cx, cy } = mascotPlacement("compact", "watchlist", density(compact).tickerH, placement, compact);
+  return { cx, cy };
 }

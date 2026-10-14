@@ -18,13 +18,22 @@ export type Flourish =
   | "yawn"
   | "boing"
   | "glance"
-  | "fireworks";
+  | "fireworks"
+  // After midnight, in his pyjamas (night.ts): he yawns more.
+  | "nightYawn"
+  // A nap in a little bed, once per idle period at most (nap.ts).
+  | "nap";
 
 interface Rule {
   /** The chance it plays when its moment comes (0–1). */
   chance: number;
   /** After it played, it stays quiet this long. */
   quietMs: number;
+  /**
+   * Shares its quiet time with another (both are yawns): either one playing
+   * keeps both quiet, so they never come one right after the other.
+   */
+  shares?: Flourish;
 }
 
 const MIN = 60_000;
@@ -42,6 +51,9 @@ export const FLOURISHES: Record<Flourish, Rule> = {
   boing: { chance: 0.35, quietMs: 2 * MIN },
   glance: { chance: 0.25, quietMs: 1 * MIN },
   fireworks: { chance: 0.8, quietMs: 60 * MIN },
+  // More often than a bored yawn (8 min), still now and then: about ten an hour at most.
+  nightYawn: { chance: 0.35, quietMs: 6 * MIN, shares: "yawn" },
+  nap: { chance: 0.5, quietMs: 90 * MIN },
 };
 
 /**
@@ -50,9 +62,11 @@ export const FLOURISHES: Record<Flourish, Rule> = {
  */
 export function shouldFlourish(kind: Flourish, last: Map<Flourish, number>, now: number, roll: number): boolean {
   const rule = FLOURISHES[kind];
-  if (now - (last.get(kind) ?? -Infinity) < rule.quietMs) return false;
+  // A shared quiet time is kept under the one it is shared with.
+  const key = rule.shares ?? kind;
+  if (now - (last.get(key) ?? -Infinity) < rule.quietMs) return false;
   if (roll >= rule.chance) return false;
-  last.set(kind, now);
+  last.set(key, now);
   return true;
 }
 

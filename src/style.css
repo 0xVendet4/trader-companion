@@ -6,7 +6,7 @@
   color-scheme: dark;
 
   --font: system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif;
-  --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --mono: "Cascadia Mono", "Consolas", "SF Mono", "Menlo", ui-monospace, monospace;
 
   --ink: #f5f6f8;
   --dim: #9398a1;
@@ -21,6 +21,27 @@
   --amber: #f5a524;
   --calm: #7dd3fc;
   --accent: #4ade80;
+  /* What a full theme can also set (src/core/themes.ts): the island's solid
+     colour under rings and badges, the text on an ink-coloured button and its
+     hover, a popover, a hover wash, a stronger line, the toggle's knob, the
+     speech bubble, the scrollbar, the arrival's streaks (an RGB triple), the
+     numbers' font (--font-num, else --font) and capitals on the buttons. */
+  --base: #000;
+  --on-ink: #000;
+  --ink-hover: #fff;
+  --pop: #16171b;
+  --hover: rgba(255, 255, 255, 0.08);
+  --hairline-2: rgba(255, 255, 255, 0.25);
+  --knob: #fff;
+  --bubble: #fff;
+  --bubble-ink: #111;
+  --scroll: #2a2d33;
+  --fx-rgb: 255, 255, 255;
+  /* How much of a chain tag's word is the chain's own colour, the rest the ink (a pale island darkens it). */
+  --chain-pure: 100%;
+  --caps: none;
+  /* A line round the cards, chips and tabs: none here, white on Blueprint's drafting boxes. */
+  --card-edge: transparent;
 }
 
 * {
@@ -120,15 +141,33 @@ body[data-placement="float"] #wake-strip {
   position: absolute;
   top: 0;
   left: 0;
-  /* The theme's (src/core/themes.ts). */
-  background: var(--island-bg, #000);
-  box-shadow: var(--island-ring, none);
+  /* The theme's colours are a layer of their own (::before, below): the
+     island itself stays clear, so the layer can fade without its words. */
+  background: transparent;
   border-radius: 0 0 14px 14px;
   will-change: width, height;
   /* The band over a MacBook's notch (Island.band): a top border the island's
      own colour runs under, its contents placed below it. */
   border-top: 0 solid transparent;
-  background-origin: border-box;
+  /* A halo under every word once the desktop shows through the background
+     (islandTextShadow in src/core/themes.ts; none while it is solid). */
+  text-shadow: var(--island-text-shadow, none);
+}
+
+/* The island's background: the theme's colours and ring (src/core/themes.ts),
+   faded to the transparency the trader set (--island-alpha: 1 is solid). Only
+   this layer fades: the text, the cards and Candy above it stay opaque. It
+   reaches up over the band of a notch (--band, see Island.applyGeometry). */
+#island::before {
+  content: "";
+  position: absolute;
+  inset: calc(0px - var(--band, 0px)) 0 0 0;
+  border-radius: inherit;
+  background: var(--island-bg, #000);
+  box-shadow: var(--island-ring, none);
+  opacity: var(--island-alpha, 1);
+  transition: opacity 0.1s linear;
+  pointer-events: none;
 }
 
 #island-clip {
@@ -174,6 +213,9 @@ body[data-placement="float"] #wake-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Room between the open tab and the day pill when the header is full (a
+     monospace theme's wider pill, the coins): the coins give way first. */
+  column-gap: 8px;
   transition: opacity 0.1s ease;
 }
 
@@ -205,6 +247,7 @@ body[data-placement="float"] #wake-strip {
 
 .tab.on {
   background: var(--tab-on);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
   color: var(--ink);
 }
 
@@ -233,7 +276,7 @@ body[data-placement="float"] #wake-strip {
 
 .status-dot.ok {
   background: var(--up);
-  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--up) 60%, transparent);
 }
 
 .status-dot.loading {
@@ -274,6 +317,7 @@ body.passing #island {
 
 .icon-btn.on {
   background: var(--card-2);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
   color: var(--ink);
 }
 
@@ -287,8 +331,8 @@ body.passing #island {
   gap: 2px;
   padding: 4px 6px;
   border-radius: 10px;
-  background: #16171b;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: var(--pop);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--hover);
   white-space: nowrap;
 }
 
@@ -369,20 +413,21 @@ body.passing #island {
 
 .btn.primary {
   background: var(--ink);
-  color: #000;
+  color: var(--on-ink);
 }
 
 .btn.primary:hover {
-  background: #fff;
+  background: var(--ink-hover);
 }
 
 .btn.secondary {
   background: var(--card-2);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
   color: var(--ink);
 }
 
 .btn.secondary:hover {
-  background: #262930;
+  background: color-mix(in srgb, var(--card-2) 93%, var(--ink));
 }
 
 .btn.ghost {
@@ -412,7 +457,7 @@ body.passing #island {
 }
 
 .field:focus {
-  border-color: rgba(74, 222, 128, 0.5);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .field::placeholder {
@@ -613,7 +658,7 @@ body.passing #island {
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--knob);
   transition: transform 0.15s ease;
 }
 
@@ -730,10 +775,19 @@ body.passing #island {
 
 .discipline .foot {
   position: absolute;
+  left: 14px; /* a long share note wraps inside the island's padding, right-aligned */
   right: 14px;
   bottom: 10px;
+  text-align: right;
   font-size: 11px;
   color: var(--dim-2);
+}
+
+/* The links stay together: a long share note wraps before them, not between
+   them (the sidebar is too narrow for that: there every word may wrap). */
+.discipline .foot .links,
+.discipline .foot .rules {
+  white-space: nowrap;
 }
 
 .foot a {
@@ -934,11 +988,11 @@ body.passing #island {
 }
 
 .ticker .t-dot.up1 {
-  background: color-mix(in srgb, var(--up) 55%, #000);
+  background: color-mix(in srgb, var(--up) 55%, var(--base));
 }
 
 .ticker .t-dot.down1 {
-  background: color-mix(in srgb, var(--down) 55%, #000);
+  background: color-mix(in srgb, var(--down) 55%, var(--base));
 }
 
 .ticker .t-dot.down2 {
@@ -952,7 +1006,7 @@ body.passing #island {
 
 /* The token on show. */
 .ticker .t-dot.on {
-  box-shadow: 0 0 0 1.5px #000, 0 0 0 2.6px var(--ink);
+  box-shadow: 0 0 0 1.5px var(--base), 0 0 0 2.6px var(--ink);
 }
 
 .ticker .t-more {
@@ -991,7 +1045,31 @@ body.passing #island {
 .mascot {
   position: absolute;
   pointer-events: none;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.12s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 50% 100%;
+}
+
+/* Settings → Show me: out of the panel's title row, big, on a soft disc of
+   the island's own colour, so the page under him doesn't show through. */
+.mascot::before {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--base) 94%, transparent) 62%, transparent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mascot.on-stage::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* A step forward: closer, so bigger, while he holds the day's board up (see CandyAct.forward). */
+.mascot.forward {
+  transform: scale(1.16) translateY(2px);
 }
 
 .mascot-body {
@@ -1015,7 +1093,7 @@ body.passing #island {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  border: 1.5px solid #000;
+  border: 1.5px solid var(--base);
   box-sizing: content-box;
 }
 
@@ -1026,19 +1104,19 @@ body.passing #island {
 
 .mascot-badge.up {
   background: var(--up);
-  box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--up) 80%, transparent);
   animation: badge-pulse 1.6s ease-in-out infinite;
 }
 
 .mascot-badge.down {
   background: var(--down);
-  box-shadow: 0 0 6px rgba(244, 80, 94, 0.8);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--down) 80%, transparent);
   animation: badge-pulse 1s ease-in-out infinite;
 }
 
 .mascot-badge.warn {
   background: var(--amber);
-  box-shadow: 0 0 6px rgba(245, 165, 36, 0.8);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 80%, transparent);
   animation: badge-pulse 1.3s ease-in-out infinite;
 }
 
@@ -1117,14 +1195,16 @@ body.passing #island {
 
 /* A token link dragged over the island (see Island.wireDrop). */
 #island.drop-ready {
-  box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.9), 0 0 24px rgba(52, 211, 153, 0.35);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--up) 90%, transparent), 0 0 24px color-mix(in srgb, var(--up) 35%, transparent);
 }
 
 /* The live drawing (see Mascot): the frame under the colour filter, and the
    eyes, face accessory and hat above it. Both reach a quarter past the art on
-   every side, room for a hop, a roll or a squash. */
+   every side, room for a hop, a roll or a squash. His little bed (a nap, see
+   nap.ts) is drawn behind and in front of him, outside the breathing body. */
 .mascot-frame,
-.mascot-top {
+.mascot-top,
+.mascot-bed {
   position: absolute;
   left: -25%;
   top: -25%;
@@ -1374,8 +1454,8 @@ body.passing #island {
   width: max-content;
   padding: 4px 9px;
   border-radius: 10px;
-  background: #fff;
-  color: #111;
+  background: var(--bubble);
+  color: var(--bubble-ink);
   font-size: 11.5px;
   font-weight: 700;
   line-height: 1.3;
@@ -1394,7 +1474,7 @@ body.passing #island {
   left: calc(50% - 5px);
   border: 5px solid transparent;
   border-top: 0;
-  border-bottom-color: #fff;
+  border-bottom-color: var(--bubble);
 }
 
 .mascot-bubble.on {
@@ -1416,6 +1496,273 @@ body.passing #island {
   0% { transform: translateX(-50%) scale(0.6); }
   70% { transform: translateX(-50%) scale(1.08); }
   100% { transform: translateX(-50%) scale(1); }
+}
+
+/* The sign Candy holds up while the mouse rests on him: today's PnL (see
+   Mascot.holdSign). A little card in front of his tummy, his eyes over it,
+   his hands on its edges; it rises from below and drops back down. */
+.mascot-sign {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  transform: translateX(calc(-50% + var(--sign-dx, 0px)));
+  pointer-events: none;
+}
+
+.mascot-sign[hidden],
+.mascot.tiny .mascot-sign {
+  display: none;
+}
+
+.sign-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+  min-width: 78px;
+  /* With its hands, it stays inside the island's left column (SIDE_W). */
+  max-width: 118px;
+  padding: 3px 10px 5px;
+  border: 2px solid #06140b;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fffef8, #f4efe1);
+  box-shadow: 0 2px 0 rgba(6, 20, 11, 0.6), 0 8px 18px rgba(0, 0, 0, 0.45);
+  color: #1f2937;
+  line-height: 1.2;
+  text-align: center;
+  /* A card of its own: no see-through island's halo under its words. */
+  text-shadow: none;
+  opacity: 0;
+  transform-origin: 50% 100%;
+}
+
+.mascot-sign.up .sign-card {
+  animation: sign-up 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.mascot-sign.down .sign-card {
+  animation: sign-down 0.2s ease-in forwards;
+}
+
+.sign-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.sign-big {
+  font-size: 14.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.sign-small {
+  margin-top: 1px;
+  font-size: 9px;
+  font-weight: 650;
+  color: #4b5563;
+  text-wrap: balance;
+}
+
+.sign-big[hidden],
+.sign-small[hidden] {
+  display: none;
+}
+
+.mascot-sign[data-tone="up"] .sign-big {
+  color: #059669;
+}
+
+.mascot-sign[data-tone="down"] .sign-big {
+  color: #e11d48;
+}
+
+.mascot-sign[data-tone="flat"] .sign-big {
+  color: #374151;
+}
+
+/* Nothing today: one calm line, in plain words. */
+.mascot-sign.empty .sign-card {
+  padding: 5px 11px;
+}
+
+.mascot-sign.empty .sign-label {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #374151;
+  text-wrap: balance;
+}
+
+/* His hands on the edges: his colour (and colour filter) are set by the mascot. */
+.sign-paw {
+  position: absolute;
+  top: calc(50% - 7px);
+  width: 13px;
+  height: 13px;
+  border: 2px solid #06140b;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+.sign-paw.l {
+  left: -8px;
+}
+
+.sign-paw.r {
+  right: -8px;
+}
+
+/* In the sidebar's band he holds it out beside him, where his caption goes:
+   under him are the folder chips. One hand on its near edge. */
+.mascot.sign-beside .mascot-sign {
+  left: calc(78% + 3px);
+  top: 50%;
+  transform: translate(var(--sign-dx, 0px), -50%);
+}
+
+.mascot.sign-beside .sign-card {
+  transform-origin: 0 50%;
+}
+
+.mascot.sign-beside .mascot-sign.up .sign-card {
+  animation-name: sign-out;
+}
+
+.mascot.sign-beside .sign-paw.r {
+  display: none;
+}
+
+/* The sign takes the caption's place, and the speech bubble waits. */
+#island:has(.mascot-sign.up) #caption,
+.mascot:has(.mascot-sign.up) .mascot-bubble {
+  opacity: 0 !important;
+}
+
+@keyframes sign-up {
+  0% { opacity: 0; transform: translateY(55%) scale(0.82) rotate(-6deg); }
+  45% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes sign-out {
+  0% { opacity: 0; transform: translateX(-30%) scale(0.82) rotate(-6deg); }
+  45% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes sign-down {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(45%) scale(0.86); }
+}
+
+/* Candy's right-click menu: what he can do on the spot, then the wardrobe.
+   Beside him, styled like the island's other menus, with a little tail that
+   points at him. */
+.emote-menu {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 132px;
+  padding: 5px;
+  border-radius: 12px;
+  /* The theme's menu colour and line (src/core/themes.ts): it reads on Paper
+     as on black, solid at any transparency, without the see-through halo. */
+  background: var(--pop);
+  text-shadow: none;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--hairline);
+  transform-origin: 0 var(--tail, 50%);
+}
+
+.emote-menu[hidden] {
+  display: none;
+}
+
+.emote-menu:focus {
+  outline: none;
+}
+
+.emote-menu[data-side="left"] {
+  transform-origin: 100% var(--tail, 50%);
+}
+
+.emote-menu.on {
+  animation: emote-menu-in 0.16s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+
+.emote-menu::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--tail, 50%) - 5px);
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  background: var(--pop);
+  box-shadow: -1px 1px 0 var(--hairline);
+  transform: rotate(45deg);
+}
+
+.emote-menu[data-side="left"]::before {
+  left: auto;
+  right: -5px;
+  box-shadow: 1px -1px 0 var(--hairline);
+}
+
+.emote-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 27px;
+  padding: 0 14px 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.emote-item svg {
+  flex: none;
+  color: var(--dim);
+  transition: color 0.1s ease, transform 0.12s ease;
+}
+
+.emote-item:hover,
+.emote-item:focus-visible {
+  background: var(--card-2);
+  outline: none;
+}
+
+.emote-item:hover svg,
+.emote-item:focus-visible svg {
+  color: var(--accent, #4ade80);
+  transform: scale(1.12);
+}
+
+.emote-sep {
+  display: block;
+  height: 1px;
+  margin: 3px 6px;
+  background: var(--hairline);
+}
+
+@keyframes emote-menu-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes tick-in {
@@ -1513,7 +1860,7 @@ body.passing #island {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2d33;
+  background: var(--scroll);
   border-radius: 3px;
 }
 
@@ -1522,7 +1869,7 @@ body.passing #island {
 }
 
 select option {
-  background: #141518;
+  background: var(--card);
 }
 
 /* ── Header: five tabs, only the open one labelled ──────────────────────── */
@@ -1641,7 +1988,7 @@ select option {
 
 .safe.high {
   color: var(--down);
-  background: rgba(244, 80, 94, 0.15);
+  background: color-mix(in srgb, var(--down) 15%, transparent);
 }
 
 .safe.pending,
@@ -1667,6 +2014,7 @@ select option {
   padding: 2px;
   border-radius: 9px;
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
 }
 
 .seg-btn {
@@ -1692,6 +2040,114 @@ select option {
   top: 4px;
   right: 14px;
   z-index: 1;
+}
+
+/* ── The chart that opens on a hovered row (src/views/chart-popover.ts) ──── */
+
+.chart-pop {
+  position: absolute;
+  z-index: 6;
+  width: 300px;
+  height: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 6px 5px;
+  border-radius: 12px;
+  /* The theme's card and line (src/core/themes.ts), so a full theme restyles the chart too. */
+  background: var(--card-2);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  cursor: default;
+  /* The root lets clicks through (click-through); the popover, like the views, takes them. */
+  pointer-events: auto;
+  animation: chart-pop-in 0.14s ease-out;
+}
+
+@keyframes chart-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  height: 16px;
+  padding: 0 2px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-head .sym {
+  font-weight: 800;
+  font-size: 12px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-head .chg {
+  font-weight: 700;
+}
+
+.chart-head .chg.up {
+  color: var(--up);
+}
+
+.chart-head .chg.down {
+  color: var(--down);
+}
+
+.chart-head .hl {
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.chart-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 3px 0 4px;
+}
+
+.chart-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.chart-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+  font-size: 11px;
+  text-align: center;
+}
+
+.chart-note.warn {
+  color: var(--amber);
+}
+
+.seg.chart-seg {
+  display: flex;
+  justify-content: space-between;
+  gap: 0;
+  padding: 2px;
+}
+
+.seg.chart-seg .seg-btn {
+  flex: 1 1 0;
+  height: 18px;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 /* ── Trending ───────────────────────────────────────────────────────────── */
@@ -1759,10 +2215,11 @@ select option {
   padding: 4px 6px;
   border-radius: 9px;
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
 }
 
 .wallet-row.mine {
-  box-shadow: inset 2px 0 0 var(--amber);
+  box-shadow: inset 2px 0 0 var(--amber), inset 0 0 0 1px var(--card-edge);
 }
 
 .w-line {
@@ -1844,6 +2301,7 @@ select option {
   color: var(--dim-3);
 }
 
+
 /* ── Discipline: today and journal ──────────────────────────────────────── */
 
 .log-bar .field.note-in {
@@ -1905,6 +2363,15 @@ select option {
 .week-stats {
   margin: 6px 0 2px;
   font-size: 11.5px;
+}
+
+/* A sentence of pieces: when it is too long (a monospace theme) it wraps
+   between them, never inside one ("+1.70 SOL" stays whole). */
+.discipline .line.week-stats {
+  flex-wrap: wrap;
+  column-gap: 4px;
+  row-gap: 0;
+  white-space: nowrap;
 }
 
 .recent {
@@ -1980,7 +2447,7 @@ select option {
   font-weight: 800;
   letter-spacing: 0.03em;
   line-height: 14px;
-  color: var(--chain, var(--dim));
+  color: color-mix(in srgb, var(--chain, var(--dim)) var(--chain-pure), var(--ink));
   background: color-mix(in srgb, var(--chain, #888) 16%, transparent);
 }
 
@@ -2140,7 +2607,21 @@ select option {
   color: var(--down);
 }
 
-.positions .rows {
+/* A column: the lists give way (and scroll) so that the bottom line (fine
+   print, Share my day, Replay today) always fits the island. */
+.view.positions.on {
+  display: flex;
+  flex-direction: column;
+}
+
+.view.positions > * {
+  flex: 0 0 auto;
+}
+
+.positions .rows,
+.positions .activity {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: 150px;
   overflow-y: auto;
 }
@@ -2343,18 +2824,22 @@ select option {
 
 /* ── Share my day ───────────────────────────────────────────────────────── */
 
-.discipline .foot .share {
+.foot .share {
   color: var(--accent, var(--up));
   font-weight: 650;
 }
 
-.discipline .foot .money {
+.foot .money {
   color: var(--dim-2);
 }
 
-.discipline .foot .share-note {
+.foot .share-note {
   margin-right: 8px;
   color: var(--dim);
+}
+
+.foot .share-note:empty {
+  margin-right: 0;
 }
 
 /* ── My wallet: the wallet line and the activity log ───────────────────── */
@@ -2375,6 +2860,7 @@ select option {
   padding: 0 2px 0 8px;
   border-radius: 10px;
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
 }
 
 .mine-chip b {
@@ -2411,11 +2897,6 @@ select option {
   color: var(--accent);
   text-decoration: underline;
   cursor: pointer;
-}
-
-.positions .activity {
-  max-height: 150px;
-  overflow-y: auto;
 }
 
 .c-when {
@@ -2471,54 +2952,175 @@ select option {
   padding-left: 2px;
 }
 
-/* ── Browser: settings in a panel over the page ─────────────────────────── */
+/* ── Settings and the Closet, in the island (Island.openPanel) ──────────── */
 
-#settings-panel {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
+/* The page in the panel: as big as the panel will be from the start (the
+   island grows round it, Island.applyGeometry places it), fading in as the
+   island reaches its size. The pages bring their own styles, in a shadow
+   root (src/settings/main.ts, src/closet/main.ts). */
+#panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+#panel.on {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.22s ease 0.08s;
+}
+
+#panel:focus {
+  outline: none;
+}
+
+/* The window changes under a floating island (or the notch's band) as a
+   panel opens or closes: hidden for those frames rather than seen out of
+   place (Island.maskSwitch). */
+#island.switching {
+  opacity: 0 !important;
+  transition: none !important;
+}
+
+/* The title row: Candy (Settings) or the closet's icon at the left, where
+   Candy sits (core/panel.ts PANEL_MASCOT), the name, the switch, ×. */
+.panel-head {
+  position: relative;
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.55);
+  gap: 12px;
+  height: 56px;
+  padding: 0 12px 0 70px;
 }
 
-.settings-box {
-  position: relative;
-  width: min(720px, 100%);
-  height: min(86vh, 900px);
-  border-radius: 16px;
-  overflow: hidden;
-  background: #0b0d12;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+/* From the top edge the screen's edge is right above: the row comes down a
+   little (core/panel.ts PANEL_TOP_INSET), Candy's hat inside the panel. */
+body[data-placement="top"] .panel-head {
+  height: 62px;
+  padding-top: 6px;
 }
 
-.settings-frame {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
-}
-
-.settings-close {
+.panel-icon {
   position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 1;
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--ink);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
+  left: 13px;
+  top: 7px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.2s ease, transform 0.25s ease;
 }
 
-.settings-close:hover {
-  background: rgba(255, 255, 255, 0.2);
+body[data-placement="top"] .panel-icon {
+  top: 13px;
+}
+
+.panel-icon.on {
+  opacity: 1;
+  transform: none;
+}
+
+.panel-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.panel-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: var(--caps);
+  white-space: nowrap;
+}
+
+.panel-sub {
+  color: var(--dim-2);
+  font-family: var(--font-num, var(--font));
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.panel-tab,
+.panel-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.panel-tab:hover,
+.panel-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.panel-tab.on {
+  background: var(--tab-on);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.panel-close {
+  border-radius: 50%;
+}
+
+.panel-close:hover {
+  background: color-mix(in srgb, var(--down) 22%, transparent);
+}
+
+.panel-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--hairline);
+}
+
+.panel-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.panel-page {
+  position: absolute;
+  inset: 0;
+}
+
+/* Settings scrolls as one page; the closet's shelves scroll on their own. */
+.settings-page {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 /* ── Wardrobe ───────────────────────────────────────────────────────────── */
@@ -2553,15 +3155,51 @@ select option {
   margin-bottom: 8px;
 }
 
-.wardrobe-more {
+/* Every look, large, in the closet window: plain to see, next to the shelves. */
+.wardrobe-closet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
   margin-left: auto;
-  font-size: 11px;
-  color: var(--dim);
-  text-decoration: underline;
+  padding: 0 11px 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.wardrobe-closet svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.wardrobe-closet:hover {
+  border-color: color-mix(in srgb, var(--accent) 75%, transparent);
+  background: color-mix(in srgb, var(--accent) 17%, transparent);
+}
+
+/* The switch, the looks, then the Island shelf's slider: the looks take what
+   is left between them and scroll past it (the sidebar is short). */
+.view.wardrobe.on {
+  display: flex;
+  flex-direction: column;
+}
+
+.wardrobe-head,
+.wardrobe-foot {
+  flex: none;
 }
 
 .wardrobe-grid {
+  flex: 0 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 4px;
@@ -2572,7 +3210,7 @@ select option {
 .wardrobe .look {
   aspect-ratio: 1;
   padding: 2px;
-  border: 1px solid transparent;
+  border: 1px solid var(--card-edge);
   border-radius: 9px;
   background: var(--card);
   cursor: pointer;
@@ -2583,7 +3221,7 @@ select option {
 }
 
 .wardrobe .look.on {
-  border-color: rgba(74, 222, 128, 0.7);
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 .mini-candy {
@@ -2592,9 +3230,19 @@ select option {
   height: 100%;
 }
 
-/* Costumes: bigger cards with their name under. */
+/* Costumes: bigger cards with their name under, seven to a row, a little
+   wider than tall: two rows (fourteen) fit the open island without scrolling. */
 .wardrobe-grid.named {
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
+}
+
+/* One line of name under a costume. Only there: the Island shelf's names
+   wrap (Gece yarısı, Mitternacht). */
+.wardrobe-grid.costumes .look-name {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .wardrobe-grid.named .look {
@@ -2604,10 +3252,11 @@ select option {
 
 .wardrobe-grid.named .mini-candy {
   height: auto;
-  aspect-ratio: 1;
+  aspect-ratio: 6 / 5;
 }
 
-/* Backgrounds: a little island with a dot and a line of ticker on it. */
+/* Backgrounds: a little island with a dot and a line of ticker on it, the
+   line in the look's own text colour (--sw-ink, see islandSwatch). */
 .island-swatch {
   position: relative;
   display: block;
@@ -2632,7 +3281,7 @@ select option {
 .island-swatch .sw-line {
   left: 20px;
   width: 30%;
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(in srgb, var(--sw-ink, var(--ink)) 60%, transparent);
 }
 
 .island-swatch .sw-up {
@@ -2641,9 +3290,10 @@ select option {
   background: var(--up);
 }
 
-/* Thirteen backgrounds in two rows. */
+/* Eighteen looks in two full rows of nine; a wide name (a monospace theme)
+   may take the card's padding, never widen the column. */
 .wardrobe-grid.islands {
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(9, minmax(0, 1fr));
 }
 
 .wardrobe-grid.islands .look {
@@ -2651,7 +3301,52 @@ select option {
 }
 
 .wardrobe-grid.islands .look-name {
+  margin: 2px -4px 0;
   font-size: 10px;
+}
+
+/* Under the backgrounds: how see-through the island is (Island shelf only). */
+.wardrobe-foot {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.wardrobe-foot.on {
+  display: flex;
+}
+
+/* The track fills up to the thumb in the theme's accent (--fill, set by the wardrobe). */
+.alpha-range {
+  width: 150px;
+  height: 4px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent, #4ade80) var(--fill, 0%), var(--card-2) var(--fill, 0%));
+  outline: none;
+  cursor: pointer;
+}
+
+.alpha-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #000;
+  cursor: pointer;
+}
+
+.alpha-value {
+  min-width: 30px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
 }
 
 .look-name {
@@ -2697,6 +3392,7 @@ select option {
   border: 0;
   border-radius: 10px;
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
   color: var(--dim);
   font: inherit;
   font-size: 11px;
@@ -2710,7 +3406,7 @@ select option {
 }
 
 .folder.on {
-  background: rgba(74, 222, 128, 0.16);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--ink);
 }
 
@@ -2770,6 +3466,8 @@ body[data-placement="right"] #content {
   flex-wrap: wrap;
   align-content: flex-start;
   row-gap: 8px;
+  /* The tabs have a row of their own: the pill and the buttons sit close, as on top. */
+  column-gap: 0;
 }
 
 /* The tabs have the first row to themselves; the day pill and the buttons
@@ -2869,12 +3567,50 @@ body[data-placement="right"] #content {
   margin-bottom: 4px;
 }
 
+/* In the narrow sidebar every word of the foot may wrap (see also the full
+   themes' .sidebar .discipline .foot below). */
+.sidebar .discipline .foot .links,
+.sidebar .discipline .foot .rules {
+  white-space: normal;
+}
+
+/* Six across: six rows of hats, five of faces, four of colours, whole (sidebarHeight). */
 .sidebar .wardrobe-grid {
   grid-template-columns: repeat(6, 1fr);
   max-height: 420px;
 }
 
-.sidebar .wardrobe-grid.named,
+/*
+ * Costumes five to a row, as big as the top island's cards: three rows
+ * (fifteen, a friend's edition included) fit above the sidebar's bottom edge.
+ */
+.sidebar .wardrobe-grid.named {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* Eleven to fourteen costumes (all of them, no friend's edition): seven to a
+   row, two full rows rather than three with the last one part empty. The
+   cards are narrower, so the pictures are a little taller than wide and the
+   name takes the card's whole width (Dinossauro, Космонавт fit at 9 px). */
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look {
+  padding: 3px 3px 2px;
+}
+
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .mini-candy {
+  aspect-ratio: 1;
+}
+
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look-name {
+  margin: 2px -3px 0;
+  font-size: 9px;
+  letter-spacing: -0.03em;
+}
+
 .sidebar .wardrobe-grid.islands {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -3006,11 +3742,11 @@ body[data-placement="right"] #content {
 
 .np-track {
   right: 0;
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
 }
 
 .np-fill {
-  background: #c5c8cd;
+  background: color-mix(in srgb, var(--ink) 80%, transparent);
 }
 
 .np-bar.seekable:hover .np-fill,
@@ -3055,7 +3791,7 @@ body[data-placement="right"] #content {
 }
 
 .np-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover);
   opacity: 1;
 }
 
@@ -3072,12 +3808,12 @@ body[data-placement="right"] #content {
   width: 34px;
   height: 34px;
   background: var(--ink);
-  color: #000;
+  color: var(--on-ink);
   opacity: 1;
 }
 
 .np-btn.np-play:hover {
-  background: #fff;
+  background: var(--ink-hover);
 }
 
 .np-volume-row {
@@ -3145,7 +3881,7 @@ body[data-placement="right"] #content {
 
 .event-fold:hover {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover);
 }
 
 /* ── Event cards: the checklist, the tokens that moved, the alert's buttons ── */
@@ -3207,7 +3943,7 @@ body[data-placement="right"] #content {
 
 /* The one his eyes are on. */
 .check-line.looking {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--hover);
 }
 
 .check-line.looking .check-state::after {
@@ -3313,7 +4049,116 @@ body[data-placement="right"] #content {
 }
 
 .move-chip:hover {
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: var(--hairline-2);
+}
+
+/* ── The end of the day: the board Candy holds up (src/views/event.ts) ────── */
+
+.event-extra.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 2px 0 0;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, var(--hairline));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--tone) 6%, var(--card));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform-origin: 0% 100%;
+  transition: transform 0.34s cubic-bezier(0.34, 1.5, 0.64, 1), opacity 0.22s ease;
+}
+
+/* Before Candy holds it up: down by his side, a little turned. */
+.event-extra.board.off {
+  opacity: 0;
+  transform: translate(-18px, 18px) rotate(-5deg) scale(0.86);
+}
+
+.b-tile {
+  min-width: 0;
+  padding: 4px 8px 3px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  line-height: 1.2;
+}
+
+.b-label {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.b-value {
+  display: block;
+  font-size: 15px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The number lands: a little pop, and only then its colour (a count on the way up is neither a gain nor a loss yet). */
+.b-value {
+  transition: color 0.25s ease;
+}
+
+.b-value.set.up {
+  color: var(--up);
+}
+
+.b-value.set.down {
+  color: var(--down);
+}
+
+.b-value.set {
+  animation: b-land 0.28s ease-out;
+}
+
+@keyframes b-land {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.b-sub {
+  display: block;
+  font-size: 10px;
+  color: var(--dim-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Its buttons come once the numbers have landed. */
+.view.event .buttons {
+  transition: opacity 0.3s ease;
+}
+
+.view.event .buttons.later {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.view.event .done-note.err {
+  color: var(--down);
+}
+
+.sidebar .event-extra.board {
+  text-align: left;
 }
 
 /* The header's pill: the day against the trader's limits (amber close, red on one). */
@@ -3428,7 +4273,7 @@ body[data-placement="right"] #content {
 }
 
 .day-grid .sq.even {
-  background: #3a3e45;
+  background: color-mix(in srgb, var(--dim-3) 70%, var(--card-2));
 }
 
 .day-grid .sq.up.l1 { background: color-mix(in srgb, var(--up) 30%, var(--card-2)); }
@@ -3482,7 +4327,7 @@ body[data-placement="right"] #content {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   padding-right: 128px; /* clear of the Holdings / Activity switch */
 }
 
@@ -3491,7 +4336,7 @@ body[data-placement="right"] #content {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  padding: 5px 8px;
+  padding: 4px 8px;
   border: 1px solid var(--hairline);
   border-radius: 9px;
   background: color-mix(in srgb, var(--card-2) 70%, transparent);
@@ -3501,6 +4346,7 @@ body[data-placement="right"] #content {
 .pos-card .lbl {
   font-size: 9.5px;
   font-weight: 650;
+  line-height: 1.05; /* two lines where the words are long (Taken today) */
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--dim-2);
@@ -3535,7 +4381,7 @@ body[data-placement="right"] #content {
 
 /* Each token's share of the wallet. */
 .alloc {
-  margin: 0 6px 4px;
+  margin: 0 6px 2px;
 }
 
 .alloc-bar {
@@ -3555,7 +4401,7 @@ body[data-placement="right"] #content {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 10px;
-  margin-top: 3px;
+  margin-top: 2px;
   font-size: 10px;
   color: var(--dim);
 }
@@ -3818,7 +4664,7 @@ body[data-placement="right"] #content {
   margin-right: 5px;
   border-radius: 50%;
   background: var(--up);
-  color: #04120a;
+  color: var(--base);
 }
 
 /* Only as it comes up: the ticker redraws every second. */
@@ -3899,7 +4745,625 @@ body[data-placement="right"] #content {
 }
 
 .positions .fine-print {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* ── Full themes (src/core/themes.ts) ───────────────────────────────────── */
+
+/* The numbers, and the rows they sit in, in the theme's own face when it has
+   one (Matrix: monospace), else the island's. */
+.row,
+.ticker,
+.discipline .line,
+.sol-chip,
+.w-line,
+.j-row,
+.pos-summary,
+.c-txns,
+.day-pill,
+.np-time,
+.pos-card,
+.positions .sub,
+.limit-label,
+.week-stats,
+.discipline .sizer {
+  font-family: var(--font-num, var(--font));
+}
+
+/* Capitals on the buttons and labels where the theme asks (Terminal); not on
+   the folders, which the trader names. */
+.tab,
+.btn,
+.seg-btn,
+.seg-label,
+.more {
+  text-transform: var(--caps);
+}
+
+/* The session line: Session · next break · end in. In a wider face
+   (monospace) it wraps rather than overflow. The dot between its two parts
+   is drawn by CSS in a cell of its own, the line is pulled left by one cell
+   and clipped there: the dot that would start a wrapped line is cut off, so
+   a line never begins with a dangling separator. */
+.discipline .session-line {
+  flex-wrap: wrap;
+  gap: 0;
+  margin-left: -1.6em;
+  clip-path: inset(0 0 0 1.6em);
+}
+
+.discipline .session-line > span::before {
+  content: "·";
+  display: inline-block;
+  width: 1.6em;
+  text-align: center;
+}
+
+/* On top (and afloat) the Today / Journal switch sits in the line's corner:
+   the line stops short of it. In the sidebar the switch is a row of its own
+   (.sidebar .seg.corner) and the line keeps its full width. */
+body:not(.sidebar) .discipline .session-line {
+  padding-right: 136px;
+}
+
+/* The foot in the narrow sidebar: in a wider face it takes two rows (the
+   island is taller for them: sidebarHeight's `wide`), kept inside the pane
+   and ending at its right edge. */
+.sidebar .discipline .foot {
+  left: 12px;
+  text-align: right;
+}
+
+/* ── Compact island (Settings → Compact island) ─────────────────────────── */
+/* A lower island for a small screen: every height a step smaller and the
+   type with it; the watchlist without its volume and trades, My wallet
+   without the multiple, the ticker shorter. Each number pairs with COMPACT
+   in src/core/layout.ts, which sizes the island to them. On by itself on a
+   display 900 px tall or less (compactFor). */
+
+body.compact {
+  font-size: 11px;
+}
+
+/* The sidebar (a side edge) keeps its own two-row header and band: only its rows and type shrink. */
+body.compact:not(.sidebar) #header {
+  height: 32px;
+  padding: 5px 14px 0;
+}
+
+body.compact .tab {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+}
+
+body.compact .tab:not(.on) {
+  width: 26px;
+}
+
+body.compact .icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
+body.compact .dock-menu {
+  top: 26px;
+}
+
+body.compact .status,
+body.compact .sol-chip {
+  font-size: 10px;
+}
+
+body.compact .natives.crowded .sol-chip {
+  font-size: 9.5px;
+}
+
+body.compact .day-pill {
+  height: 17px;
+  font-size: 10px;
+}
+
+body.compact:not(.sidebar) .view {
+  inset: 32px 0 0 0;
+  padding: 4px 14px 8px 138px;
+}
+
+body.compact #caption {
+  font-size: 10.5px;
+}
+
+body.compact:not(.sidebar) .wardrobe-btn {
+  top: 38px;
+}
+
+body.compact .wardrobe-btn {
+  width: 24px;
+  height: 24px;
+}
+
+body.compact .btn {
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 8px;
+}
+
+body.compact .btn.ghost {
+  height: 20px;
+}
+
+body.compact .field {
+  height: 24px;
+  border-radius: 8px;
+}
+
+body.compact .empty {
+  margin: 8px 0 10px;
+}
+
+body.compact .note,
+body.compact .now,
+body.compact .limit-label,
+body.compact .fine-print {
+  font-size: 10px;
+}
+
+/* Rows */
+
+body.compact .row {
+  height: 24px;
+}
+
+body.compact .row.head {
+  height: 18px;
+  font-size: 10px;
+}
+
+body.compact .tok-img {
+  width: 16px;
+  height: 16px;
+}
+
+body.compact .row-actions .icon-btn,
+body.compact .c-act .icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
+body.compact .add-bar {
+  margin-top: 6px;
+}
+
+body.compact .folders {
+  height: 20px;
+}
+
+body.compact .folder {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10.5px;
+}
+
+body.compact .folder.add {
+  width: 20px;
+  font-size: 13px;
+}
+
+body.compact .field.folder-field {
+  height: 18px;
+}
+
+body.compact .results-head {
+  height: 20px;
+}
+
+/* The watchlist keeps the token, its chart, its value and the three changes:
+   volume and trades go. Search results and trending lose the volume too. */
+body.compact .watchlist .c-vol,
+body.compact .watchlist .c-txns,
+body.compact .results-pane .c-vol,
+body.compact .trending .c-vol {
+  display: none;
+}
+
+body.compact .seg-btn {
+  height: 20px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+body.compact:not(.sidebar) .seg.corner {
+  top: 3px;
+}
+
+/* Alerts */
+
+body.compact .alert-row {
+  height: 24px;
+}
+
+body.compact .alert-list {
+  max-height: 96px;
+  margin-bottom: 6px;
+}
+
+body.compact .form-foot {
+  margin-top: 5px;
+}
+
+/* Following */
+
+body.compact .wallet-row {
+  height: 38px;
+  padding: 3px 6px;
+}
+
+body.compact .w-line {
+  height: 17px;
+}
+
+body.compact .w-detail {
+  height: 15px;
+  font-size: 10.5px;
+}
+
+body.compact .wallet-list {
+  max-height: 164px;
+  margin-bottom: 6px;
+}
+
+/* My wallet: value, profit and %; the multiple goes. Smaller cards, shorter rows. */
+body.compact .positions .c-x {
+  display: none;
+}
+
+body.compact .positions .pos-row {
+  height: 34px;
+}
+
+body.compact .positions .pos-row .tok-img {
+  width: 20px;
+  height: 20px;
+}
+
+body.compact .positions .sub {
+  font-size: 10px;
+}
+
+body.compact .pos-cards {
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+body.compact .pos-card {
+  gap: 0;
+  padding: 3px 7px;
+}
+
+body.compact .pos-card .lbl {
+  font-size: 9px;
+}
+
+body.compact .pos-card b {
+  font-size: 12.5px;
+}
+
+body.compact .pos-card .sub {
+  font-size: 10px;
+}
+
+body.compact .alloc {
+  margin-bottom: 3px;
+}
+
+body.compact .alloc-legend {
+  margin-top: 2px;
+  font-size: 9.5px;
+}
+
+body.compact .mine-line {
+  min-height: 20px;
+  padding-bottom: 3px;
+  font-size: 10.5px;
+}
+
+body.compact .history-line {
+  font-size: 10.5px;
+}
+
+/* Four rows (Density.posRows), then the list scrolls. */
+body.compact .positions .rows {
+  max-height: 136px;
+}
+
+body.compact .positions .activity {
+  max-height: 200px;
+}
+
+body.compact .fine-print {
+  margin-top: 4px;
+}
+
+/* Discipline */
+
+body.compact .discipline .line {
+  min-height: 19px;
+}
+
+body.compact .log-bar {
+  margin: 6px 0 3px;
+}
+
+body.compact .discipline .foot {
+  bottom: 8px;
+  font-size: 10.5px;
+}
+
+body.compact .week-chart {
+  height: 60px;
+  margin-top: 22px;
+}
+
+body.compact .day-grid {
+  margin-top: 30px;
+}
+
+body.compact .week-stats {
+  margin: 4px 0 2px;
+  font-size: 11px;
+}
+
+body.compact .j-row {
+  height: 18px;
+  font-size: 11px;
+}
+
+body.compact .field.note-edit {
+  height: 18px;
+  font-size: 11px;
+}
+
+body.compact .journal-foot {
+  margin-top: 4px;
+}
+
+body.compact .journal-foot .btn {
+  height: 22px;
+  font-size: 11px;
+}
+
+/* Wardrobe: fourteen looks a row. */
+
+body.compact .wardrobe-head {
+  margin-bottom: 6px;
+}
+
+body.compact:not(.sidebar) .wardrobe-grid {
+  grid-template-columns: repeat(14, 1fr);
+  gap: 3px;
+  /* What the island leaves it (wardrobeH): three rows of hats (36) just fit,
+     and the backgrounds' two rows with the transparency slider. */
+  max-height: 110px;
+}
+
+body.compact .island-swatch {
+  height: 20px;
+  margin: 3px 2px 2px;
+}
+
+body.compact .island-swatch i {
+  top: 7px;
+}
+
+/* Nine across, as on the normal island: the 18 looks of the Island shelf on
+   two full rows, with the transparency slider under them (wardrobeH). */
+body.compact:not(.sidebar) .wardrobe-grid.named,
+body.compact:not(.sidebar) .wardrobe-grid.islands {
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+}
+
+/* Costumes seven to a row, as on the normal island: two full rows (fourteen)
+   in the 110 px the compact island leaves the shelf, so the pictures are a
+   little lower than the cards are wide. A card is 1 + 3 + 31 + 2 + 12 + 2 + 1
+   = 52 px: two and the gap make 107, whatever font the system gives the
+   buttons (Segoe UI's line is taller than Arial's, a CJK one taller still),
+   so the name's line is fixed. */
+body.compact:not(.sidebar) .wardrobe-grid.costumes {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+body.compact:not(.sidebar) .wardrobe-grid.costumes .look {
+  padding: 3px 4px 2px;
+}
+
+body.compact:not(.sidebar) .wardrobe-grid.costumes .mini-candy {
+  aspect-ratio: auto;
+  height: 31px;
+}
+
+body.compact:not(.sidebar) .wardrobe-grid.costumes .look-name {
+  line-height: 12px;
+}
+
+body.compact .look-name {
+  font-size: 10px;
+}
+
+body.compact .wardrobe-closet {
+  height: 22px;
+  padding: 0 9px 0 7px;
+  font-size: 10.5px;
+}
+
+/* Music */
+
+body.compact .np-cover {
+  width: 80px;
+  height: 80px;
+}
+
+body.compact .np-title {
+  font-size: 13px;
+}
+
+body.compact .np-artist {
+  font-size: 11px;
+}
+
+body.compact .np-progress {
+  margin: 6px 0 3px;
+}
+
+/* The ticker, a step shorter; the mascot in it a step smaller (Density.tickerMascot). */
+
+body.compact #compact {
+  padding-left: 38px;
+}
+
+body.compact #compact.vertical {
+  padding: 38px 0 12px;
+}
+
+body.compact .ticker {
+  gap: 8px;
+}
+
+/* The fine print on the left, Share my day on the right, one line. The top
+   island is as tall as the window allows with three holdings: the line sits
+   low (a short bottom padding) and the cards and the bar above are tight, so
+   that three rows stay whole above it. */
+.view.positions {
+  padding-bottom: 6px;
+}
+
+.positions .foot-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.positions .foot {
+  flex: 0 0 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--dim-2);
+  white-space: nowrap;
+}
+
+/* While the share note shows (copied, or what went wrong) it takes the fine
+   print's place and is cut to what fits: the links stay whole, on the island. */
+.positions .foot-line.noting .fine-print {
+  display: none;
+}
+
+.positions .foot-line.noting .foot {
+  flex: 1 1 auto;
+}
+
+.positions .share-links {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.positions .share-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.positions .share-links .links {
+  flex: 0 0 auto;
+}
+
+/* ── EVM wallets: where a wallet is followed, and what a typed address is ── */
+
+/* SOL, or ETH · BSC · BASE: an EVM wallet's are switches (unticked ones dimmed). */
+.chain-picks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.chain-tag.pick {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.chain-tag.pick.off {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.chain-tag.pick:hover {
+  opacity: 1;
+  filter: brightness(1.2);
+}
+
+/* Next to the address field: what the typed address is, as it is typed. */
+.addr-hint {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+}
+
+.addr-hint:empty {
+  display: none;
+}
+
+.mine-chip .chain-picks {
+  margin-left: 2px;
+}
+
+/* Room for the Holdings / Activity switch in the corner; a long status is cut, not hidden under it.
+   In the sidebar the switch is a row of its own (.sidebar .seg.corner): the line keeps its width. */
+body:not(.sidebar) .positions .mine-line {
+  padding-right: 176px;
+}
+
+.mine-chip {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.mine-chip .mine-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w-addr.link {
+  cursor: pointer;
+}
+
+.w-addr.link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.w-detail .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.w-detail .chip .chain-tag {
+  margin-left: -3px;
+}
+
+/* A position's chain, after its symbol (Solana rows show none). */
+.sym-line .chain-tag {
+  margin-left: 2px;
 }

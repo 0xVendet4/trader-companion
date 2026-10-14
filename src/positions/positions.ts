@@ -186,6 +186,8 @@ export interface WalletTrade {
   tradePnl?: number;
   /** On a close: its journal line. */
   note?: string;
+  /** On a close: the token (the end-of-day board names the best and the worst trade by it). */
+  symbol?: string;
 }
 
 /**
@@ -203,7 +205,7 @@ export function walletTrades(changes: BookChange[], unit: "SOL" | "USD", solUsd:
     if (c.side === "sold") return { pnl: conv(c.realizedUsd), partial: true };
     const total = c.totalRealizedUsd!;
     const since = c.fromTracking ? ", since tracking" : "";
-    return { pnl: conv(c.realizedUsd), partial: false, tradePnl: conv(total), note: `Auto: ${c.symbol} closed (${formatSignedUsd(total)}${since})` };
+    return { pnl: conv(c.realizedUsd), partial: false, tradePnl: conv(total), note: `Auto: ${c.symbol} closed (${formatSignedUsd(total)}${since})`, symbol: c.symbol };
   });
 }
 
@@ -222,6 +224,24 @@ export function applyHistory(book: PositionBook, mint: string, costUsd: number |
     p.fromTracking = false;
     p.fromHistory = true;
     p.alerted = [];
+  }
+  return next;
+}
+
+/**
+ * A wallet stops being followed on some chain (an EVM wallet's chain
+ * unticked): its share of the positions `drop` names leaves, unrealized, as
+ * when the wallet itself is removed. No sale is recorded.
+ */
+export function dropWalletKeys(book: PositionBook, wallet: string, drop: (mint: string) => boolean): PositionBook {
+  const next = clone(book);
+  for (const [mint, p] of Object.entries(next.positions)) {
+    if (p.amounts[wallet] == null || !drop(mint)) continue;
+    const before = total(p);
+    delete p.amounts[wallet];
+    const after = total(p);
+    if (after <= 0) delete next.positions[mint];
+    else p.costUsd *= after / before;
   }
   return next;
 }
@@ -285,6 +305,7 @@ export function sinceWords(p: Position): string {
 /** Where a position's entry comes from, for a tooltip. */
 export function entrySource(p: Position): string {
   if (p.fromTracking) return t("Price when tracking began (held before): click to type your real entry");
+  if (p.fromHistory && p.mint.includes(":")) return t("From the token's transfers to your wallet, at its price at that moment");
   if (p.fromHistory) return t("From your wallet's transactions (paid in SOL, valued at today's SOL price)");
   return t("Price when the buy showed up in your balance, or the one you typed");
 }

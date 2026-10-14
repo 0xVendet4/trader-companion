@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Quote, WatchToken } from "../core/state";
-import { SETTLE_MOVE_MS, SETTLE_MS, computeMood, moodKey, settleMood, type MoodInput } from "./mood";
+import { MOOD_MEMORY_MS, MoodClock, SETTLE_MOVE_MS, SETTLE_MS, computeMood, moodKey, settleMood, type Mood, type MoodInput } from "./mood";
 
 const tok = (symbol: string): WatchToken => ({
   key: symbol,
@@ -82,7 +82,7 @@ describe("mood: own positions", () => {
 
   it("celebrates a position at 2x, saying where the numbers start", () => {
     const m = computeMood(input({ quotes: { WIF: q("WIF", 0, 0), BONK: q("BONK", 0, 0) }, positions: [pos("POPCAT", 2.37)] }));
-    expect(m).toEqual({ state: "celebrate", text: "Your POPCAT: 2.3x from entry!", lasting: "position", subject: "POPCAT" });
+    expect(m).toEqual({ state: "celebrate", text: "Your POPCAT: 2.3x from entry!", lasting: "position", subject: "POPCAT:2x" });
   });
 
   it("worries about a deep drawdown before celebrating", () => {
@@ -180,5 +180,36 @@ describe("mood: and six more", () => {
 
   it("gets excited in extreme greed", () => {
     expect(computeMood(input({ quotes: { WIF: q("WIF", 1, 0) }, fearGreed: 84 }))).toMatchObject({ state: "excited", text: "Extreme greed in crypto: 84/100." });
+  });
+});
+
+describe("mood clock", () => {
+  const up: Mood = { state: "celebrate", text: "Your BONK: 4.5x from entry!", lasting: "position", subject: "BONK:4x" };
+  const spike: Mood = { state: "focused", text: "BONK volume is heating up.", lasting: "move", subject: "BONK" };
+
+  it("does not celebrate the same run again after a brief interruption", () => {
+    const clock = new MoodClock();
+    expect(clock.start(up, 0)).toBe(0);
+    expect(clock.start(spike, SETTLE_MS + 1000)).toBe(SETTLE_MS + 1000);
+    // Back to the 4x a minute later: still settled.
+    const since = clock.start(up, SETTLE_MS + 60_000);
+    expect(since).toBe(0);
+    expect(settleMood(up, since, SETTLE_MS + 60_000).state).toBe("idle");
+  });
+
+  it("celebrates again at the next whole multiple, or after a long while", () => {
+    const clock = new MoodClock();
+    clock.start(up, 0);
+    expect(clock.start({ ...up, subject: "BONK:5x" }, 1000)).toBe(1000);
+    const idle: Mood = { state: "idle", text: "Watching the market." };
+    clock.start(idle, 2000);
+    expect(clock.start(up, 2000 + MOOD_MEMORY_MS)).toBe(2000 + MOOD_MEMORY_MS);
+  });
+
+  it("flashes a 5-minute move every time it happens", () => {
+    const clock = new MoodClock();
+    clock.start(spike, 0);
+    clock.start(up, 5000);
+    expect(clock.start(spike, 60_000)).toBe(60_000);
   });
 });

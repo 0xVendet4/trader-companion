@@ -8,7 +8,7 @@ import { chainTag, liquidityCell, pct, safetyBadge, tokenImg, type ViewActions, 
 import { Companion } from "../companion";
 import { formatAge, formatUsd } from "../core/format";
 import { N_, t } from "../core/i18n";
-import { MAX_ROWS, ROW_H } from "../core/layout";
+import { MAX_ROWS, density } from "../core/layout";
 import { State, type Timeframe, type TrendingItem, type TrendingSort } from "../core/state";
 import { ALL_CHAINS, CHAINS, type ChainId } from "../market/chains";
 import { rugcheckUrl } from "../market/safety";
@@ -43,7 +43,6 @@ function segment<T extends string>(items: [T, string, string?][], on: (v: T) => 
 
 export function buildTrending(actions: ViewActions): ViewHost {
   const rows = h("div", { class: "rows" });
-  rows.style.maxHeight = `${MAX_ROWS * ROW_H}px`;
   const status = h("div", { class: "empty" });
   const note = h("span", { class: "note trending-note" });
   let key = "";
@@ -191,6 +190,8 @@ export function buildTrending(actions: ViewActions): ViewHost {
     el,
     sync() {
       void Companion.refreshTrending();
+      // The list scrolls past MAX_ROWS rows, of the island's density (compact or not).
+      rows.style.maxHeight = `${MAX_ROWS * density(State.compact).rowH}px`;
       for (const s of [lists, chains, sorts, frames]) s.paint();
       const frame = FRAMES.find(([f]) => f === State.companion.trendingFrame)?.[1] ?? "1h";
       volHead.textContent = `Vol ${frame}`;

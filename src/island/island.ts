@@ -3,17 +3,20 @@
 // Coucou for Windows (MIT, © Louis Raillé); the content is Trader Companion's.
 
 import { Tracked, Spring } from "../core/anim";
-import { Bridge, IS_TAURI, copyImage } from "../core/bridge";
+import { Bridge, IS_TAURI, copyImage, type ShowOff } from "../core/bridge";
 import { FULL_NAME } from "../core/brand";
 import { t, tn } from "../core/i18n";
-import { applyTheme } from "../core/themes";
+import { applyTheme, wideFace } from "../core/themes";
 import { currentLog, summarize, todayKey } from "../discipline/discipline";
+import { dayEndRows, dayEndStats } from "../share/dayend";
 import { AWAY_MS, SNAPSHOT_EVERY_MS, awaySummary, type Snapshot } from "../away/away";
 import { activeSeason } from "../mascot/seasons";
+import { MELT_LEVELS, meltDrop, meltMood, meltStage, meltSubject, type MeltStage } from "../mascot/melt";
+import { NIGHTCAP, lookKey, wearsPyjamas } from "../mascot/night";
+import { napDue, napEnds, wakeFor, type NapScene, type Wake } from "../mascot/nap";
 import { lookFilter } from "../mascot/skins";
 import { drawRecapCard, type CardFormat, type CardLook } from "../share/card";
-import { openSettingsPanel } from "../web/settings-panel";
-import { buildRecap, buildWeekRecap, recapDate, type WeekRange } from "../share/recap";
+import { buildRecap, buildWeekRecap, type WeekRange } from "../share/recap";
 import { formatClock, formatPct, formatUsd, moveLevel, pctClass, valueCell } from "../core/format";
 import {
   CLOSE_MS,
@@ -27,6 +30,8 @@ import {
   PANEL_H,
   PANEL_W,
   SIDE_W,
+  compactFor,
+  tickerSeat,
   floatsUp,
   isSide,
   islandCorners,
@@ -57,6 +62,9 @@ import { tokenKey } from "../market/chains";
 import { parseInput, parsePasted } from "../market/dexscreener";
 import { folderMood, folderTokens } from "../market/folders";
 import { flameSize, flourishesFor, shouldFlourish, type Flourish } from "../mascot/flourish";
+import { EMOTES, EMOTE_INFO, menuSpot, stepItem, type Emote } from "../mascot/emotes";
+import { SHADES_FACE, SHADES_MS, SHADES_PENDING_MS, keepsFaceUnderShades, shadesCrossings } from "../mascot/shades";
+import { pnlSign, type PnlSign } from "../mascot/sign";
 import { tokenUrl } from "../market/links";
 import { formatSignedUsd } from "../positions/positions";
 import { h, svg } from "../views/dom";
@@ -69,6 +77,38 @@ import { DRAG_THRESHOLD } from "../mascot/desktop-logic";
 import { DesktopLink } from "./desktop";
 import { islandDances } from "../core/music";
 import { IslandStateMachine } from "./fsm";
+import { NO_PANEL, panelStep, type IslandNow, type OpenPanel, type PanelSession } from "./panel-pose";
+import {
+  PANEL_CORNER,
+  PANEL_SIZE,
+  anchoredAt,
+  clampInto,
+  growRect,
+  panelFrame,
+  panelInWindow,
+  panelMascot,
+  panelShowSpot,
+  shownTransparency,
+  type PanelHost,
+  type PanelKind,
+  type PanelPage,
+  type Rect,
+  type SettingsSection,
+  type ShortcutLink,
+} from "../core/panel";
+
+/** How a panel is asked for (Island.openPanel). */
+type PanelOpts = { section?: SettingsSection; toggle?: boolean };
+/** A panel's window as placed: its size, and where the island's own window sits from it (logical px). */
+type Placed = { w: number; h: number; dx: number; dy: number };
+type PanelWin = Placed & { panel: Rect };
+type Size = { w: number; h: number };
+/** Settings ↔ the Closet: how long the island takes to change from one panel's size to the other's. */
+const SWAP_MS = 340;
+/** A field Esc leaves before it closes a panel: one that is typed in. */
+const TEXT_FIELD = "input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=color]), textarea, select";
+/** Settings' transparency let go: how long the panel keeps showing it before it is a panel again. */
+const ALPHA_SETTLE_MS = 1400;
 
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
 const HIT_MARGIN = 14;
@@ -85,6 +125,20 @@ const FEED_SHOW_MS = 12_000;
 const MAX_DOTS = 10;
 /** How long the ticker shows what a drop did. */
 const DROP_NOTE_MS = 3500;
+/** Settings → Show me: how long the pyjamas or a nap are shown. */
+const SHOW_MS = 7000;
+/** A shown melt: each stage this long, its wax running down this fast (seconds). */
+const SHOW_MELT_STEP_MS = 2600;
+const SHOW_MELT_S = 1.5;
+/** The mouse rests on Candy this long before he holds his sign up (passing over him does nothing). */
+const SIGN_DELAY_MS = 220;
+/** Icons of the right-click menu's emotes, and their stroke (none: filled). */
+const EMOTE_ICONS: Record<Emote, { path: string; stroke?: number }> = {
+  dance: { path: ICONS.note },
+  wave: { path: ICONS.hand, stroke: 1.7 },
+  laugh: { path: ICONS.laugh, stroke: 1.7 },
+  spin: { path: ICONS.refresh, stroke: 2.2 },
+};
 /** Poke motions the canvas plays as a roll of the whole drawing, in place of their CSS spin. */
 const CANVAS_ROLLS: Partial<Record<Motion, { turns: number; seconds: number }>> = {
   spin: { turns: 1, seconds: 0.6 },
@@ -110,6 +164,9 @@ function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: SoundName
       return { mascot: "worried", sound: "reminder" };
     case "sessionEnd":
       return { mascot: "tired", sound: "reminder" };
+    case "dayEnd":
+      // The card plays its own finale (src/views/event.ts): this is the hello.
+      return { mascot: "happy", sound: "greet" };
     case "checklist":
       return { mascot: "focused", sound: "hmm" };
     case "weekRecap":
@@ -169,7 +226,13 @@ export class Island {
   private collapsed = false;
   private collapseTimer: number | null = null;
   private wasInIsland = false;
+  /** The mouse goes through the island to what is behind it (Ctrl, or the edge ticker not rested on yet). */
+  private passing = false;
+  /** What the page last told Rust about the edge ticker's click guard. */
+  private guardOn = false;
   private pushedRect = { x: -1, y: -1, w: -1, h: -1 };
+  /** The ticker seat last sent to Rust (desktop.rs island_spot). */
+  private pushedSeat: { cx: number; cy: number } | null = null;
   /** Root offset and scale inside the page — only used in a plain browser. */
   private origin = { x: 0, y: 0, scale: 1 };
 
@@ -195,6 +258,8 @@ export class Island {
   private cursorDist = Infinity;
   private lastNotice = 0;
   private inputFocused = false;
+  /** Who keeps the island from folding (a checklist being read, a chart open): held while anyone does (ViewActions.holdOpen). */
+  private holders = new Set<string>();
   private manifest: Manifest | null = null;
   private lastRowsKey = "";
   private followMouse: boolean;
@@ -203,6 +268,22 @@ export class Island {
   private dropBusy = false;
   /** Lookups with the mouth open (a drop, a pasted address): a drag leaving meanwhile must not shut it. */
   private lookups = 0;
+  // Shades on a 2x (see shades.ts).
+  /** Held tokens at or over 2x, as last seen. */
+  private shadesSeen = new Map<string, boolean>();
+  /** The shades he has on now (art path), and whether his face accessory stays under them. */
+  private shadesOn: { src: string; keepFace: boolean } | null = null;
+  private shadesTimer: number | null = null;
+  /** A 2x seen while the island was out of sight (Date.now()): the shades go on when it shows, if soon. */
+  private shadesDue = 0;
+  /** The mouse resting on Candy: his sign goes up after SIGN_DELAY_MS. */
+  private signTimer: number | null = null;
+  // The right-click menu (see openEmoteMenu).
+  private emoteMenu!: HTMLElement;
+  private menuOpen = false;
+  private menuTimer: number | null = null;
+  /** The island's pin before the menu held it open. */
+  private menuPinned = false;
 
   /** Candy out on the desktop, in his own window (src/island/desktop.ts). */
   private desktop = new DesktopLink({
@@ -212,16 +293,26 @@ export class Island {
       const tried = this.tried;
       const kept = this.look();
       return {
-        costume: tried?.costume ?? State.companion.costume,
+        costume: tried?.costume ?? this.costumeNow(),
         hat: accessory(this.manifest, "outfits", tried?.outfit ?? kept.hat),
         face: accessory(this.manifest, "faces", tried?.face ?? kept.face),
-        filter: lookFilter(tried ?? State.companion),
+        filter: lookFilter(tried ?? { ...State.companion, costume: this.costumeNow() }),
+        pyjamas: !tried && kept.pyjamas,
+        melt: this.meltLevel(),
       };
     },
+    mood: () => meltMood(State.mood.state, this.meltShown()),
     react: (state, ms) => this.mascot.react(state, ms),
     poked: () => (State.lastActivity = performance.now()),
     dropped: (text) => void this.dropped(text),
-    wardrobe: () => this.toggleWardrobe(),
+    menu: () => this.toggleEmoteMenu(),
+    // The sign only while he is out: it changes with every price poll, and the
+    // window would hear of each one for nothing.
+    extras: () => ({
+      shades: this.shadesOn?.src ?? null,
+      keepFace: this.shadesOn?.keepFace ?? false,
+      sign: State.mascotAway ? this.daySign() : null,
+    }),
   });
   /** The demo inside the app (tray → Try the demo): src/island/tour.ts. */
   private tour = new Tour({
@@ -236,6 +327,46 @@ export class Island {
   /** A press on the mascot that may become a drag out to the desktop: where it started. */
   private mascotPress: { x: number; y: number; folded?: boolean } | null = null;
   private dropNote: { text: string; tone: "up" | "warn"; until: number } | null = null;
+
+  // ── Settings and the Closet, in the island (see openPanel) ────────────────
+  /** The panel open, how the island was before it, and an alert waiting for it to close (panel-pose.ts). */
+  private session: PanelSession = NO_PANEL;
+  private get panel(): OpenPanel | null {
+    return this.session.open;
+  }
+  /**
+   * The panel's window (logical px), where the island's own window sits from
+   * it (dx, dy), and the panel in it, from the moment it opens until the
+   * island has shrunk back from it: the island is placed in it meanwhile.
+   */
+  private panelWin: PanelWin | null = null;
+  /** Where the island grows from as a panel opens, and shrinks back to as it closes (in the panel's window; see growRect). */
+  private growFrom: Rect | null = null;
+  /** The panel stepped behind the app the trader went to (Rust's "panel-lowered"). */
+  panelLowered = false;
+  /** Settings or the Closet asked for before the art had loaded: opened once it has. */
+  private pendingPanel: { kind: PanelKind; opts: PanelOpts } | null = null;
+  /** Settings' transparency slider, held or just let go: the panel shows it (see shownTransparency). */
+  private alphaPreview: number | null = null;
+  private alphaTimer: number | null = null;
+  /** In a browser, where the island's own stage was when the panel opened (its window, there). */
+  private browserHome: { x: number; y: number } | null = null;
+  /** The page mounted in the panel (src/settings, src/closet). */
+  private page: PanelPage | null = null;
+  private panelEl!: HTMLElement;
+  private panelBody!: HTMLElement;
+  private panelTitle!: HTMLElement;
+  private panelSub!: HTMLElement;
+  private panelIcon!: HTMLElement;
+  private panelTabs!: Record<PanelKind, HTMLButtonElement>;
+  private panelCloseBtn!: HTMLButtonElement;
+  /** Stale async steps (a mount, a window request) give way to the newest. */
+  private panelSeq = 0;
+  private panelTimer: number | null = null;
+  /** The page of a panel closing, taken down once it has faded (or at once, if a panel opens meanwhile). */
+  private closingPage: PanelPage | null = null;
+  /** The global shortcuts, for Settings (src/main.ts sets them; nothing in a demo). */
+  private shortcutLink: ShortcutLink = { status: () => ({}), onStatus: () => () => {}, suspend: () => {}, resume: () => {} };
 
   /**
    * `followMouse: false` ignores the real mouse in a browser — the demo drives
@@ -259,6 +390,10 @@ export class Island {
     this.worn = State.companion.costume;
     this.mascot.use(dressed(manifest, this.worn));
     this.wearChosen();
+    // Settings or the Closet asked for before the art was there (the tray, just after start).
+    const pending = this.pendingPanel;
+    this.pendingPanel = null;
+    if (pending) this.openPanel(pending.kind, pending.opts);
   }
 
   /** The costume the mascot has on (see wearCostume). */
@@ -266,25 +401,36 @@ export class Island {
 
   /** Swaps the body's art when the costume changes; the mood carries over. */
   private wearCostume() {
-    const costume = State.companion.costume;
+    const costume = this.costumeNow();
     if (!this.manifest || costume === this.worn) return;
     this.worn = costume;
     this.mascot.use(dressed(this.manifest, costume));
   }
 
-  /** The hat and face to wear: the trader's, or the season's for a few days. */
-  private look(): { hat: string; face: string } {
+  /** The time the look follows (the demo's stills set a night of their own). */
+  clock: () => Date = () => new Date();
+
+  /**
+   * The hat and face to wear: the trader's, or the season's for a few days;
+   * after midnight, pyjamas and a nightcap (night.ts; a season's hat stays on).
+   */
+  private look(): { hat: string; face: string; pyjamas: boolean } {
     const c = State.companion;
-    const season = activeSeason(new Date(), c.seasonal, c.seasonOff);
-    return { hat: season?.hat ?? c.outfit, face: season?.face ?? c.face };
+    // Settings → Show me: the pyjamas whatever the clock says.
+    if (this.showing?.what === "pyjamas") return { hat: NIGHTCAP, face: c.face, pyjamas: true };
+    const now = this.clock();
+    const season = activeSeason(now, c.seasonal, c.seasonOff);
+    const pyjamas = wearsPyjamas(now, c.pyjamas, c.nightOff, c.costume);
+    return { hat: season?.hat ?? (pyjamas ? NIGHTCAP : c.outfit), face: season?.face ?? c.face, pyjamas };
   }
 
   /** Puts on the current look (see look()). */
   private wearChosen() {
-    const { hat, face } = this.look();
-    this.lookDay = todayKey();
+    const { hat, face, pyjamas } = this.look();
+    this.lookDay = lookKey(this.clock());
     this.mascot.setOutfit(accessory(this.manifest, "outfits", hat));
     this.mascot.setFace(accessory(this.manifest, "faces", face));
+    this.mascot.setPyjamas(pyjamas);
   }
 
   /**
@@ -297,11 +443,13 @@ export class Island {
     this.tried = null;
     State.notify();
     if (!apply) {
-      this.mascot.setFilter(lookFilter(State.companion));
+      this.mascot.setFilter(lookFilter({ ...State.companion, costume: this.costumeNow() }));
       this.wearCostume();
-      const { hat, face } = this.look();
+      const { hat, face, pyjamas } = this.look();
       this.mascot.setOutfit(accessory(this.manifest, "outfits", hat), false);
       this.mascot.setFace(accessory(this.manifest, "faces", face));
+      this.mascot.setPyjamas(pyjamas);
+      this.syncMelt();
       return;
     }
     const look = { ...State.companion, customSkin: { ...State.companion.customSkin } };
@@ -314,6 +462,9 @@ export class Island {
     this.mascot.setFilter(lookFilter(look));
     this.mascot.setOutfit(accessory(this.manifest, "outfits", look.outfit), false);
     this.mascot.setFace(accessory(this.manifest, "faces", look.face));
+    // A look picked now wins over the pyjamas tonight: shown as it will be.
+    this.mascot.setPyjamas(false);
+    this.syncMelt();
   }
 
   /** A look is being tried on (see previewLook): put the kept one back when the wardrobe goes. */
@@ -321,7 +472,7 @@ export class Island {
   /** That look, for the desktop Candy too. */
   private tried: CompanionLook | null = null;
 
-  /** The day the look was put on: a new day may start or end a season. */
+  /** The day (and night) the look was put on: a new day may start or end a season, midnight and 6 am the pyjamas. */
   private lookDay = "";
 
   // ── DOM ─────────────────────────────────────────────────────────────────────
@@ -335,8 +486,9 @@ export class Island {
         Sound.setEnabled(State.settings.soundEnabled);
         Companion.save();
       },
-      // The app has a settings window; a browser gets a panel over the page.
-      openSettings: () => (IS_TAURI ? void Bridge.openSettingsWindow() : openSettingsPanel()),
+      // Settings and the Closet open in the island itself (openPanel).
+      openSettings: (section) => this.openPanel("settings", section ? { section } : { toggle: true }),
+      openCloset: () => this.openPanel("closet", { toggle: true }),
       openToken: (address, fallback) => {
         // The demo's coins are made up: no site has them.
         if (State.demo) return this.mascot.say(t("A made-up coin: nowhere to open it"), 2200);
@@ -369,9 +521,10 @@ export class Island {
         const ms = act.ms ?? 1000;
         if (act.react) this.mascot.react(act.react, ms);
         if (act.say !== undefined) this.mascot.say(act.say, ms);
-        if (act.emit) this.mascot.emit(act.emit, 1);
+        if (act.emit) this.mascot.emit(act.emit, act.count ?? 1);
         if (act.hop) this.mascot.hop(7);
         if (act.sound) Sound.play(act.sound);
+        if (act.forward !== undefined) this.stepForward(act.forward);
         if (act.look === null) this.mascot.lookAt(NEUTRAL_GAZE);
         else if (act.look && State.companion.lively) {
           // The eyes on the start of the line he is reading.
@@ -380,8 +533,14 @@ export class Island {
           this.mascot.lookAt(gazeAt(m.left + m.width / 2, m.top + m.height / 2, r.left + Math.min(r.width, 160) / 2, r.top + r.height / 2));
         }
       },
-      // A sticky card, or a field being typed in, stays open anyway.
-      holdOpen: (on) => this.fsm.hold(on || State.companion.stickyAlerts || this.inputFocused, this.wasInIsland),
+      // Held while anyone holds; a sticky card, or a field being typed in, stays open anyway.
+      holdOpen: (on, holder = "card") => {
+        if (on) this.holders.add(holder);
+        else this.holders.delete(holder);
+        // The hover chart and the PnL sign never pop at once: a chart opening drops the sign.
+        if (on && holder === "chart") this.dropSign();
+        this.fsm.hold(this.holders.size > 0 || State.companion.stickyAlerts || this.inputFocused, this.wasInIsland);
+      },
       applyLook: () => this.applySettings(),
       previewLook: (apply) => this.previewLook(apply),
       minimize: () => this.minimize(),
@@ -424,14 +583,27 @@ export class Island {
     };
     this.fxCanvas = h("canvas", { class: "arrival-fx" }) as HTMLCanvasElement;
     this.searchEl = h("div", { class: "search-bar" }, h("i"));
-    const clip = h("div", { id: "island-clip" }, this.fxCanvas, this.contentEl, this.compactEl, this.countdownEl, this.searchEl);
-    this.islandEl = h("div", { id: "island" }, clip, this.captionEl, this.wardrobeBtn, this.mascot.el);
+    this.buildPanel();
+    const clip = h("div", { id: "island-clip" }, this.fxCanvas, this.contentEl, this.compactEl, this.panelEl, this.countdownEl, this.searchEl);
+    // Candy's right-click menu: over everything, inside the island (its window takes no clicks outside it).
+    this.emoteMenu = h("div", { class: "emote-menu", role: "menu" });
+    this.emoteMenu.hidden = true;
+    this.emoteMenu.tabIndex = -1;
+    this.islandEl = h("div", { id: "island" }, clip, this.captionEl, this.wardrobeBtn, this.mascot.el, this.emoteMenu);
     this.root.append(this.wakeStrip, this.islandEl);
     this.labelChrome();
     this.applyGeometry();
   }
 
   private actions!: ViewActions;
+
+  /** Candy a step forward, closer and bigger, while he holds the day's board up (an event card's doing; see syncDom). */
+  private forward = false;
+  private stepForward(on: boolean) {
+    if (this.forward === on) return;
+    this.forward = on;
+    this.mascot.el.classList.toggle("forward", on);
+  }
 
   /** The few words on the island itself, outside the views. */
   private labelChrome() {
@@ -453,6 +625,12 @@ export class Island {
     this.header = header;
     this.views = views;
     this.labelChrome();
+    // An open panel is drawn again in the new words, where it was scrolled to.
+    if (this.panel) {
+      this.labelPanel(this.panel.kind);
+      const scroll = this.panelBody.querySelector<HTMLElement>(".panel-page")?.scrollTop ?? 0;
+      this.mountPage(this.panel.kind, undefined, scroll);
+    }
     this.lastRowsKey = "";
     this.dirty = true;
     // His caption is the mood's own line: worked out again, in the new words.
@@ -501,36 +679,9 @@ export class Island {
     };
   }
 
-  /** Today's recap card, drawn as Share my day draws it (the demo shows it too). */
+  /** Today's recap card, drawn as Share my day draws it (the demo shows it too); the end-of-day board counts the same numbers. */
   async recapImage(): Promise<Blob> {
-    const c = State.companion;
-    const day = summarize(currentLog(c.log));
-    const held = Companion.positions();
-    let topMover: { symbol: string; pct: number } | null = null;
-    for (const t of c.watchlist) {
-      const pct = State.quotes[t.key]?.change.h24;
-      if (pct != null && Number.isFinite(pct) && (!topMover || Math.abs(pct) > Math.abs(topMover.pct))) topMover = { symbol: t.symbol, pct };
-    }
-    const recap = buildRecap(
-      {
-        date: recapDate(new Date()),
-        hideMoney: c.recapHideMoney,
-        trades: { ...day, unit: c.discipline.unit },
-        hasRules: c.discipline.dailyLossLimit > 0 || c.discipline.maxTradesPerDay > 0,
-        stopped: Companion.stoppedToday,
-        positions: held.length || c.book.realizedToday
-          ? {
-              count: held.length,
-              openPnl: held.reduce((s, x) => s + x.s.pnlUsd, 0),
-              cost: held.reduce((s, x) => s + x.s.costUsd, 0),
-              realizedToday: c.book.day === todayKey() ? c.book.realizedToday : 0,
-            }
-          : null,
-        topMover,
-        fearGreed: c.headerMarket && State.fearGreed ? { value: State.fearGreed.value, label: State.fearGreed.label } : null,
-      },
-      FULL_NAME,
-    );
+    const recap = buildRecap(Companion.recapInput(), FULL_NAME);
     return drawRecapCard(recap, this.cardLook(), FULL_NAME);
   }
 
@@ -548,6 +699,11 @@ export class Island {
           if (!this.wasInIsland) this.fsm.mouseLeft();
           break;
         case "home":
+          // A panel opening: the island opens for it, its view left as it was (closePanel puts it back).
+          if (this.panel) {
+            this.setMode("expanded");
+            break;
+          }
           this.expand(State.events.length > 0 ? "event" : TAB_VIEWS.has(State.view) ? State.view : "watchlist");
           if (!this.wasInIsland) this.fsm.mouseLeft();
           break;
@@ -582,8 +738,8 @@ export class Island {
   /** The arrival's streaks and ring, behind Candy, sized to the greeting island. */
   private playArrivalFx() {
     const place = this.shapePlacement();
-    const { w, h } = islandSize("expanded", "greeting", 0, place);
-    const at = mascotPlacement("expanded", "greeting", h, place);
+    const { w, h } = islandSize("expanded", "greeting", 0, place, State.compact);
+    const at = mascotPlacement("expanded", "greeting", h, place, State.compact);
     this.fxCanvas.style.width = `${w}px`;
     this.fxCanvas.style.height = `${h}px`;
     playArrivalFx(this.fxCanvas, at.cx, at.cy);
@@ -615,11 +771,23 @@ export class Island {
         (document.activeElement as HTMLElement | null)?.blur();
       }
     }
+    // Back on screen: the time hidden is not time idle (nothing reports the mouse then).
+    if (prev === "hidden") {
+      this.movedAt = Date.now();
+      this.napRolled = false;
+    }
+    // Folded or gone: the menu closes and the sign goes down with it.
+    if (mode !== "expanded") {
+      this.closeEmoteMenu();
+      this.mascotHoverOut();
+      this.overMascot = false;
+    }
     this.mascot.setActive(mode !== "hidden");
     if (mode === "hidden") this.mascot.lookAt(NEUTRAL_GAZE);
     // Start or stop fidgeting; a bare mode change between visible ones keeps the clock.
     if (mode === "hidden" || prev === "hidden") this.scheduleFidget();
     this.updateWindowCollapsed();
+    this.updateClickGuard();
     this.animateGeometry(modeOrder(mode) < modeOrder(prev));
     this.updateSecondTimer();
     State.notify();
@@ -634,6 +802,8 @@ export class Island {
   }
 
   setView(view: IslandViewName) {
+    // A tab, the wardrobe, a shortcut to a view: the panel gives way to it.
+    if (this.panel) this.closePanel(false);
     State.minimized = false;
     if (TAB_VIEWS.has(view) && view !== "wardrobe") State.lastTab = view;
     if (State.mode !== "expanded") {
@@ -648,6 +818,8 @@ export class Island {
   }
 
   collapse() {
+    // Nothing folds the island under an open panel: closing the panel puts it back.
+    if (this.panel) return;
     this.fsm.pinned = false;
     this.fsm.forcePetit();
   }
@@ -659,13 +831,440 @@ export class Island {
     this.mascot.say(line, 2800);
   }
 
+  // ── Settings and the Closet, in the island ──────────────────────────────────
+
+  /** The panel's frame: a title row (Candy or the closet's icon, the name, the switch and ×) over the page. */
+  private buildPanel() {
+    const tab = (kind: PanelKind, icon: string) => {
+      const b = h("button", { class: "panel-tab", type: "button" }, svg(icon, 15, { stroke: 1.7 })) as HTMLButtonElement;
+      // The open one's button closes it again; the other one takes its place.
+      b.addEventListener("click", () => {
+        Sound.play("blip");
+        this.openPanel(kind, { toggle: true });
+      });
+      return b;
+    };
+    this.panelTabs = { settings: tab("settings", ICONS.gear), closet: tab("closet", ICONS.closet) };
+    this.panelCloseBtn = h("button", { class: "panel-close", type: "button" }, svg(ICONS.xmark, 14, { stroke: 2 })) as HTMLButtonElement;
+    this.panelCloseBtn.addEventListener("click", () => this.closePanel());
+    this.panelIcon = h("span", { class: "panel-icon" });
+    this.panelTitle = h("h1", { class: "panel-title" });
+    this.panelSub = h("span", { class: "panel-sub" });
+    this.panelBody = h("div", { class: "panel-body" });
+    this.panelEl = h(
+      "div",
+      { id: "panel", role: "dialog", tabindex: "-1" },
+      h(
+        "header",
+        { class: "panel-head" },
+        this.panelIcon,
+        h("div", { class: "panel-name" }, this.panelTitle, this.panelSub),
+        h("div", { class: "panel-actions" }, this.panelTabs.settings, this.panelTabs.closet, h("i", { class: "panel-sep" }), this.panelCloseBtn),
+      ),
+      this.panelBody,
+    );
+    this.panelEl.hidden = true;
+  }
+
+  /** The title row's words for a panel, in the trader's language. */
+  private labelPanel(kind: PanelKind) {
+    this.panelEl.dataset.kind = kind;
+    this.panelTitle.textContent = kind === "settings" ? t("Settings") : t("Closet");
+    // Which Candy this is, beside Settings: what a friend asks when helping.
+    this.panelSub.textContent = kind === "settings" ? `Candy ${State.version}` : "";
+    this.panelIcon.replaceChildren(svg(kind === "settings" ? ICONS.gear : ICONS.closet, 20, { stroke: 1.6 }));
+    this.panelTabs.settings.title = t("Settings");
+    this.panelTabs.closet.title = t("Closet");
+    this.panelCloseBtn.title = t("Close (Esc)");
+    this.panelCloseBtn.setAttribute("aria-label", t("Close (Esc)"));
+    this.panelEl.setAttribute("aria-label", this.panelTitle.textContent);
+    for (const k of ["settings", "closet"] as const) {
+      this.panelTabs[k].classList.toggle("on", k === kind);
+      this.panelTabs[k].setAttribute("aria-pressed", String(k === kind));
+    }
+    this.syncPanel();
+  }
+
+  /** What the title row shows that follows the state: the icon stands in for Candy while he is out on the desktop. */
+  private syncPanel() {
+    const kind = this.panel?.kind ?? this.panelEl.dataset.kind;
+    this.panelIcon.classList.toggle("on", kind === "closet" || State.mascotAway);
+  }
+
+  /** How the island is now, its pins included (poseOf keeps only the ones that last). */
+  private islandNow(): IslandNow {
+    return {
+      fsm: this.fsm.state,
+      view: State.view,
+      minimized: State.minimized,
+      pinned: this.fsm.pinned,
+      menuOpen: this.menuOpen,
+      menuPinned: this.menuPinned,
+      inputFocused: this.inputFocused,
+    };
+  }
+
+  /** What a page in the panel can ask of the island (core/panel.ts PanelHost). */
+  private panelHost(): PanelHost {
+    return {
+      save: (s) => (Companion.persist ? void Bridge.saveSettings(s) : Bridge.previewSettings(s)),
+      showOff: (what) => this.showOff(what),
+      previewTransparency: (v, settle) => this.previewTransparency(v, settle),
+      open: (kind, section) => this.openPanel(kind, { section }),
+      shortcuts: this.shortcutLink,
+      manifest: this.manifest!,
+    };
+  }
+
+  /** The global shortcuts as src/main.ts holds them, for Settings. */
+  useShortcuts(link: ShortcutLink) {
+    this.shortcutLink = link;
+  }
+
+  /**
+   * Opens Settings or the Closet inside the island: the island grows out of
+   * where it is into a panel that holds the page (core/panel.ts), keeps the
+   * mouse and the keyboard while it is open, and goes back to exactly how it
+   * was when it closes. `toggle` (the gear, the tray, the shortcut): the open
+   * one closes instead; `section`: Settings opens (or scrolls) there.
+   */
+  openPanel(kind: PanelKind, opts: PanelOpts = {}) {
+    if (!this.manifest) {
+      this.pendingPanel = { kind, opts };
+      return;
+    }
+    const first = !this.panel;
+    if (first) {
+      // Out of the way first, before the island's pose is taken: the demo,
+      // Candy's menu and a field being typed in (their pins are theirs), a
+      // look being tried on.
+      if (this.tour.running) this.stopDemo();
+      this.closeEmoteMenu();
+      if (this.inputFocused) (this.root.ownerDocument.activeElement as HTMLElement | null)?.blur();
+      this.mascotHoverOut();
+    }
+    const out = panelStep(this.session, { type: "request", kind, now: this.islandNow(), ...opts });
+    const step = out.step;
+    if (!step || step.kind === "close") return this.closePanel();
+    if (step.kind === "reveal") {
+      this.page?.reveal?.(step.section);
+      this.panelEl.focus({ preventScroll: true });
+      return;
+    }
+    Sound.resume();
+    if (this.panelTimer != null) window.clearTimeout(this.panelTimer);
+    this.panelTimer = null;
+    this.closingPage?.dispose();
+    this.closingPage = null;
+    this.session = out.session;
+    if (step.swap) return this.swapPanel(step.panel);
+    // Where the island is now: it grows out of there.
+    const from = this.ownRect();
+    if (!IS_TAURI && !this.panelWin) this.browserHome = this.rootOrigin();
+    this.fsm.frozen = out.frozen;
+    this.fsm.cancelTimers();
+    State.minimized = false;
+    State.lastActivity = performance.now();
+    if (this.fsm.state !== "home") this.fsm.forceHome();
+    else Sound.play("open");
+    this.labelPanel(kind);
+    this.panelEl.hidden = false;
+    this.mountPage(kind, step.panel.section);
+    this.applyLook();
+    this.pushTickerSeat();
+    void this.layoutPanel({ from }).then((ok) => {
+      if (!ok) return;
+      // The page fades in as the island reaches its size (see #panel.on).
+      this.panelEl.classList.add("on");
+      this.panelEl.focus({ preventScroll: true });
+    });
+    State.notify();
+  }
+
+  /**
+   * The other panel in this one's place: the page fades, the window takes
+   * room for both while the island changes from one panel's size to the
+   * other's, the new page fades in, and the window is trimmed to it.
+   */
+  private swapPanel(next: OpenPanel) {
+    const old = this.panelWin;
+    const seq = ++this.panelSeq;
+    this.panelEl.classList.remove("on");
+    this.pageSwapped = false;
+    Sound.play("blip");
+    // The page goes once it has faded (where it was); the new one comes in at the new size.
+    this.panelTimer = window.setTimeout(() => {
+      this.panelTimer = null;
+      if (seq !== this.panelSeq || this.panel !== next) return;
+      this.labelPanel(next.kind);
+      this.mountPage(next.kind, next.section);
+      this.pageSwapped = true;
+      this.fitPage();
+    }, 110);
+    if (!old) {
+      void this.layoutPanel({ jump: true }).then((ok) => ok && this.panelShown(next));
+      return;
+    }
+    void this.morphPanel(old, next, seq);
+  }
+
+  private async morphPanel(old: PanelWin, next: OpenPanel, seq: number) {
+    const place = this.placement();
+    const want = PANEL_SIZE[next.kind];
+    const room = { w: Math.max(old.panel.w, want.w), h: Math.max(old.panel.h, want.h) };
+    const final = await this.panelWindow(want, false);
+    if (!final || seq !== this.panelSeq || this.panel !== next) return;
+    const unmask = this.maskSwitch();
+    const both = await this.panelWindow(room, true);
+    if (!both || seq !== this.panelSeq || this.panel !== next) return unmask();
+    // Each panel where it is (or will be) on screen, in the window that holds both.
+    const into = (r: Rect, from: Placed): Rect => ({ ...r, x: r.x + both.dx - from.dx, y: r.y + both.dy - from.dy });
+    const target = clampInto(into(panelInWindow(place, final.w, final.h), final), both);
+    this.growFrom = clampInto(into(old.panel, old), both);
+    this.panelWin = { ...both, panel: target };
+    this.fitPage();
+    this.placeRoot();
+    this.applyGeometry();
+    unmask();
+    this.animateGeometry(false);
+    // The new page fades in as the island nears its new size; once it has it,
+    // the window is trimmed to it (the island doesn't move on screen).
+    const pause = (ms: number) => new Promise((done) => window.setTimeout(done, ms));
+    await pause(SWAP_MS / 2);
+    if (seq !== this.panelSeq || this.panel !== next) return;
+    if (this.pageSwapped) this.panelShown(next);
+    await pause(SWAP_MS / 2);
+    if (seq !== this.panelSeq || this.panel !== next) return;
+    if (await this.layoutPanel({ jump: true })) this.panelShown(next);
+  }
+
+  /** A swap's new page is in (pageSwapped): sized and placed for the new panel; until then the old one fades where it was. */
+  private pageSwapped = true;
+  /** Where the page sits in the panel's window, when not on the panel (the old page fading during a swap). */
+  private pageAt: Rect | null = null;
+
+  private fitPage() {
+    const pw = this.panelWin;
+    if (!pw) return;
+    this.pageAt = this.pageSwapped ? null : this.growFrom;
+    const at = this.pageAt ?? pw.panel;
+    Object.assign(this.panelEl.style, { width: `${at.w}px`, height: `${at.h}px` });
+    this.applyGeometry();
+  }
+
+  /** The page in, once the island holds it. */
+  private panelShown(open: OpenPanel) {
+    if (this.panel !== open) return;
+    this.panelEl.classList.add("on");
+    this.panelEl.focus({ preventScroll: true });
+  }
+
+  /**
+   * The panel's window, logical px: its size and where the island's own
+   * window sits from it. `apply`: the window goes there (Rust grows the
+   * island's window and gives it the keyboard; a browser moves the stage that
+   * stands in for it); otherwise only asked.
+   */
+  private async panelWindow(want: Size, apply: boolean): Promise<Placed | null> {
+    if (IS_TAURI) return apply ? Bridge.setPanel(true, want.w, want.h) : Bridge.panelPlace(want.w, want.h);
+    const { win } = panelFrame(this.browserWork(), this.placement(), want, { x: State.settings.floatX, y: State.settings.floatY });
+    const home = this.browserHome ?? this.rootOrigin();
+    if (apply) this.browserWin = win;
+    return { w: win.w, h: win.h, dx: home.x - win.x, dy: home.y - win.y };
+  }
+
+  /**
+   * Places the panel's window for the panel open. `from`: the island's rect
+   * in its own window, which it grows out of; `jump`: the island takes the
+   * panel's size at once (another display or edge, a swap's last step).
+   * False when a newer step took over.
+   */
+  private async layoutPanel(opts: { from?: Rect; jump?: boolean } = {}): Promise<boolean> {
+    const open = this.panel;
+    if (!open) return false;
+    const seq = ++this.panelSeq;
+    const unmask = this.maskSwitch();
+    const placed = await this.panelWindow(PANEL_SIZE[open.kind], true);
+    if (seq !== this.panelSeq || this.panel !== open || !placed) {
+      unmask();
+      return false;
+    }
+    const panel = panelInWindow(this.placement(), placed.w, placed.h);
+    this.panelWin = { ...placed, panel };
+    this.panelLowered = false;
+    this.growFrom = opts.from ? clampInto({ ...opts.from, x: opts.from.x + placed.dx, y: opts.from.y + placed.dy }, placed) : null;
+    this.pageSwapped = true;
+    this.pageAt = null;
+    Object.assign(this.panelEl.style, { width: `${panel.w}px`, height: `${panel.h}px` });
+    this.placeRoot();
+    if (opts.jump) {
+      this.width.jump(panel.w);
+      this.height.jump(panel.h);
+      this.radius.jump(PANEL_CORNER);
+    }
+    this.applyGeometry();
+    unmask();
+    this.animateGeometry(false);
+    return true;
+  }
+
+  /** The display changed (or its scale) under an open panel: placed again for it. */
+  relayoutPanel() {
+    if (this.panel) void this.layoutPanel({ jump: true });
+  }
+
+  /** The tray's item for the panel open while it is behind another app: in front again, as it was. */
+  raisePanel() {
+    if (this.panel) void this.layoutPanel();
+  }
+
+  /** Rust: the panel stepped behind the app the trader went to, or came back on top. */
+  setPanelLowered(on: boolean) {
+    this.panelLowered = on && !!this.panel;
+  }
+
+  /**
+   * The window is about to change under the island where the island can't be
+   * anchored to a point of it that stays put (a floating island, the notch's
+   * band): it is hidden for that moment rather than seen out of place.
+   * Returns how to show it again, once it has been drawn where it belongs.
+   */
+  private maskSwitch(): () => void {
+    const place = this.placement();
+    if (!IS_TAURI || isSide(place) || (place === "top" && !State.notch)) return () => {};
+    this.islandEl.classList.add("switching");
+    return () => requestAnimationFrame(() => requestAnimationFrame(() => this.islandEl.classList.remove("switching")));
+  }
+
+  /** The island's rect in its own window now (the notch's band left out). */
+  private ownRect(): Rect {
+    const r = this.islandRect();
+    return { x: r.x, y: r.y, w: this.width.value, h: this.height.value };
+  }
+
+  /** Where the island goes back to as the panel closes, w × h, in the panel's window. */
+  private homeRect(w: number, h: number): Rect {
+    const pw = this.panelWin!;
+    const o = islandOrigin(this.placement(), w, h, floatsUp(State.settings.floatY));
+    return clampInto({ x: o.x + pw.dx, y: o.y + pw.dy, w, h }, pw);
+  }
+
+  /** In a browser, the stage's top-left corner on the "screen" (see browserWork), logical px. */
+  private rootOrigin(): { x: number; y: number } {
+    const r = this.root.getBoundingClientRect();
+    const scale = r.width / (this.root.offsetWidth || r.width) || 1;
+    const parent = this.root.parentElement;
+    const fixed = !parent || getComputedStyle(this.root).position === "fixed";
+    const base = fixed ? { left: 0, top: 0 } : parent.getBoundingClientRect();
+    return { x: (r.left - base.left) / scale, y: (r.top - base.top) / scale };
+  }
+
+  /** In a browser, the stage that stands in for the panel's window (see placeRoot). */
+  private browserWin: Rect | null = null;
+
+  /** In a browser, the "screen": the page (index.html), or the demo's desktop the stage sits on. */
+  private browserWork(): Rect {
+    const parent = this.root.parentElement;
+    if (!parent || getComputedStyle(this.root).position === "fixed") return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    return { x: 0, y: 0, w: parent.clientWidth, h: parent.clientHeight };
+  }
+
+  /** Mounts the page for a panel (loaded on first use: the island starts without it), the one before taken down. */
+  private mountPage(kind: PanelKind, section?: SettingsSection, scroll = 0) {
+    this.page?.dispose();
+    this.page = null;
+    const seq = ++this.pageSeq;
+    const load = kind === "settings" ? import("../settings/main").then((m) => m.mountSettings) : import("../closet/main").then((m) => m.mountCloset);
+    void load.then((mount) => {
+      if (seq !== this.pageSeq || this.panel?.kind !== kind) return;
+      this.page = mount(this.panelBody, this.panelHost(), section);
+      if (scroll) this.panelBody.querySelector<HTMLElement>(".panel-page")?.scrollTo({ top: scroll });
+    });
+  }
+  private pageSeq = 0;
+
+  /**
+   * Closes the panel. `restore` (×, Esc, its button, the tray item): the
+   * island shrinks back into the spot it came from and goes back to exactly
+   * the view, size and placement it had, and hides again if it was hidden.
+   * Without (a tab or the wardrobe asked for): the island stays open for
+   * what comes next. The mouse and the keyboard are the trader's again at
+   * once; the window follows once the island has shrunk.
+   */
+  closePanel(restore = true) {
+    const out = panelStep(this.session, { type: "close", restore });
+    if (!out.step) return;
+    this.session = out.session;
+    this.fsm.frozen = out.frozen;
+    ++this.panelSeq;
+    this.panelLowered = false;
+    if (IS_TAURI) void Bridge.panelClosing();
+    // The page goes as it fades; nothing of it keeps running.
+    this.closingPage?.dispose();
+    this.closingPage = this.page;
+    this.page = null;
+    ++this.pageSeq;
+    this.panelEl.classList.remove("on");
+    this.stopShowOff();
+    this.previewTransparency(null);
+    this.pushTickerSeat();
+    // The keyboard leaves the panel (Rust gives it back to the app that had it).
+    let focused = this.root.ownerDocument.activeElement as HTMLElement | null;
+    while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement as HTMLElement;
+    if (focused && this.panelEl.contains(focused.getRootNode() instanceof ShadowRoot ? (focused.getRootNode() as ShadowRoot).host : focused)) focused.blur();
+    if (this.panelTimer != null) window.clearTimeout(this.panelTimer);
+    // The island shrinks back inside the panel's window, then the window follows.
+    this.panelTimer = window.setTimeout(() => {
+      this.panelTimer = null;
+      this.closingPage?.dispose();
+      this.closingPage = null;
+      if (this.panel) return;
+      this.panelEl.hidden = true;
+      const unmask = this.maskSwitch();
+      void (IS_TAURI ? Bridge.setPanel(false) : Promise.resolve(null)).then(() => {
+        if (this.panel) return unmask();
+        this.panelWin = null;
+        this.growFrom = null;
+        this.browserWin = null;
+        this.browserHome = null;
+        this.placeRoot();
+        this.applyGeometry();
+        unmask();
+      });
+    }, CLOSE_MS + 40);
+    const pose = out.restore;
+    if (pose) {
+      State.view = pose.view;
+      State.minimized = pose.minimized;
+      this.fsm.pinned = pose.pinned;
+      if (pose.fsm === "hidden") this.fsm.forceHidden();
+      else if (pose.fsm === "petit") this.fsm.forcePetit();
+      else {
+        this.animateGeometry(true);
+        if (!this.wasInIsland && !pose.pinned) this.fsm.mouseLeft();
+      }
+    } else this.animateGeometry(true);
+    // An alert that came meanwhile: its card now.
+    if (out.showAlert) {
+      const next = State.events[0];
+      if (next && !State.minimized) this.presentEvent(next);
+    }
+    State.notify();
+  }
+
+  /** Settings or the Closet is open in the island. */
+  get panelOpen(): PanelKind | null {
+    return this.panel?.kind ?? null;
+  }
+
   // ── Flourishes: now and then, never every time (src/mascot/flourish.ts) ──────
 
   private flourished = new Map<Flourish, number>();
 
   /** Plays a flourish if its moment's dice say so and it hasn't played lately. Only on screen, and only with Lively on. */
   private tryFlourish(kind: Flourish, size?: number): boolean {
-    if (State.mode === "hidden" || State.minimized || !State.companion.lively || State.mascotAway) return false;
+    // Asleep in his bed, he sleeps on (a nap ends first, see wake).
+    if (State.mode === "hidden" || State.minimized || !State.companion.lively || State.mascotAway || this.mascot.napping) return false;
     if (!shouldFlourish(kind, this.flourished, Date.now(), Math.random())) return false;
     const m = this.mascot;
     switch (kind) {
@@ -699,6 +1298,7 @@ export class Island {
         m.shrinkTremble();
         break;
       case "yawn":
+      case "nightYawn":
         m.yawn();
         break;
       case "boing":
@@ -776,6 +1376,20 @@ export class Island {
     // Minimized: it waits in the queue, and shows when Candy comes back (and
     // as a Windows notification, when those are on).
     if (State.minimized) return;
+    // Settings or the Closet open: Candy in its title row reacts, and the card
+    // waits for the panel to close.
+    const held = panelStep(this.session, { type: "alert" });
+    if (held.held) {
+      this.session = held.session;
+      Sound.play(r.sound);
+      this.mascot.react(r.mascot, 3500);
+      State.notify();
+      return;
+    }
+    // Napping in his bed: up with a start, then the card (the trader's own
+    // return, the "while you were away" card, wakes him gently).
+    this.wake(wakeFor(e.kind));
+    this.stopShowOff();
     this.flourishFor(e);
     // A card already up just counts one more in its queue.
     if (State.mode === "expanded" && State.view === "event") {
@@ -826,13 +1440,28 @@ export class Island {
    * show/hide shortcut, or Open in the tray, does (see toggle, setView).
    */
   minimize() {
+    if (this.panel) this.closePanel(false);
     State.minimized = true;
     this.fsm.pinned = false;
     this.fsm.forceHidden();
   }
 
+  /**
+   * The cursor rested on the hidden island's edge (src-tauri/src/island.rs,
+   * spawn_edge_watch), or entered the wake strip: it comes back, unless it
+   * was minimized.
+   */
+  edgeWake() {
+    Sound.resume();
+    if (State.mode === "hidden" && !State.minimized) this.fsm.mouseEntered();
+  }
+
   /** A press outside the island: fold it back into the ticker. */
   clickOutside() {
+    // An open menu only closes: the island stays as it was.
+    if (this.menuOpen) return this.closeEmoteMenu();
+    // A panel stays open like a window would: ×, Esc or its button close it.
+    if (this.panel) return;
     if (State.mode !== "expanded") return;
     // An open dropdown draws its list outside the island; picking from it is
     // not a click elsewhere.
@@ -843,6 +1472,8 @@ export class Island {
   /** The show/hide shortcut: opens the island, or folds it back. */
   toggle() {
     Sound.resume();
+    // The show/hide shortcut over an open panel: it closes, the island as it was.
+    if (this.panel) return this.closePanel();
     State.minimized = false;
     if (State.mode === "expanded") this.collapse();
     else {
@@ -855,6 +1486,7 @@ export class Island {
   toggleDemo() {
     if (this.tour.running) this.stopDemo();
     else {
+      if (this.panel) this.closePanel(false);
       Sound.resume();
       if (State.paused) Companion.setPaused(false);
       this.tour.start();
@@ -961,13 +1593,38 @@ export class Island {
     void this.desktop.controller.flyOutOrHome();
   }
 
+  /**
+   * A transparency Settings is still choosing (its thumb is held): the
+   * background fades to it now, the setting follows. `settle`: let go and
+   * saved, it stays a moment before the panel is as solid as a panel is.
+   * Null: as the setting says, at once.
+   */
+  previewTransparency(transparency: number | null, settle = false) {
+    if (this.alphaTimer != null) window.clearTimeout(this.alphaTimer);
+    this.alphaTimer = null;
+    this.alphaPreview = transparency;
+    if (transparency != null && settle && this.panel)
+      this.alphaTimer = window.setTimeout(() => {
+        this.alphaTimer = null;
+        this.alphaPreview = null;
+        this.applyLook();
+      }, ALPHA_SETTLE_MS);
+    this.applyLook();
+  }
+
+  /** The theme on the page, and how see-through it is (a panel's background only a little: see shownTransparency). */
+  private applyLook() {
+    const c = State.companion;
+    applyTheme(document.body, c.theme, shownTransparency(c.islandTransparency, !!this.panel, this.alphaPreview));
+  }
+
   /** Applies settings at boot and whenever the settings window saves. */
   applySettings() {
     Sound.setEnabled(State.settings.soundEnabled);
     Sound.setVolume(State.settings.soundVolume);
     document.body.dataset.theme = State.companion.theme;
-    applyTheme(document.body, State.companion.theme);
-    this.mascot.setFilter(lookFilter(State.companion));
+    this.applyLook();
+    this.mascot.setFilter(lookFilter({ ...State.companion, costume: this.costumeNow() }));
     this.wearCostume();
     this.wearChosen();
     if (!State.companion.lively) this.mascot.lookAt(NEUTRAL_GAZE);
@@ -978,8 +1635,19 @@ export class Island {
     const stays = State.companion.keepTickerVisible || this.placement() === "float";
     this.fsm.petitToHiddenDelay = stays ? Infinity : 60;
     if (stays && this.fsm.state === "hidden") this.reveal();
+    // The compact island: the trader's choice, or the display's height (see layout.ts).
+    State.compact = compactFor(State.companion.compactIsland, State.screenHeight);
+    document.body.classList.toggle("compact", State.compact);
     this.applyPlacement();
+    this.updateClickGuard();
     State.notify();
+  }
+
+  /** The island's display, or its scale, changed: its height (logical px) may turn the compact island on or off. */
+  setScreenHeight(height: number) {
+    if (!(height > 0) || height === State.screenHeight) return;
+    State.screenHeight = height;
+    if (compactFor(State.companion.compactIsland, height) !== State.compact) this.applySettings();
   }
 
   // ── Placement ───────────────────────────────────────────────────────────────
@@ -993,19 +1661,41 @@ export class Island {
   }
 
   private placed: Placement | null = null;
+  /** The island was last laid out compact (see State.compact). */
+  private dense: boolean | null = null;
 
   /** Lays the island out for its placement (sizes, the side tab, the wake strip). */
   private applyPlacement() {
     const place = this.placement();
+    // Moved to another edge while a panel is open: the panel goes with it.
+    if (this.panel && place !== this.placed) void this.layoutPanel({ jump: true });
     document.body.dataset.placement = place;
     // On a side edge: the upright tab, and the sidebar when open (see style.css).
     document.body.classList.toggle("sidebar", isSide(place));
     this.compactEl.classList.toggle("vertical", isSide(place));
     this.placeRoot();
-    if (place !== this.placed) {
+    if (place !== this.placed || State.compact !== this.dense) {
       this.placed = place;
+      this.dense = State.compact;
+      // The lists size themselves to the density (watchlist.ts, trending.ts).
+      this.lastRowsKey = "";
       this.animateGeometry();
     }
+    this.pushTickerSeat();
+  }
+
+  /**
+   * Tells Rust where the ticker's mascot sits (the compact one is smaller and
+   * sits higher, the side tab's is turned upright): Candy's flights to and
+   * from the desktop start and end on it (desktop.rs island_spot).
+   */
+  private pushTickerSeat() {
+    // Under a panel he sits in its title row: a flight to the desktop starts (or lands) there.
+    const seat = this.panel ? panelMascot(this.placement()) : tickerSeat(this.placement(), State.compact);
+    const p = this.pushedSeat;
+    if (p && Math.abs(p.cx - seat.cx) < 0.5 && Math.abs(p.cy - seat.cy) < 0.5) return;
+    this.pushedSeat = seat;
+    void Bridge.setTickerSeat(seat.cx, seat.cy);
   }
 
   /**
@@ -1016,6 +1706,14 @@ export class Island {
   private placeRoot() {
     if (IS_TAURI) return;
     const st = this.root.style;
+    // A panel: the stage takes the panel's window, as the app's window does.
+    document.body.classList.toggle("panel-open", !!this.panelWin);
+    if (this.panelWin && this.browserWin) {
+      const r = this.browserWin;
+      Object.assign(st, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px`, transform: "none" });
+      return;
+    }
+    st.width = st.height = st.transform = "";
     if (this.placement() !== "float") {
       st.left = st.top = "";
       return;
@@ -1146,9 +1844,22 @@ export class Island {
       // The checklist's six lines and what Candy makes of them; the away card's lines and its row of moves.
       if (e?.kind === "checklist") return 7;
       if (e?.kind === "weekRecap") return 3;
+      // The end-of-day board: as many rows as its tiles take, then its buttons.
+      if (e?.kind === "dayEnd") return dayEndRows(this.boardTiles(e.id), isSide(this.shapePlacement()));
       return e?.kind === "away" ? e.lines.length + (e.moves?.length ? 1 : 0) : 0;
     }
     return 0;
+  }
+
+  /** How many tiles the day's board holds (see dayEndStats), once per card: the count doesn't change while it is up. */
+  private boardTilesFor: { id: string; tiles: number } | null = null;
+  private boardTiles(id: string): number {
+    if (this.boardTilesFor?.id !== id) {
+      const input = Companion.recapInput();
+      const entries = currentLog(State.companion.log).entries;
+      this.boardTilesFor = { id, tiles: dayEndStats({ trades: input.trades, positions: input.positions, entries, sessionMs: 0 }).length };
+    }
+    return this.boardTilesFor.tiles;
   }
 
   /**
@@ -1162,8 +1873,12 @@ export class Island {
   }
 
   private animateGeometry(shrinking?: boolean) {
-    const { w, h } = islandSize(State.mode, State.view, this.rowsFor(State.view), this.shapePlacement());
-    const r = State.mode === "expanded" ? EXPANDED_CORNER : COMPACT_CORNER;
+    // An open panel: the island is the panel (once its window has been placed).
+    const panel = this.panel && this.panelWin?.panel;
+    const { w, h } = panel || islandSize(State.mode, State.view, this.rowsFor(State.view), this.shapePlacement(), State.compact, wideFace(State.companion.theme));
+    const r = panel ? PANEL_CORNER : State.mode === "expanded" ? EXPANDED_CORNER : COMPACT_CORNER;
+    // Closing: the island shrinks back into the spot it will have in its own window.
+    if (this.panelWin && !this.panel) this.growFrom = this.homeRect(w, h);
     const shrink = shrinking ?? h < this.height.value - 0.5;
     if (shrink) {
       this.width.curveTowards(w, CLOSE_MS);
@@ -1187,8 +1902,19 @@ export class Island {
     // The band over a notch is the island's top border: what it holds sits under it.
     this.islandEl.style.height = `${hh + band}px`;
     this.islandEl.style.borderTopWidth = `${band}px`;
-    this.islandEl.style.left = `${rect.x}px`;
-    this.islandEl.style.top = `${rect.y}px`;
+    // The background layer (#island::before) reaches up over the band.
+    this.islandEl.style.setProperty("--band", `${band}px`);
+    // From the point of the window that stays put on screen as it changes
+    // between the island's own and a panel's (anchoredAt); the wake strip's
+    // window is the island's own corner.
+    const at = this.collapsed && !this.panelWin ? { left: `${rect.x}px`, top: `${rect.y}px` } : anchoredAt(this.placement(), rect, this.windowNow());
+    this.islandEl.style.left = at.left;
+    this.islandEl.style.top = at.top;
+    // The panel's page keeps its own size while the island grows round it (no
+    // reflow of the page on every frame): it sits where the panel will be.
+    const pw = this.panelWin;
+    const page = this.pageAt ?? pw?.panel;
+    if (page) this.panelEl.style.transform = `translate(${page.x - rect.x}px, ${page.y - rect.y}px)`;
     this.islandEl.style.borderRadius = islandCorners(this.placement(), r);
     // Shrunk away while minimized: its glow ring would still draw a line
     // where a floating island was.
@@ -1211,7 +1937,17 @@ export class Island {
   private islandRect() {
     const w = this.width.value;
     const h = this.height.value;
-    return { ...islandOrigin(this.placement(), w, h, floatsUp(State.settings.floatY)), w, h: h + this.band() };
+    const up = floatsUp(State.settings.floatY);
+    // In the panel's window: out of the spot it was in, into the panel (and back).
+    if (this.panelWin) return { ...growRect(this.growFrom ?? this.panelWin.panel, this.panelWin.panel, w, h), w, h };
+    return { ...islandOrigin(this.placement(), w, h, up), w, h: h + this.band() };
+  }
+
+  /** The window the page is laid out in now: a panel's, else the island's own (with the notch's band). */
+  private windowNow(): Size {
+    if (this.panelWin) return this.panelWin;
+    const own = windowSize(this.placement());
+    return { w: own.w, h: own.h + this.band() };
   }
 
   /**
@@ -1220,6 +1956,8 @@ export class Island {
    * the island as anywhere else. 0 elsewhere.
    */
   private band(): number {
+    // A panel opens under the menu bar and the notch (its window starts at the work area's top).
+    if (this.panelWin) return 0;
     return this.placement() === "top" ? State.notch : 0;
   }
 
@@ -1228,6 +1966,33 @@ export class Island {
     if (Math.abs(notch - State.notch) < 0.5) return;
     State.notch = notch;
     this.applyGeometry();
+  }
+
+  /**
+   * The ticker on a screen edge covers what is there (a browser's tabs at the
+   * top): it lets clicks through until the cursor rests on it (island.rs,
+   * TICKER_DWELL). Not a floating ticker, which is dragged by a press.
+   */
+  private updateClickGuard() {
+    const on = State.mode === "compact" && this.placement() !== "float";
+    if (on === this.guardOn) return;
+    this.guardOn = on;
+    void Bridge.setClickGuard(on);
+  }
+
+  /**
+   * Rust says whether the mouse goes through the island: it fades so what is
+   * behind shows, and the cursor over it doesn't count as on the island (the
+   * ticker doesn't open on hover while the trader is reaching for a tab).
+   */
+  setPassing(on: boolean) {
+    // Never under a panel (Rust doesn't ask then; a last word from before it opened is ignored).
+    if (this.panel) on = false;
+    if (on === this.passing) return;
+    this.passing = on;
+    document.body.classList.toggle("passing", on);
+    // The cursor may be resting still: no move event will come to say so.
+    this.onCursor(State.mouse.x, State.mouse.y);
   }
 
   /** Hidden → let the island retract, then drop the window to the wake strip. */
@@ -1241,7 +2006,7 @@ export class Island {
         this.collapseTimer = null;
         if (State.mode !== "hidden") return;
         this.collapsed = true;
-        void Bridge.setCollapsed(true);
+        void Bridge.setCollapsed(true, State.minimized);
       }, CLOSE_MS + 80);
     } else if (this.collapsed) {
       this.collapsed = false;
@@ -1252,10 +2017,9 @@ export class Island {
   // ── Input ───────────────────────────────────────────────────────────────────
 
   private wireInput() {
-    this.wakeStrip.addEventListener("mouseenter", () => {
-      Sound.resume();
-      if (State.mode === "hidden" && !State.minimized) this.fsm.mouseEntered();
-    });
+    // Linux (and the browser): the strip takes the mouse. Windows and macOS let
+    // clicks through it and wake the island from Rust instead (edgeWake).
+    this.wakeStrip.addEventListener("mouseenter", () => this.edgeWake());
 
     this.islandEl.addEventListener("mousedown", (e) => {
       Sound.resume();
@@ -1278,9 +2042,12 @@ export class Island {
       const p = this.pagePoint(e);
       if (e.button === 0 && this.isMascotHit(p.x, p.y)) {
         this.pressMascot();
-        this.mascotPress = { x: e.clientX, y: e.clientY };
+        // In a panel's title row he can be poked, not carried off to the desktop.
+        if (!this.panel) this.mascotPress = { x: e.clientX, y: e.clientY };
         return;
       }
+      // A panel is not dragged around: its window stays where it opened.
+      if (this.panel) return;
       // Open, a floating island moves by any bare spot of it too (the
       // header's empty space, the edges, behind a card's words); buttons,
       // rows and fields keep their clicks.
@@ -1314,13 +2081,31 @@ export class Island {
       this.desktop.pickUp(e.clientX, e.clientY);
     });
 
-    // Right-click on Candy: the wardrobe (Coucou's Mochi does the same), and closes it again.
+    // Right-click on Candy: his menu (dance, wave, laugh, spin, the wardrobe), and closes it again.
     this.islandEl.addEventListener("contextmenu", (e) => {
+      if (this.emoteMenu.contains(e.target as Node)) return e.preventDefault();
       const p = this.pagePoint(e);
       if (!this.isMascotHit(p.x, p.y)) return;
       e.preventDefault();
-      this.toggleWardrobe();
+      this.toggleEmoteMenu();
     });
+    // The menu's own presses stay in it: no poke, no drag, no fold.
+    this.emoteMenu.addEventListener("mousedown", (e) => e.stopPropagation());
+    // A press anywhere else closes it (a right-click on Candy toggles it, above).
+    // One outside the island only closes the menu: the island stays as it was.
+    document.addEventListener(
+      "mousedown",
+      (e) => {
+        if (!this.menuOpen || this.emoteMenu.contains(e.target as Node)) return;
+        const p = this.pagePoint(e);
+        if (e.button === 2 && this.isMascotHit(p.x, p.y)) return;
+        this.closeEmoteMenu();
+        if (!this.islandEl.contains(e.target as Node)) e.stopPropagation();
+      },
+      true,
+    );
+    // Its keys, before the island's own (Esc would fold the island).
+    window.addEventListener("keydown", (e) => this.menuKey(e), true);
 
     // The release can land anywhere, so listen on the whole window.
     window.addEventListener("mouseup", (e) => {
@@ -1337,6 +2122,24 @@ export class Island {
     // holds it (a field takes its own Esc).
     window.addEventListener("keydown", (e) => {
       State.lastActivity = performance.now();
+      // A panel open: Esc closes it (a key a field or a recording took is left alone); Ctrl+, too, over Settings.
+      if (this.panel) {
+        if (e.key === "Escape" && !e.defaultPrevented) {
+          e.preventDefault();
+          // In a field of the page: the first Esc only leaves the field (what was typed stays), the next closes.
+          const field = e.composedPath()[0];
+          if (field instanceof HTMLElement && field.matches(TEXT_FIELD) && this.panelEl.contains(field.getRootNode() instanceof ShadowRoot ? (field.getRootNode() as ShadowRoot).host : field)) {
+            field.blur();
+            this.panelEl.focus({ preventScroll: true });
+            return;
+          }
+          this.closePanel();
+        } else if (e.ctrlKey && !e.altKey && !e.metaKey && e.code === "Comma") {
+          e.preventDefault();
+          this.openPanel("settings", { toggle: true });
+        }
+        return;
+      }
       if (State.mode !== "expanded") return;
       if (e.key === "Escape") return this.collapse();
       if (!e.ctrlKey || e.altKey || e.metaKey) return;
@@ -1350,7 +2153,7 @@ export class Island {
         }
       } else if (e.code === "Comma") {
         e.preventDefault();
-        void (IS_TAURI ? Bridge.openSettingsWindow() : openSettingsPanel());
+        this.openPanel("settings", { toggle: true });
       }
     });
 
@@ -1556,16 +2359,20 @@ export class Island {
   private pagePoint(e: MouseEvent): { x: number; y: number } {
     if (IS_TAURI) return { x: e.clientX, y: e.clientY };
     const r = this.root.getBoundingClientRect();
-    this.origin = { x: r.left, y: r.top, scale: r.width / windowSize(this.placement()).w || 1 };
+    this.origin = { x: r.left, y: r.top, scale: r.width / (this.panelWin?.w ?? windowSize(this.placement()).w) || 1 };
     return { x: (e.clientX - r.left) / this.origin.scale, y: (e.clientY - r.top) / this.origin.scale };
   }
 
   /** Cursor in window-logical coordinates. */
   onCursor(x: number, y: number) {
     State.mouse = { x, y };
+    // A nap ends with a stretch first: the "while you were away" card that
+    // noticePresence may raise must not wake him with a start.
+    this.noticeMove();
     this.noticePresence();
     const rect = this.islandRect();
     const inIsland =
+      !this.passing &&
       x >= rect.x - HIT_MARGIN && x <= rect.x + rect.w + HIT_MARGIN &&
       y >= rect.y - HIT_MARGIN && y <= rect.y + rect.h + HIT_MARGIN;
 
@@ -1630,6 +2437,190 @@ export class Island {
     };
   }
 
+  // ── A nap in a little bed (src/mascot/nap.ts) ──────────────────────────────
+
+  /** When the mouse last moved (as the away watch sees it): the idle period's start. */
+  private movedAt = Date.now();
+  /** This idle period had its roll of the dice: one nap at most per stretch away. */
+  private napRolled = false;
+
+  /** The mouse moved: a new idle period starts, and a nap ends with a stretch. */
+  private noticeMove() {
+    this.movedAt = Date.now();
+    this.napRolled = false;
+    // A nap shown from Settings lasts its few seconds, mouse or not.
+    if (this.showing?.what !== "nap") this.wake("back");
+  }
+
+  /** What the nap rules see (nap.ts). */
+  private napScene(): NapScene {
+    const dancing = State.companion.danceToMusic && islandDances({ playing: State.music, mode: State.mode, view: State.view });
+    return {
+      enabled: State.companion.napBed,
+      mood: State.moodFace ?? State.mood.state,
+      melting: this.meltAt > 0,
+      waiting: State.events.length > 0 || State.unseen != null,
+      busy:
+        State.mode === "hidden" || State.minimized || State.mascotAway || dancing || this.previewing ||
+        this.tour.running || (State.mode === "expanded" && State.view === "wardrobe"),
+    };
+  }
+
+  /**
+   * While the island is on screen (the one-second clock) and on every change:
+   * a nap may start once the PC has been idle a while with the market calm,
+   * by the dice; one going on ends when something happens.
+   */
+  private napCheck() {
+    // Settings → Show me: the nap shown runs its course.
+    if (this.showing?.what === "nap") return;
+    // No real nap under the trader's eyes in a panel.
+    if (this.panel && !this.mascot.napping) return;
+    const scene = this.napScene();
+    if (this.mascot.napping) {
+      const why = napEnds(scene);
+      if (why) this.wake(why);
+      return;
+    }
+    if (this.napRolled || !napDue(Date.now() - this.movedAt, scene)) return;
+    this.napRolled = true;
+    if (shouldFlourish("nap", this.flourished, Date.now(), Math.random())) this.nap(true);
+  }
+
+  /** Into his little bed now, or out of it with a stretch (the demo's stills call it too). */
+  nap(on: boolean) {
+    if (on === this.mascot.napping) return;
+    if (!on) return this.wake("back");
+    this.mascot.say(null);
+    this.mascot.setBed(true);
+    State.notify();
+  }
+
+  /** Ends a nap: the trader is back (a stretch and a yawn), something happened (a startled hop), or quietly. */
+  private wake(how: Wake) {
+    if (!this.mascot.napping) return;
+    this.mascot.setBed(false, how === "startled");
+    if (how === "startled") this.mascot.react("alert", 900);
+    State.notify();
+  }
+
+  // ── Melting on a strong drop (src/mascot/melt.ts) ──────────────────────────
+
+  /** The stage his wax has run down to, for the price that counts. */
+  private meltAt: MeltStage = 0;
+
+  /** The stage drawn: a Show me's, else the price's; none in a costume (somebody else's body). */
+  private meltShown(): MeltStage {
+    if (this.showing?.what === "melt") return this.showing.stage;
+    return this.worn === "none" ? this.meltAt : 0;
+  }
+
+  /** How far the wax has run, as drawn. */
+  private meltLevel(): number {
+    return MELT_LEVELS[this.meltShown()];
+  }
+
+  /** The drop on the trader's biggest position, else the watchlist's first token, sets the stage. */
+  private syncMelt() {
+    const c = State.companion;
+    const subject = meltSubject(
+      Companion.positions().map(({ p }) => State.positionQuotes[p.mint] ?? State.quotes[tokenKey("solana", p.mint)]),
+      c.watchlist,
+      (tok) => State.quotes[tok.key],
+    );
+    const was = this.meltAt;
+    this.meltAt = c.meltOnDrop ? meltStage(this.meltAt, meltDrop(subject)) : 0;
+    // Deeper: his face shows it for a moment, whatever the watchlist's mood.
+    if (this.meltAt > was && this.worn === "none" && !this.showing) this.meltPeek(this.meltAt);
+    this.mascot.setMelt(this.meltLevel());
+  }
+
+  /** The wax ran down a stage: a worried look (a shocked one at the deepest), then back to the mood. */
+  private meltPeek(stage: MeltStage) {
+    if (State.mode === "hidden" || State.minimized || State.mascotAway || this.mascot.napping) return;
+    this.mascot.react(stage >= 3 ? "shocked" : "worried", 2400);
+  }
+
+  // ── Settings → Show me (pyjamas, a nap, the melt) ──────────────────────────
+
+  /** What a Settings "Show me" plays right now, and the stage a shown melt is at. */
+  private showing: { what: ShowOff; stage: MeltStage } | null = null;
+  private showTimers: number[] = [];
+
+  /** A costume is put aside while the pyjamas or the melt are shown (they are drawn on Candy's own body). */
+  private costumeNow(): string {
+    return this.showing && this.showing.what !== "nap" ? "none" : State.companion.costume;
+  }
+
+  /**
+   * Settings → Show me: plays a look that otherwise needs the night, a while
+   * idle or a strong drop, on Candy in the island for a few seconds, whatever
+   * the clock, the dice or the market say; then his own look comes back.
+   * Nothing is saved, and nothing keeps running after it.
+   */
+  showOff(what: ShowOff): number {
+    if (!this.manifest) return 0;
+    this.stopShowOff();
+    // On screen for it, even minimized: the trader asked to see it.
+    State.minimized = false;
+    if (State.mode === "hidden") this.fsm.reveal();
+    this.showing = { what, stage: 0 };
+    this.mascot.say(null);
+    const later = (ms: number, fn: () => void) => this.showTimers.push(window.setTimeout(fn, ms));
+    this.dressNow();
+    switch (what) {
+      case "pyjamas":
+        later(1200, () => this.mascot.yawn());
+        later(SHOW_MS, () => this.stopShowOff());
+        break;
+      case "nap":
+        this.nap(true);
+        later(SHOW_MS, () => this.stopShowOff());
+        break;
+      case "melt":
+        ([1, 2, 3] as const).forEach((stage, i) =>
+          later(400 + i * SHOW_MELT_STEP_MS, () => {
+            if (!this.showing) return;
+            this.showing.stage = stage;
+            this.mascot.setMelt(MELT_LEVELS[stage], SHOW_MELT_S);
+            this.meltPeek(stage);
+            State.notify();
+          }),
+        );
+        later(400 + 3 * SHOW_MELT_STEP_MS + 1200, () => this.stopShowOff());
+        break;
+    }
+    // Under a panel he steps out of its title row for it (panelMascotSpot).
+    this.ensureRunning();
+    State.notify();
+    return what === "melt" ? 400 + 3 * SHOW_MELT_STEP_MS + 1200 : SHOW_MS;
+  }
+
+  /** Ends a "Show me": out of bed with a stretch, and his own look back on. */
+  private stopShowOff() {
+    for (const id of this.showTimers) window.clearTimeout(id);
+    this.showTimers = [];
+    if (!this.showing) return;
+    const was = this.showing.what;
+    this.showing = null;
+    if (was === "nap") this.wake("back");
+    // Idle again from now: no real nap right after the shown one.
+    this.movedAt = Date.now();
+    this.dressNow();
+    this.syncMelt();
+    this.ensureRunning();
+    State.notify();
+  }
+
+  /** Costume, colour, hat, face and pyjamas as they should be now (a "Show me" included). */
+  private dressNow() {
+    if (!this.manifest || this.previewing) return;
+    this.mascot.setFilter(lookFilter({ ...State.companion, costume: this.costumeNow() }));
+    this.wearCostume();
+    this.wearChosen();
+    this.mascot.setMelt(this.meltLevel());
+  }
+
   /** The eyes follow the cursor; a cursor coming close gets a little hop. */
   private followCursor(x: number, y: number) {
     if (!State.companion.lively || State.mode === "hidden" || x < -5000) {
@@ -1662,6 +2653,17 @@ export class Island {
     this.fidgetTimer = window.setTimeout(() => {
       this.fidgetTimer = null;
       if (State.mode === "hidden") return;
+      // Asleep in his bed: no fidgeting.
+      if (this.mascot.napping) {
+        this.scheduleFidget();
+        return;
+      }
+      // In his pyjamas, after midnight, he yawns more (not while he dozes:
+      // Doze off late at night already has his eyes shut).
+      if (!this.mascot.reacting && !this.pressing && this.look().pyjamas && State.mood.state !== "sleepy" && this.tryFlourish("nightYawn")) {
+        this.scheduleFidget();
+        return;
+      }
       // Bored (or worn out): now and then a real yawn instead of a fidget.
       if (!this.mascot.reacting && !this.pressing && (State.mood.state === "bored" || State.mood.state === "tired") && this.tryFlourish("yawn")) {
         this.scheduleFidget();
@@ -1669,12 +2671,13 @@ export class Island {
       }
       if (!this.mascot.reacting && !this.pressing && State.moodFace && Math.random() < 0.4) {
         // A settled mood peeks back for a moment.
-        this.mascot.react(State.moodFace, 2500);
+        this.mascot.react(meltMood(State.moodFace, this.meltShown()), 2500);
       } else if (!this.mascot.reacting && !this.pressing) {
         const f = pickFidget(State.mood.state, Math.random());
         if (f) {
           this.mascot.react(State.mood.state, f.ms, f.motion);
-          if (f.say) this.mascot.say(t(f.say), f.ms);
+          // Not over a panel's page: his bubble would sit on it.
+          if (f.say && !this.panel) this.mascot.say(t(f.say), f.ms);
           if (f.wink) this.mascot.wink();
         }
       }
@@ -1683,8 +2686,8 @@ export class Island {
   }
 
   private isMascotHit(x: number, y: number): boolean {
-    // Out on the desktop, the island's Candy is invisible: nothing to hit.
-    if (State.mascotAway) return false;
+    // Out on the desktop, the island's Candy is invisible: nothing to hit (nor in the Closet, which has its own big one).
+    if (State.mascotAway || this.panel?.kind === "closet") return false;
     const rect = this.islandRect();
     const cx = rect.x + this.mCx.value;
     const cy = rect.y + this.band() + this.mCy.value;
@@ -1693,6 +2696,8 @@ export class Island {
   }
 
   private mascotHoverIn() {
+    // The mouse settles on him: he holds up today's PnL.
+    this.raiseSignSoon();
     if (performance.now() - this.lastLove < 8000) return;
     Sound.play("hover");
     // Noticed: the eyes pop a little.
@@ -1707,6 +2712,226 @@ export class Island {
   private mascotHoverOut() {
     if (this.mascotHoverTimer != null) window.clearTimeout(this.mascotHoverTimer);
     this.mascotHoverTimer = null;
+    this.dropSign();
+  }
+
+  private dropSign() {
+    if (this.signTimer != null) window.clearTimeout(this.signTimer);
+    this.signTimer = null;
+    this.mascot.holdSign(null);
+  }
+
+  // ── The PnL sign (src/mascot/sign.ts) ───────────────────────────────────────
+
+  private raiseSignSoon() {
+    if (this.signTimer != null) window.clearTimeout(this.signTimer);
+    this.signTimer = window.setTimeout(() => {
+      this.signTimer = null;
+      // Not over a hover chart either (one open over him in the sidebar): one popup at a time.
+      if (!this.overMascot || State.mode !== "expanded" || State.mascotAway || this.pressing || this.menuOpen || this.holders.has("chart") || this.panel) return;
+      this.mascot.holdSign(this.daySign());
+      this.fitSign();
+    }, SIGN_DELAY_MS);
+  }
+
+  /** Today's PnL as the sign says it: the day's log (the header's day pill) and the trader's own wallet. */
+  private daySign(): PnlSign {
+    const c = State.companion;
+    const day = summarize(currentLog(c.log));
+    const mine = c.wallets.some((w) => w.mine);
+    const held = mine ? Companion.positions() : [];
+    return pnlSign({
+      log: { count: day.count, total: day.total, unit: c.discipline.unit },
+      wallet: mine
+        ? {
+            realizedUsd: c.book.day === todayKey() ? c.book.realizedToday : 0,
+            openUsd: held.reduce((s, x) => s + x.s.pnlUsd, 0),
+            held: held.length,
+          }
+        : null,
+    });
+  }
+
+  /** Keeps the sign inside the island: near an edge (the sidebar's band) it slides in. */
+  private fitSign() {
+    this.mascot.nudgeSign(0);
+    const r = this.mascot.signRect();
+    if (!r) return;
+    const box = this.islandEl.getBoundingClientRect();
+    const scale = box.width / (this.islandEl.offsetWidth || box.width) || 1;
+    const pad = 6 * scale;
+    const dx = Math.max(0, box.left + pad - r.left) - Math.max(0, r.right - (box.right - pad));
+    if (dx) this.mascot.nudgeSign(dx / scale);
+  }
+
+  // ── Shades on a 2x (src/mascot/shades.ts) ───────────────────────────────────
+
+  /** A held token just reached 2x: he puts his shades on (now, or as soon as the island shows). */
+  private checkShades() {
+    const held = State.companion.wallets.some((w) => w.mine) ? Companion.positions() : [];
+    const { crossed, seen } = shadesCrossings(
+      this.shadesSeen,
+      held.map((x) => ({ key: x.p.mint, multiple: x.s.multiple })),
+    );
+    this.shadesSeen = seen;
+    if (crossed.length) this.shadesDue = Date.now();
+    // Out on the desktop, he is on screen whatever the island does (it folds
+    // away after a minute): his shades reach him through the snapshot. Only
+    // with no Candy in sight do they wait for the island to show.
+    const onScreen = (State.mascotAway && this.desktop.supported) || (State.mode !== "hidden" && !State.minimized);
+    if (!this.shadesDue || !onScreen) return;
+    const due = this.shadesDue;
+    this.shadesDue = 0;
+    if (Date.now() - due <= SHADES_PENDING_MS) this.putOnShades();
+  }
+
+  /**
+   * Dark shades on for a few seconds, then off. The trader's own face
+   * accessory is never changed: the shades go over it (one worn below the
+   * eyes stays on under them). Played on whichever Candy is on screen.
+   */
+  putOnShades() {
+    const src = accessory(this.manifest, "faces", SHADES_FACE);
+    if (!src) return;
+    const keepFace = keepsFaceUnderShades(this.look().face);
+    this.shadesOn = { src, keepFace };
+    this.mascot.wearShades(src, keepFace);
+    // The cool look on the Candy people see: the desktop's when he is out.
+    if (State.mascotAway && this.desktop.supported) this.desktop.react("cool", 2600);
+    else if (!this.mascot.reacting) this.mascot.react("cool", 2600);
+    if (this.shadesTimer != null) window.clearTimeout(this.shadesTimer);
+    this.shadesTimer = window.setTimeout(() => {
+      this.shadesTimer = null;
+      this.shadesOn = null;
+      this.mascot.wearShades(null);
+      State.notify();
+    }, SHADES_MS);
+    State.notify();
+  }
+
+  // ── Candy's right-click menu (src/mascot/emotes.ts) ─────────────────────────
+
+  /** Opens the menu, or closes it when it is open. */
+  toggleEmoteMenu() {
+    if (this.menuOpen) this.closeEmoteMenu();
+    else this.openEmoteMenu();
+  }
+
+  /**
+   * Candy's menu, beside him in the island: dance, wave, laugh, spin, then the
+   * wardrobe. Folded or out on the desktop, the island opens for it. Esc, a
+   * press anywhere else, or a pick closes it.
+   */
+  openEmoteMenu() {
+    if (this.menuTimer != null) window.clearTimeout(this.menuTimer);
+    this.menuTimer = null;
+    State.minimized = false;
+    this.mascotHoverOut();
+    if (State.mode !== "expanded") this.setView(TAB_VIEWS.has(State.view) && State.view !== "wardrobe" ? State.view : State.lastTab);
+    // A field being typed in lets go first: the menu taking the focus would
+    // blur it later, and its blur unpins the island and gives the keyboard
+    // back to the other apps (focusInput), under the open menu.
+    if (this.inputFocused) (document.activeElement as HTMLElement | null)?.blur();
+    // Held open while it shows; the keyboard comes to the island for the arrows and Esc.
+    if (!this.menuOpen) this.menuPinned = this.fsm.pinned;
+    this.menuOpen = true;
+    this.fsm.pinned = true;
+    Sound.play("pop");
+
+    const menu = this.emoteMenu;
+    const item = (path: string, label: string, run: () => void, stroke?: number) => {
+      const b = h("button", { class: "emote-item", type: "button", role: "menuitem" }, svg(path, 14, stroke ? { stroke } : {}), h("span", { text: label }));
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.closeEmoteMenu();
+        run();
+      });
+      return b;
+    };
+    menu.replaceChildren(
+      ...EMOTES.map((e) => item(EMOTE_ICONS[e].path, t(EMOTE_INFO[e].label), () => this.playEmote(e), EMOTE_ICONS[e].stroke)),
+      h("i", { class: "emote-sep" }),
+      item(ICONS.shirt, t("Wardrobe"), () => this.toggleWardrobe(), 1.8),
+    );
+    // Laid out where the island is going (it may still be opening), beside where Candy sits.
+    const show = () => {
+      this.menuTimer = null;
+      if (!this.menuOpen) return;
+      const place = this.shapePlacement();
+      const panel = this.panel && this.panelWin?.panel;
+      const size = panel || islandSize(State.mode, State.view, this.rowsFor(State.view), place, State.compact, wideFace(State.companion.theme));
+      const at = panel ? this.panelMascotSpot() : mascotPlacement(State.mode, State.view, size.h, place, State.compact);
+      menu.style.visibility = "hidden";
+      menu.hidden = false;
+      const spot = menuSpot({ x: at.cx, y: at.cy, r: at.size * 0.42 }, { w: menu.offsetWidth, h: menu.offsetHeight }, size);
+      menu.style.left = `${spot.left}px`;
+      menu.style.top = `${spot.top}px`;
+      menu.style.setProperty("--tail", `${spot.tail}px`);
+      menu.dataset.side = spot.side;
+      menu.style.visibility = "";
+      // Replays the pop-in.
+      menu.classList.remove("on");
+      void menu.offsetWidth;
+      menu.classList.add("on");
+      // The menu takes the keys without lighting an item: the first arrow picks one.
+      menu.focus({ preventScroll: true });
+      // The island's window takes the keyboard (it doesn't, between clicks).
+      if (IS_TAURI) void Bridge.focusWindow(true);
+    };
+    const opening = this.width.animating || this.height.animating;
+    if (opening) this.menuTimer = window.setTimeout(show, 200);
+    else show();
+  }
+
+  closeEmoteMenu() {
+    if (this.menuTimer != null) window.clearTimeout(this.menuTimer);
+    this.menuTimer = null;
+    if (!this.menuOpen) return;
+    this.menuOpen = false;
+    this.emoteMenu.hidden = true;
+    this.emoteMenu.classList.remove("on");
+    this.fsm.pinned = this.menuPinned || this.inputFocused;
+    if (IS_TAURI && !this.inputFocused) void Bridge.focusWindow(false);
+    // Opened from afar (the desktop Candy, the ticker): the island folds back as usual.
+    if (!this.wasInIsland && State.mode === "expanded") this.fsm.mouseLeft();
+  }
+
+  /** The menu's keys: arrows walk it, Esc closes it (and only it). */
+  private menuKey(e: KeyboardEvent) {
+    if (!this.menuOpen) return;
+    const items = [...this.emoteMenu.querySelectorAll<HTMLElement>(".emote-item")];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const go = (i: number) => items[i]?.focus({ preventScroll: true });
+    switch (e.key) {
+      case "Escape":
+        this.closeEmoteMenu();
+        break;
+      case "ArrowDown":
+      case "ArrowUp":
+        go(stepItem(at, items.length, e.key === "ArrowDown" ? 1 : -1));
+        break;
+      case "Home":
+        go(0);
+        break;
+      case "End":
+        go(items.length - 1);
+        break;
+      case "Tab":
+        go(stepItem(at, items.length, e.shiftKey ? -1 : 1));
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+
+  /** Plays an emote on whichever Candy is on screen: the island's, or the desktop's when he is out. */
+  playEmote(e: Emote) {
+    State.lastActivity = performance.now();
+    Sound.play(EMOTE_INFO[e].sound);
+    if (State.mascotAway && this.desktop.supported) this.desktop.emote(e);
+    else this.mascot.emote(e);
   }
 
   /** A press on the mascot: a poke if let go quickly, a squeeze if held. */
@@ -1837,7 +3062,9 @@ export class Island {
       this.syncDom();
     }
 
-    const p = mascotPlacement(State.mode, State.view, this.height.value, this.shapePlacement());
+    const p = this.panel
+      ? this.panelMascotSpot()
+      : mascotPlacement(State.mode, State.view, this.height.value, this.shapePlacement(), State.compact);
     this.mCx.target = p.cx;
     this.mCy.target = p.cy;
     this.mSize.target = p.size;
@@ -1859,6 +3086,13 @@ export class Island {
     }
   };
 
+  /** Candy under a panel: in Settings' title row, or out of it, big, while a Show me plays; not in the Closet's (it has its own). */
+  private panelMascotSpot() {
+    const place = this.placement();
+    if (this.showing && this.panel?.kind === "settings" && this.panelWin) return { ...panelShowSpot(place, this.panelWin.panel.w), opacity: 1 };
+    return { ...panelMascot(place), opacity: this.panel?.kind === "settings" ? 1 : 0 };
+  }
+
   private placeMascot(opacity: number) {
     const s = this.mSize.value;
     const el = this.mascot.el;
@@ -1869,6 +3103,8 @@ export class Island {
     // Out on the desktop, the island's own Candy is not there.
     el.style.opacity = String(State.mascotAway ? 0 : opacity);
     el.classList.toggle("tiny", State.mode === "compact");
+    // Out of a panel's title row for a Show me: on a soft stage of the island's own colour.
+    el.classList.toggle("on-stage", !!(this.panel && this.showing));
 
     // The mood line: under the mascot, or beside it in the sidebar's band.
     const cap = this.captionEl.style;
@@ -1885,6 +3121,9 @@ export class Island {
       cap.width = `${SIDE_W}px`;
       this.captionEl.classList.remove("beside");
     }
+    // His sign goes where the caption is: beside him in the band, where the
+    // folder chips under him stay clear.
+    el.classList.toggle("sign-beside", this.captionEl.classList.contains("beside"));
   }
 
   // ── DOM sync ────────────────────────────────────────────────────────────────
@@ -1894,9 +3133,12 @@ export class Island {
     if (State.view === "wallets" && !State.companion.following) State.view = "watchlist";
     // Discipline turned off while its tab was open: the same.
     if (State.view === "discipline" && !State.companion.disciplineOn) State.view = "watchlist";
-    const expanded = State.mode === "expanded";
+    // Under a panel the island's own views are put away.
+    const expanded = State.mode === "expanded" && !this.panel;
     // The wardrobe closed or folded with a look still being tried on.
     if (this.previewing && (!expanded || State.view !== "wardrobe")) this.previewLook(null);
+    // The card he stepped forward for folded away or gave way to a tab: back in his spot.
+    if (this.forward && (!expanded || State.view !== "event")) this.stepForward(false);
     // Music playing on the PC: the dance, folded or open (see islandDances);
     // the mood may sit it out.
     if (State.view === "music" && (!State.nowPlaying || !State.companion.musicCard)) State.view = "watchlist";
@@ -1911,6 +3153,7 @@ export class Island {
     this.contentEl.style.opacity = expanded ? "1" : "0";
     this.contentEl.style.pointerEvents = expanded ? "auto" : "none";
     this.compactEl.style.opacity = State.mode === "compact" ? "1" : "0";
+    if (this.panel) this.syncPanel();
 
     this.header.sync();
     for (const [name, view] of this.views) {
@@ -1922,19 +3165,32 @@ export class Island {
     const showCaption = expanded && TAB_VIEWS.has(State.view);
     this.wardrobeBtn.style.display = showCaption ? "" : "none";
     this.wardrobeBtn.classList.toggle("on", State.view === "wardrobe");
+    // His wax runs down on a strong drop; a nap starts or ends with what changed.
+    this.syncMelt();
+    this.napCheck();
     this.captionEl.style.opacity = showCaption ? "1" : "0";
-    this.captionEl.textContent = State.mood.text;
+    // A real nap says why he sleeps; one shown from Settings keeps the mood's line.
+    const caption = this.mascot.napping && !this.showing ? t("Taking a nap: the market is calm.") : State.mood.text;
+    this.captionEl.textContent = caption;
     // Two lines at most (see #caption); the whole sentence on hover.
-    this.captionEl.title = State.mood.text;
+    this.captionEl.title = caption;
 
     if (this.lastMood !== State.mood.state) {
       // The first mood is no change; later ones may bring a flourish.
       if (this.lastMood != null) this.moodChanged(State.mood.state);
       this.lastMood = State.mood.state;
     }
-    this.mascot.setMood(State.mood.state);
+    // Melting, a grin turns nervous: his own price is falling hard.
+    this.mascot.setMood(meltMood(State.mood.state, this.meltShown()));
     this.mascot.setBadge(this.badge());
-    if (todayKey() !== this.lookDay && this.costumeTimer == null) this.wearChosen();
+    this.checkShades();
+    // A sign up: its numbers follow the prices while he holds it.
+    if (this.mascot.holdingSign && !State.mascotAway) {
+      this.mascot.holdSign(this.daySign());
+      this.fitSign();
+    }
+    // A new day may start a season, midnight and 6 am put the pyjamas on and off.
+    if (lookKey(this.clock()) !== this.lookDay && this.costumeTimer == null) this.wearChosen();
     this.renderTicker(performance.now());
   }
 
@@ -2073,7 +3329,9 @@ export class Island {
     const want = State.mode !== "hidden";
     if (want && this.secondTimer == null) {
       this.secondTimer = window.setInterval(() => {
-        if (State.mode === "expanded") {
+        // Idle long enough, with the market calm: maybe a nap.
+        this.napCheck();
+        if (State.mode === "expanded" && !this.panel) {
           this.header.tick?.();
           this.views.get(State.view)?.tick?.();
         } else if (State.mode === "compact") {

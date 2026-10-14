@@ -110,4 +110,24 @@ describe("the island's state machine", () => {
     vi.advanceTimersByTime(60_000);
     expect(fsm.state).toBe("home");
   });
+  it("stays as it is while a panel fills the island: no fold, no hide, no hover-open", () => {
+    const { fsm, seen } = machine();
+    fsm.openOnHover = true;
+    fsm.homeToPetitDelay = 1;
+    fsm.petitToHiddenDelay = 1;
+    fsm.forceHome();
+    fsm.frozen = true;
+    fsm.mouseLeft();
+    vi.advanceTimersByTime(60_000);
+    expect(fsm.state).toBe("home");
+    fsm.mouseEntered();
+    fsm.mouseLeft();
+    vi.advanceTimersByTime(60_000);
+    expect(seen).toEqual(["home"]);
+    // Closed: the usual timers again.
+    fsm.frozen = false;
+    fsm.mouseLeft();
+    vi.advanceTimersByTime(1_100);
+    expect(fsm.state).toBe("petit");
+  });
 });

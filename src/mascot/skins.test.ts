@@ -38,7 +38,9 @@ describe("appearance settings", () => {
   });
 
   it("drops unknown values", () => {
-    const s = normalizeSettings({ companion: { outfit: "jetpack", face: "snorkel", skin: "plaid" } } as never);
+    const s = normalizeSettings({ companion: { outfit: "jetpack", face: "monobrow", skin: "plaid" } } as never);
     expect(s.companion).toMatchObject({ outfit: "none", face: "none", skin: "mint" });
+    // The snorkel was this test's unknown face until it joined the wardrobe.
+    expect(normalizeSettings({ companion: { face: "snorkel" } } as never).companion.face).toBe("snorkel");
   });
 });

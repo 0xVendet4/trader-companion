@@ -37,9 +37,12 @@ const FLIGHT_MS: u64 = 450;
 /// Settling into his spot after a drop (0.25 s, with a little overshoot).
 const SNAP_MS: u64 = 250;
 const TICK_MS: u64 = 16;
-/// Where the compact island's mascot sits inside the island's shape (logical
-/// px from its top-left corner): flights start and end there.
-const ISLAND_MASCOT: (f64, f64) = (24.0, 16.0);
+/// Where the ticker's mascot sits inside the island's shape (logical px from
+/// its top-left corner) until the page has sent the seat it draws
+/// (gate.seat, from layout.ts tickerSeat: the compact ticker's is smaller and
+/// higher, the side tab's upright): the normal top ticker's, mascotPlacement's
+/// cx 8 + 28 / 2, cy 32 / 2. Flights start and end there.
+const ISLAND_MASCOT: (f64, f64) = (22.0, 16.0);
 
 /// Windows never hides his window: it parks it off-screen. tao shows a hidden
 /// window again with SW_SHOW, which may take the keyboard focus from whatever
@@ -162,6 +165,15 @@ pub mod logic {
 
     pub fn lerp(a: (f64, f64), b: (f64, f64), t: f64) -> (f64, f64) {
         (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+    }
+
+    /// Top-left corner of his window (side `size`, logical px) centred on the
+    /// ticker's seat: `seat` is logical px from the island's top-left corner,
+    /// under a `band` (logical px) over a notch; `island` is the island's
+    /// shape in physical px, `scale` its display's.
+    pub fn seat_origin(island: Rect, scale: f64, band: f64, seat: (f64, f64), size: f64) -> (f64, f64) {
+        let s = size * scale;
+        (island.x + seat.0 * scale - s / 2.0, island.y + (band + seat.1) * scale - s / 2.0)
     }
 }
 
@@ -372,10 +384,12 @@ fn island_rect(app: &AppHandle) -> Option<(Rect, f64)> {
 /// the flights start and end.
 fn island_spot(app: &AppHandle) -> Option<(f64, f64)> {
     let (r, scale) = island_rect(app)?;
-    let s = SIZE * scale;
+    let shared = app.try_state::<crate::Shared>();
     // Under the band over a notch, if the island has one.
-    let band = app.try_state::<crate::Shared>().map_or(0.0, |sh| *sh.gate.band.lock().unwrap());
-    Some((r.x + ISLAND_MASCOT.0 * scale - s / 2.0, r.y + (band + ISLAND_MASCOT.1) * scale - s / 2.0))
+    let band = shared.as_ref().map_or(0.0, |sh| *sh.gate.band.lock().unwrap());
+    // The seat as the page draws it (compact or not, upright on a side edge), else the normal top one.
+    let seat = shared.as_ref().and_then(|sh| *sh.gate.seat.lock().unwrap()).unwrap_or(ISLAND_MASCOT);
+    Some(logic::seat_origin(r, scale, band, seat, SIZE))
 }
 
 /// The window side in physical pixels.
@@ -873,6 +887,17 @@ mod tests {
         assert_eq!(restore_spot((500.0, 500.0), &[one], 100.0, 10.0), Some((500.0, 500.0)));
         assert_eq!(restore_spot((3000.0, 500.0), &[one], 100.0, 10.0), None);
         assert_eq!(default_spot(&one, 100.0, 24.0), (1920.0 - 124.0, 1080.0 - 48.0 - 124.0));
+    }
+
+    #[test]
+    fn flights_start_and_end_on_the_seat_the_page_draws() {
+        let island = Rect { x: 100.0, y: 0.0, w: 700.0, h: 64.0 };
+        // The normal top ticker at 2×: the seat (22, 16) scaled, his window centred on it.
+        assert_eq!(seat_origin(island, 2.0, 0.0, (22.0, 16.0), 168.0), (100.0 + 44.0 - 168.0, 32.0 - 168.0));
+        // The compact ticker's seat (layout.ts tickerSeat: 19, 13): 3 px further in and higher.
+        assert_eq!(seat_origin(island, 1.0, 0.0, (19.0, 13.0), 168.0), (100.0 + 19.0 - 84.0, 13.0 - 84.0));
+        // Under the band over a notch, the seat goes down with it.
+        assert_eq!(seat_origin(island, 1.0, 32.0, (22.0, 16.0), 168.0), (100.0 + 22.0 - 84.0, 48.0 - 84.0));
     }
 
     #[test]

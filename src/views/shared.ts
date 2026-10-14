@@ -6,13 +6,15 @@ import { h, svg } from "./dom";
 import { ICONS } from "./icons";
 import { formatPct, formatUsd, pctClass } from "../core/format";
 import { t } from "../core/i18n";
-import { State, type Companion, type IslandViewName, type Quote, type WatchToken } from "../core/state";
+import { Companion } from "../companion";
+import { State, type Companion as CompanionSettings, type IslandViewName, type Quote, type TrackedWallet, type WatchToken } from "../core/state";
 import type { CardFormat } from "../share/card";
-import type { WeekRange } from "../share/recap";
+import { weekRange, type WeekRange } from "../share/recap";
 import type { SoundName } from "../core/sound";
 import type { MascotState } from "../mascot/mascot";
 import type { ParticleKind } from "../mascot/particles";
-import { CHAINS, type ChainId } from "../market/chains";
+import type { SettingsSection } from "../core/panel";
+import { CHAINS, EVM_CHAINS, walletFamily, type ChainId, type EvmChain } from "../market/chains";
 import { majorFor } from "../market/majors";
 import { SAFETY_LABEL, describeSafety } from "../market/safety";
 import { relativeStrength, sparkPair, sparkPath, sparkSeries } from "../market/sparkline";
@@ -21,7 +23,10 @@ export interface ViewActions {
   setView(v: IslandViewName): void;
   blip(): void;
   toggleSound(): void;
-  openSettings(): void;
+  /** Opens Settings in the island (or closes it, from the gear); at a section for a link to one. */
+  openSettings(section?: SettingsSection): void;
+  /** Opens the closet in the island: every look, large (src/closet). */
+  openCloset(): void;
   /** Opens a token on the trading terminal; `token` for tokens off the watchlist. */
   openToken(address: string, token?: WatchToken): void;
   openUrl(url: string): void;
@@ -38,7 +43,7 @@ export interface ViewActions {
   /** Puts on the look just picked (hat, face, colour). */
   applyLook(): void;
   /** Tries a look on Candy without keeping it (the wardrobe's hover); null: back to the one kept. */
-  previewLook(apply: ((c: Companion) => void) | null): void;
+  previewLook(apply: ((c: CompanionSettings) => void) | null): void;
   /** Hides the island until the show/hide shortcut, or Open in the tray, brings it back. */
   minimize(): void;
   /** Draws today's recap card and copies (or downloads) it; resolves to a note. */
@@ -47,8 +52,12 @@ export interface ViewActions {
   shareWeek(range: WeekRange, format: CardFormat): Promise<string>;
   /** Candy doing his part in a card (going over the checklist). */
   candy(act: CandyAct): void;
-  /** Keeps the card from folding away while he does (see IslandStateMachine.hold). */
-  holdOpen(on: boolean): void;
+  /**
+   * Keeps the island from folding away while something plays out in it (he
+   * goes over a checklist; a chart is open). `holder` names who asks (the
+   * card by default): one holder letting go does not release another's hold.
+   */
+  holdOpen(on: boolean, holder?: string): void;
 }
 
 export interface CandyAct {
@@ -57,12 +66,15 @@ export interface CandyAct {
   /** A line in his bubble for `ms`; null hides it. */
   say?: string | null;
   ms?: number;
-  /** One of these off his head. */
+  /** One of these off his head (`count` of them: a burst). */
   emit?: ParticleKind;
+  count?: number;
   hop?: boolean;
   sound?: SoundName;
   /** His eyes on an element of the card; null: back to the cursor's way. */
   look?: HTMLElement | null;
+  /** A step forward (closer, bigger) while he holds something up; false: back in his spot. Ends with the card. */
+  forward?: boolean;
 }
 
 export interface ViewHost {
@@ -138,6 +150,57 @@ export function liquidityCell(q: { liquidityUsd: number | null; suspectLiquidity
 export function chainTag(chainId: ChainId): HTMLElement {
   const c = CHAINS[chainId];
   return h("span", { class: "chain-tag", text: c.tag, title: c.label, style: `--chain:${c.color}` });
+}
+
+/**
+ * Where a wallet is followed, as tags: SOL for a Solana wallet; for an EVM
+ * wallet ETH, BSC and BASE, each a switch (`onPick`), the ones unticked dimmed.
+ * At least one stays on.
+ */
+export function walletChainTags(w: Pick<TrackedWallet, "family" | "chains">, onPick?: (chains: EvmChain[]) => void): HTMLElement {
+  const el = h("span", { class: "chain-picks" });
+  if (w.family !== "evm") {
+    el.append(chainTag("solana"));
+    return el;
+  }
+  const picked = w.chains ?? [...EVM_CHAINS];
+  for (const c of EVM_CHAINS) {
+    const on = picked.includes(c);
+    const chain = CHAINS[c];
+    const tag = h("button", {
+      class: `chain-tag pick ${on ? "on" : "off"}`,
+      type: "button",
+      text: chain.tag,
+      style: `--chain:${chain.color}`,
+      title: on ? t("Followed on {chain}: click to leave it out", { chain: chain.label }) : t("Not followed on {chain}: click to follow it there too", { chain: chain.label }),
+    });
+    tag.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const next = on ? picked.filter((x) => x !== c) : EVM_CHAINS.filter((x) => x === c || picked.includes(x));
+      if (next.length === 0 || !onPick) return;
+      onPick(next);
+    });
+    el.append(tag);
+  }
+  return el;
+}
+
+/**
+ * Next to an address field: what the typed address is, as it is typed. A 0x
+ * address is an EVM wallet, followed on Ethereum, BSC and Base; base58 is a
+ * Solana one; anything else shows nothing.
+ */
+export function addressHint(input: HTMLInputElement): HTMLElement {
+  const el = h("span", { class: "addr-hint" });
+  const paint = () => {
+    el.replaceChildren();
+    const family = walletFamily(input.value);
+    if (!family) return;
+    el.append(walletChainTags({ family }));
+  };
+  input.addEventListener("input", paint);
+  paint();
+  return el;
 }
 
 type Tagged = Pick<WatchToken, "key" | "chainId"> & Partial<Pick<WatchToken, "coingecko">>;
@@ -245,4 +308,83 @@ export function sparkline(mint: string, w = 56, h0 = 18): SVGSVGElement {
     el.append(tip);
   }
   return el;
+}
+
+/**
+ * A recap card being drawn, by whichever tab's links asked: one at a time,
+ * since both tabs (My wallet, Discipline) carry the links and the clipboard
+ * is one.
+ */
+let sharing = false;
+
+/**
+ * Share my day · my week ($ shown): today's and this week's recap cards,
+ * with or without amounts. My wallet and Discipline both end with it, so the
+ * PnL can be shared with Discipline turned off too. The note (drawing,
+ * copied, or what went wrong) shows before the links; `onNote` says when it
+ * is showing, for a line that has to make room for it. Replay today, the
+ * end-of-day board again (src/share/dayend.ts), ends the links: from My
+ * wallet the board's Share is then one click away with Discipline off.
+ */
+export function shareLinks(actions: ViewActions, onNote?: (showing: boolean) => void): { el: HTMLElement; sync(): void } {
+  const note = h("span", { class: "share-note" });
+  let clearNote = 0;
+  const say = (text: string) => {
+    window.clearTimeout(clearNote);
+    note.textContent = text;
+    note.title = text;
+    onNote?.(text !== "");
+  };
+  const draw = (make: () => Promise<string>) => async () => {
+    if (sharing) return;
+    sharing = true;
+    say(t("Drawing…"));
+    try {
+      say(await make());
+      actions.blip();
+    } catch (err) {
+      say(t("Couldn't make the image: {error}", { error: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      sharing = false;
+      clearNote = window.setTimeout(() => say(""), 4000);
+    }
+  };
+  const day = h("a", {
+    class: "share",
+    text: t("Share my day"),
+    title: t("A recap image of today, copied to paste on X or Telegram"),
+    onclick: draw(() => actions.shareDay()),
+  });
+  // This week so far, as a 9:16 story.
+  const week = h("a", {
+    class: "share",
+    text: t("my week"),
+    title: t("This week so far as a story image (9:16), copied for Instagram, TikTok or Telegram"),
+    onclick: draw(() => actions.shareWeek(weekRange(new Date(), "this"), "story")),
+  });
+  const money = h("a", {
+    class: "money",
+    title: t("Show or hide amounts on the image (signs and % stay)"),
+    onclick: () => {
+      State.companion.recapHideMoney = !State.companion.recapHideMoney;
+      Companion.save();
+      actions.blip();
+      sync();
+    },
+  });
+  const replay = h("a", {
+    text: t("Replay today"),
+    title: t("The end-of-day board again: today's numbers counting up, with Share"),
+    onclick: () => {
+      actions.blip();
+      Companion.replayDayEnd();
+    },
+  });
+  // The links stay together: where the line is short, the note gives way, not them.
+  const el = h("span", { class: "share-links" }, note, h("span", { class: "links" }, day, " · ", week, " ", money, " · ", replay));
+  function sync() {
+    money.textContent = State.companion.recapHideMoney ? t("($ hidden)") : t("($ shown)");
+  }
+  sync();
+  return { el, sync };
 }

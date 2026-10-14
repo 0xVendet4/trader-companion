@@ -15,6 +15,19 @@ describe("flourishes", () => {
     expect(shouldFlourish("confetti", last, T0 + FLOURISHES.confetti.quietMs, 0)).toBe(true);
   });
 
+  it("never yawns twice in a row: the night yawn and the bored one share a quiet time", () => {
+    const last = new Map<Flourish, number>();
+    expect(shouldFlourish("nightYawn", last, T0, 0)).toBe(true);
+    // A bored yawn right after waits for the yawn's own quiet time…
+    expect(shouldFlourish("yawn", last, T0 + 60_000, 0)).toBe(false);
+    expect(shouldFlourish("yawn", last, T0 + FLOURISHES.yawn.quietMs, 0)).toBe(true);
+    // …and a night yawn right after a bored one waits too.
+    expect(shouldFlourish("nightYawn", last, T0 + FLOURISHES.yawn.quietMs + 60_000, 0)).toBe(false);
+    expect(shouldFlourish("nightYawn", last, T0 + FLOURISHES.yawn.quietMs + FLOURISHES.nightYawn.quietMs, 0)).toBe(true);
+    // At most about ten an hour, at night.
+    expect(FLOURISHES.nightYawn.quietMs).toBeGreaterThanOrEqual(5 * 60_000);
+  });
+
   it("never plays every time it could", () => {
     for (const rule of Object.values(FLOURISHES)) {
       expect(rule.chance).toBeLessThan(1);

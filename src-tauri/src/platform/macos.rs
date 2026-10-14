@@ -475,6 +475,106 @@ pub fn notch_height(m: &tauri::Monitor) -> f64 {
 /// The window takes the keyboard whenever it is clicked: nothing to switch.
 pub fn set_activating(_win: &WebviewWindow, _activating: bool) {}
 
+/// The app that was in front before a panel took the keyboard: a retained
+/// NSRunningApplication (0: none), made active again when the panel closes.
+static BEFORE_PANEL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+type ObjId = *mut c_void;
+
+/// `[[NSWorkspace sharedWorkspace] frontmostApplication]`, retained, unless it
+/// is Candy itself. Main thread only.
+unsafe fn frontmost_other_app() -> ObjId {
+    let msg = objc_msgSend as unsafe extern "C" fn();
+    let send_id: unsafe extern "C" fn(ObjId, *const c_void) -> ObjId = std::mem::transmute(msg);
+    let send_pid: unsafe extern "C" fn(ObjId, *const c_void) -> i32 = std::mem::transmute(msg);
+    let class = objc_getClass(c"NSWorkspace".as_ptr());
+    if class.is_null() {
+        return std::ptr::null_mut();
+    }
+    let workspace = send_id(class, sel(c"sharedWorkspace"));
+    if workspace.is_null() {
+        return std::ptr::null_mut();
+    }
+    let front = send_id(workspace, sel(c"frontmostApplication"));
+    if front.is_null() || send_pid(front, sel(c"processIdentifier")) == std::process::id() as i32 {
+        return std::ptr::null_mut();
+    }
+    send_id(front, sel(c"retain"))
+}
+
+/// Keeps `app` (retained) to give the keyboard back to, letting go of the one before.
+unsafe fn keep_before(app: ObjId) {
+    let old = BEFORE_PANEL.swap(app as usize, std::sync::atomic::Ordering::Relaxed);
+    if old != 0 {
+        let send: unsafe extern "C" fn(ObjId, *const c_void) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
+        send(old as ObjId, sel(c"release"));
+    }
+}
+
+/// A panel opens in the island (Settings, the Closet): remembers the app in
+/// front, the trader's browser or terminal, to give the keyboard back to.
+pub fn remember_foreground(win: &WebviewWindow) {
+    let _ = win.run_on_main_thread(|| unsafe {
+        let app = frontmost_other_app();
+        if !app.is_null() {
+            keep_before(app);
+        }
+    });
+}
+
+/// The island lost the keyboard while a panel is open: the app the trader
+/// went to is the one the keyboard goes back to on close.
+pub fn note_foreground(win: &WebviewWindow) {
+    remember_foreground(win);
+}
+
+/// The panel closed: if Candy still has the keyboard, it goes back to the
+/// app that had it (an Accessory app stays active otherwise, and the keys
+/// would go to the island).
+pub fn restore_foreground(win: &WebviewWindow) {
+    let _ = win.run_on_main_thread(|| unsafe {
+        let before = BEFORE_PANEL.swap(0, std::sync::atomic::Ordering::Relaxed) as ObjId;
+        if before.is_null() {
+            return;
+        }
+        let msg = objc_msgSend as unsafe extern "C" fn();
+        let send_id: unsafe extern "C" fn(ObjId, *const c_void) -> ObjId = std::mem::transmute(msg);
+        let send_bool: unsafe extern "C" fn(ObjId, *const c_void) -> bool = std::mem::transmute(msg);
+        let send_opts: unsafe extern "C" fn(ObjId, *const c_void, usize) -> bool = std::mem::transmute(msg);
+        let send_void: unsafe extern "C" fn(ObjId, *const c_void) = std::mem::transmute(msg);
+        let running = objc_getClass(c"NSRunningApplication".as_ptr());
+        let me = if running.is_null() { std::ptr::null_mut() } else { send_id(running, sel(c"currentApplication")) };
+        let active = !me.is_null() && send_bool(me, sel(c"isActive"));
+        let gone = send_bool(before, sel(c"isTerminated"));
+        if active && !gone {
+            // NSApplicationActivateIgnoringOtherApps: Candy is the active app and hands it over.
+            send_opts(before, sel(c"activateWithOptions:"), 1 << 1);
+        }
+        send_void(before, sel(c"release"));
+    });
+}
+
+extern "C" fn set_normal_level(ns: *mut c_void) {
+    unsafe {
+        let send: unsafe extern "C" fn(*mut c_void, *const c_void, isize) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
+        // NSNormalWindowLevel.
+        send(ns, sel(c"setLevel:"), 0);
+    }
+}
+
+/// A panel steps behind the app the trader went to: an ordinary window's
+/// level, on the main queue after anything keep_on_top queued.
+pub fn lower_island(win: &WebviewWindow) -> bool {
+    let Ok(ns) = win.ns_window() else { return false };
+    unsafe { dispatch_async_f(&_dispatch_main_q, ns, set_normal_level) };
+    true
+}
+
+/// Whether the island can step behind another window (lower_island).
+pub fn can_lower() -> bool {
+    true
+}
+
 /// Click-through comes from the cursor poll here (set_ignore_cursor_events),
 /// not from an input region.
 pub fn set_input_region(_win: &WebviewWindow, _rect: Region) {}
@@ -486,10 +586,6 @@ pub fn update_dir() -> PathBuf {
     home_dir().join("Library").join("Caches").join(APP_DIR).join("source")
 }
 
-/// Not yet: on a Mac the island says how to update by hand (README → Install).
-pub fn unpack_and_install(_dir: &Path, _archive: &Path, _root: &Path) -> Result<(), String> {
-    Err("on a Mac, update from the Candy folder: git pull (or a new ZIP), then npm ci and npm run setup".into())
-}
 
 #[cfg(test)]
 mod tests {

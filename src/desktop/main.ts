@@ -23,12 +23,15 @@ import {
   type DesktopSnapshot,
   type Point,
 } from "../mascot/desktop-logic";
+import { isEmote } from "../mascot/emotes";
 import { gazeAt } from "../mascot/gaze";
-import { Mascot, dressed, loadManifest, type Manifest, type MouthCue } from "../mascot/mascot";
+import { MASCOT_STATES, Mascot, dressed, loadManifest, type Manifest, type MascotState, type MouthCue } from "../mascot/mascot";
 
 const ISLAND = "island";
 /** How often, while he is awake on the desktop, the page asks whether he should doze off. */
 const SLEEP_CHECK_MS = 5000;
+/** The mouse rests on him this long before he holds his sign up. */
+const SIGN_DELAY_MS = 220;
 
 class DesktopCandy {
   private mascot = new Mascot();
@@ -46,7 +49,13 @@ class DesktopCandy {
     soundVolume: 0.12,
     paused: false,
     dancing: false,
+    shades: null,
+    keepFace: false,
+    sign: null,
   };
+  /** The pointer is over him: his sign goes up after SIGN_DELAY_MS. */
+  private overBody = false;
+  private signTimer: number | null = null;
 
   private visible = false;
   private asleep = false;
@@ -96,6 +105,19 @@ class DesktopCandy {
       this.wakeUp();
       this.mascot.cue(c);
     });
+    // An emote picked in the island's menu (the island plays its sound).
+    await onEvent<string>(DESKTOP_EVENTS.emote, (e) => {
+      if (!this.visible || !isEmote(e)) return;
+      this.wakeUp();
+      this.lowerSign();
+      this.mascot.emote(e);
+    });
+    // A reaction from the island (the cool look of a 2x's shades).
+    await onEvent<{ state: MascotState; ms: number }>(DESKTOP_EVENTS.react, ({ state, ms }) => {
+      if (!this.visible || !MASCOT_STATES.includes(state)) return;
+      this.wakeUp();
+      if (!this.asleep && !this.mascot.reacting) this.mascot.react(state, Math.min(ms, 5000));
+    });
     await onEvent<string>(DESKTOP_EVENTS.flight, (kind) => {
       // He fades in on the way out of the island.
       if (kind !== "out") return;
@@ -128,6 +150,11 @@ class DesktopCandy {
     this.mascot.setFilter(s.costume === "none" ? s.filter : "none");
     this.mascot.setOutfit(s.hat);
     this.mascot.setFace(s.face);
+    this.mascot.setPyjamas(s.pyjamas ?? false);
+    this.mascot.setMelt(s.melt ?? 0);
+    this.mascot.wearShades(s.shades, s.keepFace);
+    // A sign up already: its numbers follow.
+    if (this.mascot.holdingSign && s.sign) this.mascot.holdSign(s.sign);
     if (s.state !== "idle") this.lastActive = performance.now();
     if (!this.asleep) this.mascot.setMood(s.state);
     this.mascot.setDancing(s.dancing && !this.asleep);
@@ -149,6 +176,7 @@ class DesktopCandy {
       return;
     }
     this.cancelPoke();
+    this.lowerSign();
     this.press = null;
     this.dragging = false;
     if (this.sleepTimer != null) window.clearInterval(this.sleepTimer);
@@ -166,6 +194,7 @@ class DesktopCandy {
     const sleep = !this.dragging && (this.snap.paused || shouldSleep((now - this.lastActive) / 1000, distance));
     if (sleep === this.asleep) return;
     this.asleep = sleep;
+    if (sleep) this.lowerSign();
     this.mascot.setMood(sleep ? "sleepy" : this.snap.state);
     this.mascot.setDancing(this.snap.dancing && !sleep);
     // Asleep, Rust stops the cursor poll; his whole little window then listens
@@ -189,6 +218,29 @@ class DesktopCandy {
       this.checkSleep();
     }
     this.mascot.lookAt(gazeAt(PANEL_SIZE / 2, PANEL_SIZE / 2, p.x, p.y));
+    this.hover(isOverBody(p));
+  }
+
+  // ── The PnL sign (src/mascot/sign.ts) ─────────────────────────────────────
+
+  /** The mouse came onto him, or left: the sign goes up a moment later, or down. */
+  private hover(over: boolean) {
+    if (over === this.overBody) return;
+    this.overBody = over;
+    if (!over) return this.lowerSign();
+    if (this.signTimer != null) window.clearTimeout(this.signTimer);
+    this.signTimer = window.setTimeout(() => {
+      this.signTimer = null;
+      const sign = this.snap.sign;
+      if (!this.overBody || !sign || !this.visible || this.asleep || this.press || this.dragging) return;
+      this.mascot.holdSign(sign);
+    }, SIGN_DELAY_MS);
+  }
+
+  private lowerSign() {
+    if (this.signTimer != null) window.clearTimeout(this.signTimer);
+    this.signTimer = null;
+    this.mascot.holdSign(null);
   }
 
   // ── Input ───────────────────────────────────────────────────────────────────
@@ -202,6 +254,8 @@ class DesktopCandy {
     document.addEventListener("pointerdown", (e) => {
       Sound.resume();
       if (e.button !== 0 || !isOverBody(this.local(e))) return;
+      // A poke or a drag: the sign goes down.
+      this.lowerSign();
       this.press = { client: this.local(e), screen: { x: e.screenX, y: e.screenY } };
       this.dragging = false;
       try {
@@ -251,14 +305,18 @@ class DesktopCandy {
       void emitToWindow(ISLAND, DESKTOP_EVENTS.home);
     });
 
-    // No browser menu: a right-click on Candy opens the wardrobe in the island.
+    // No browser menu: a right-click on Candy opens his menu in the island
+    // (his window takes clicks on his body only; the island has room for it).
     document.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      if (isOverBody(this.local(e))) void emitToWindow(ISLAND, DESKTOP_EVENTS.wardrobe);
+      if (!isOverBody(this.local(e))) return;
+      this.lowerSign();
+      void emitToWindow(ISLAND, DESKTOP_EVENTS.menu);
     });
 
     document.addEventListener("pointerleave", () => {
       if (this.mode !== "poll" && !this.dragging) this.cursor = null;
+      this.hover(false);
     });
   }
 

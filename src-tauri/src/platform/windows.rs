@@ -30,8 +30,9 @@ use ::windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_CONTROL, VK_LBUTTON, VK_MENU, VK_SHIFT,
 };
 use ::windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW,
+    GetCursorPos, GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindowVisible, SetForegroundWindow,
+    SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_NOTOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
 use super::{LocalTime, Region};
@@ -622,6 +623,80 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
         };
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want);
     }
+}
+
+/// The window that was in front before a panel took the keyboard (as a raw
+/// handle; 0: none), given the keyboard back when the panel closes.
+static BEFORE_PANEL: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+/// A window of another app that can be seen: one worth giving the keyboard
+/// back to. Not one of Candy's own (the tray menu's hidden window is in front
+/// while its menu is open), nor an invisible one.
+fn foreign_and_visible(h: HWND) -> bool {
+    if h.0.is_null() {
+        return false;
+    }
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(h, Some(&mut pid)) };
+    pid != 0 && pid != std::process::id() && unsafe { IsWindowVisible(h) }.as_bool()
+}
+
+/// A panel opens in the island (Settings, the Closet): remembers the window
+/// in front, the trader's browser or terminal, to give the keyboard back to.
+pub fn remember_foreground(_win: &WebviewWindow) {
+    let front = unsafe { GetForegroundWindow() };
+    if foreign_and_visible(front) {
+        BEFORE_PANEL.store(front.0 as isize, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// The island lost the keyboard while a panel is open: the window the trader
+/// went to is the one the keyboard goes back to on close.
+pub fn note_foreground(win: &WebviewWindow) {
+    remember_foreground(win);
+}
+
+/// The panel closed: the keyboard goes back to the last app the trader was
+/// in, if the island still has it (a click elsewhere already gave it away).
+pub fn restore_foreground(win: &WebviewWindow) {
+    let before = BEFORE_PANEL.swap(0, std::sync::atomic::Ordering::Relaxed);
+    let Some(own) = hwnd_of(win) else { return };
+    let before = HWND(before as *mut _);
+    if !foreign_and_visible(before) || unsafe { GetForegroundWindow() } != own {
+        return;
+    }
+    // Allowed: the island is the foreground window, and it gives the focus away.
+    let _ = unsafe { SetForegroundWindow(before) };
+}
+
+/// A panel steps behind the app the trader went to: no longer topmost, and
+/// under the window in front. Leaving topmost alone (HWND_NOTOPMOST) puts the
+/// island above every normal window, the browser a link just opened included,
+/// so it is then slid just under the foreground window. On the main thread,
+/// after tao's own change of the flag, so that one can't undo it.
+pub fn lower_island(win: &WebviewWindow) -> bool {
+    let _ = win.set_always_on_top(false);
+    let Some(own) = hwnd_of(win) else { return true };
+    let own = own.0 as isize;
+    let _ = win.run_on_main_thread(move || behind_foreground(own));
+    true
+}
+
+fn behind_foreground(raw: isize) {
+    let own = HWND(raw as *mut _);
+    let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+    unsafe {
+        let _ = SetWindowPos(own, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
+        let front = GetForegroundWindow();
+        if foreign_and_visible(front) {
+            let _ = SetWindowPos(own, Some(front), 0, 0, 0, 0, flags);
+        }
+    }
+}
+
+/// Whether the island can step behind another window (lower_island).
+pub fn can_lower() -> bool {
+    true
 }
 
 /// Click-through comes from the cursor poll here (set_ignore_cursor_events),

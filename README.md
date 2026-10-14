@@ -6,7 +6,7 @@
 
 **A little candle that lives at the top of your screen and keeps an eye on your memecoins. On Windows, macOS and Linux.**
 
-Your watchlist always in view, an alert the moment something moves, your wallet's PnL worked out for you, and your own trading rules kept for you. Solana, BSC, Ethereum and Robinhood Chain, in ten languages.
+Your watchlist always in view, an alert the moment something moves, your wallet's PnL worked out for you, and your own trading rules kept for you. Solana, BSC, Ethereum, Base and Robinhood Chain, in ten languages.
 
 [![Version](https://img.shields.io/github/package-json/v/0xVendet4/trader-companion?label=version&color=2fb36b)](#versions)
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4?logo=windows&logoColor=white)
@@ -45,7 +45,7 @@ Candy is a candle with a face. It wears your colour, turns red on a loss, and fe
     <td><img src="docs/media/pokes.gif" alt="Poke after poke: hi hi, a spin, dizzy at five, fed up at eight"><br><b>Pokes</b>, and what too many of them do.</td>
   </tr>
   <tr>
-    <td><img src="docs/media/wardrobe.gif" alt="Hats change on Candy; the pompom, the bunny ears and the tassel swing as it hops"><br><b>Wardrobe</b>: 23 hats, 24 faces, 23 colours, and the loose bits swing.</td>
+    <td><img src="docs/media/wardrobe.gif" alt="Hats change on Candy; the pompom, the bunny ears and the tassel swing as it hops"><br><b>Wardrobe</b>: 36 hats, 35 faces, 23 colours, and the loose bits swing.</td>
     <td><img src="docs/media/extras.gif" alt="A flame on its wick, confetti, a rain cloud, coins, fireworks, a jump for joy"><br><b>Little extras</b>, now and then, never every time.</td>
   </tr>
   <tr>
@@ -61,7 +61,7 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 - 📈 **Watchlist ticker**: market cap (the price, for major coins), volume, buys and sells, and the 5m, 1h and 24h moves, always in view. Folders (Runners, Holds, Watching, your own), pins, sorting by any column, and a mini 24 h chart with its chain's coin as a dashed line: did it rise alone or with the market? Folded, a dot per token shows the last hour, and the ticker calls out each buy and sell, yours and the wallets you follow, as it happens.
 - 🔔 **Alerts**: price or market cap above or below a level, % moves within 5 to 60 minutes, liquidity pulled, volume surges, a token leaving pump.fun's curve, market cap milestones ($1M, $5M, $10M…) and sells running far ahead of buys. Candy reacts, a sound plays (one per folder if you like), and a card opens: open the token, set a 2x alert, or mute it for an hour.
 - 🧲 **Drag and drop**: a DexScreener, GMGN, Axiom, Based Bot or explorer link, or a bare address, dropped on Candy joins the watchlist. Or copy it and press Ctrl + Alt + V.
-- 👛 **My wallet** (Solana, public address only): value, average entry, PnL, % and multiple per token, worked out from its own transactions, with the way to your target, stop or next multiple, and alerts at 2x, −30% or wherever you set them. Airdropped scams and unsellable coins are left out.
+- 👛 **My wallet** (public address only; a Solana address, or a 0x address followed on Ethereum, BSC and Base at once): value, average entry, PnL, % and multiple per token, worked out from its own transactions, with the way to your target, stop or next multiple, and alerts at 2x, −30% or wherever you set them. Airdropped scams and unsellable coins are left out.
 - 🔎 **Search that knows the real coin**: type "btc" and Bitcoin comes first with its rank, above the copycats that share the ticker. Fakes reporting made-up liquidity are flagged ⚠. The 30 largest coins are priced from CoinGecko.
 - 🧪 **Before an entry**: Candy goes over a checklist with you, one line at a time: mint and freeze authority, locked liquidity, top holders, age and real liquidity, with what RugCheck and DexScreener say. A RugCheck badge on every token, and a note per token for why you are in and the exit plan.
 - 📅 **Economic calendar**: a heads-up before the US releases the whole market moves on (CPI, the Fed, the jobs report, PCE), and the next one in the header.
@@ -71,7 +71,7 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 - 🧭 **Trending** (DexScreener's boosted and newest tokens) and 👀 **Following** (an alert when a wallet you follow buys or sells).
 - 📍 **Anywhere**: floating (the default), the top edge, or the left or right edge as a slim tab that opens into a sidebar. On a MacBook with a notch the top island grows out of the notch.
 - ⌨️ **Shortcuts** from any app: show and hide, add the copied token, open the waiting alert, switch tabs, mute, the wardrobe, Candy to the desktop.
-- 🎨 **Make it yours**: 14 island backgrounds, costumes that redraw the whole mascot, seasonal looks, your own sounds.
+- 🎨 **Make it yours**: 18 island looks, five of them full themes that restyle every word, card and highlight (Terminal, Vaporwave, Matrix, Paper, Blueprint), as see-through as you like, costumes that redraw the whole mascot, seasonal looks, your own sounds.
 - 🌍 **Ten languages**: English, Português, Español, Français, Deutsch, Русский, Türkçe, 简体中文, 日本語 and 한국어, your system's by default and switched live.
 - 🔒 **Private by design**: no account, no telemetry, only public market data. See [Privacy](#privacy).
 
@@ -97,12 +97,19 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 | Do this | Candy does that |
 | --- | --- |
 | Click the ticker (or just rest the mouse on it, with Open on hover in Settings) | the island opens |
+| Rest the mouse on a token's row | its candles open, 1 m to 24 h |
 | Drag a token link onto Candy | opens wide and swallows it |
 | Keep clicking Candy | waves, spins, gets dizzy at five, fed up at eight |
+| Rest the mouse on Candy | holds up a sign with today's PnL |
+| Right-click Candy | a menu: dance, wave, laugh, spin, or the wardrobe |
+| Click the gear (or the tray's Settings… or Closet…) | the island itself grows into Settings or the Closet, no window of its own; ×, Esc or the gear again and it goes back exactly as it was |
+| Hold a token that doubles | puts on his shades for a few seconds |
 | Drag Candy out of the ticker | sits on your desktop until you double-click it |
 | Hold Ctrl (⌃ on a Mac) over the island *(Windows, macOS)* | fades and lets your clicks through to what is behind |
+| Click a browser tab under the ticker at the top *(Windows, macOS)* | the click goes to the tab: the ticker only takes the mouse once the cursor rests on it |
 | Copy an address, press Ctrl + Alt + V (⌘ ⌥ V) | adds the token |
 | Tray icon → Demo | a 30-second tour with made-up coins, nothing saved |
+| Run it on a laptop | the island comes compact by itself: lower, smaller type, fewer columns (Settings → General → Compact island) |
 
 ## Install
 
@@ -210,7 +217,7 @@ What `npm run setup` does is in [`scripts/setup.mjs`](scripts/setup.mjs), a shor
 
 ### Updates
 
-Candy checks GitHub for a newer version a minute after it starts and every half hour after, and asks before doing anything. On Windows, **Update now** downloads the new code, builds it in its own window (about a minute: what it compiled before is reused) and starts Candy again; your settings stay. On Linux and macOS, or by hand anywhere: get the new code and run the installer again. Which version you have: hover Candy's tray icon, or look next to the title of its Settings.
+Candy checks GitHub for a newer version a minute after it starts and every half hour after, and asks before doing anything. **Update now** downloads the new code, builds it (on Windows in its own window, about a minute; on macOS and Linux in the background while you keep using Candy, a few minutes: what it compiled before is reused) and starts Candy again; your settings stay. By hand, anywhere: get the new code and run the installer again. Which version you have: hover Candy's tray icon, or look next to the title of its Settings.
 
 What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux: `~/.cache/candy/build`, macOS: `~/Library/Caches/Candy/build`); delete that folder to free a few GB.
 
@@ -271,7 +278,7 @@ Candy ships as source: a new version is a commit on `main`, and a running Candy 
 
 ## Safety
 
-- Reads **public data only**: DexScreener, RugCheck, CoinGecko (for major coins), alternative.me's Fear & Greed index and Forex Factory's calendar (public, no key), and Solana's public RPC for your wallet (with two keyless spares for when it is busy): four read-only calls (balances, token accounts, and the transactions a position's entry comes from), whitelisted in Rust (`solana_rpc`). Sending a transaction is refused in code, and a test checks it.
+- Reads **public data only**: DexScreener, RugCheck, CoinGecko (for major coins), alternative.me's Fear & Greed index and Forex Factory's calendar (public, no key), and public RPCs for your wallet: Solana's (with two keyless spares for when it is busy), four read-only calls (balances, token accounts, and the transactions a position's entry comes from), whitelisted in Rust (`solana_rpc`); for a 0x wallet, Ethereum's, BSC's and Base's (PublicNode, with a spare each), four read-only calls too (the balance, a token's `balanceOf`, the latest block and a watched token's Transfer logs), whitelisted in Rust (`evm_rpc`). Sending a transaction is refused in code, and a test checks it.
 - **Never** asks for, stores or touches a wallet, a seed phrase, a private key or an exchange account. It cannot trade.
 - Tokens are added by **address or link**, never by a ticker alone: every popular memecoin has copycats with the same symbol, so a search shows the candidates with their real liquidity and you pick one.
 - The paste shortcut reads the clipboard only when you press it, and a private key or a seed phrase there is refused, never kept or sent.
@@ -289,17 +296,19 @@ It talks only to public services, for public data:
 - **alternative.me** (`api.alternative.me`): the crypto Fear & Greed index.
 - **Forex Factory** (`nfs.faireconomy.media`): this week's economic calendar, every few hours while its heads-up is on. Nothing is sent but the request.
 - **CoinGecko** (`api.coingecko.com`, logos from `coin-images.coingecko.com` and `assets.coingecko.com`): the largest coins (at most hourly, when you search), and a major coin's own market cap, 24 h volume, rank and logo, a few times an hour, only while one is on your watchlist or in a search. It is sent the names of those coins (bitcoin, dogecoin…).
+- **GeckoTerminal** (`api.geckoterminal.com`): a token's candles for the chart that opens when you rest the mouse on its row, only while that chart is open (one request per token and candle size, kept for a candle's length, at most five minutes). It is sent that token's pool address.
 - **Solana's public RPC** (`api.mainnet-beta.solana.com`): the balances and transactions of the wallet addresses you add (public addresses only; read-only calls, spaced to stay under its limits). If you paste your own RPC URL in the settings (Helius, Alchemy, QuickNode…: a free key takes a minute), these calls go to it instead; the URL stays on your computer.
 - **Spare public RPCs**, only when Solana's is busy and no RPC of your own is set: PublicNode (`solana-rpc.publicnode.com`) and Solana Vibe Station (`public.rpc.solanavibestation.com`), for the calls each one serves. They see the same thing: the wallet addresses asked about.
+- **Public EVM RPCs**, for a 0x wallet you add (followed on Ethereum, BSC and Base at once): PublicNode (`ethereum-rpc.publicnode.com`, `bsc-rpc.publicnode.com`, `base-rpc.publicnode.com`), and when one is busy its spare, LlamaRPC (`eth.llamarpc.com`), Binance (`bsc-dataseed.binance.org`) or Base (`mainnet.base.org`). Read-only calls only: the wallet's balance, its balance of the tokens on your watchlist, and the recent transfers of those tokens; they see the wallet and token addresses asked about.
 
 And GitHub, for updates: every half hour Candy reads the version in this repository (`raw.githubusercontent.com`), and only when you say *Update now* does it download the code (`codeload.github.com`).
 
-Each of these services sees your IP address, as with any website. Links you click open in your browser (GMGN, Axiom, Based Bot, DexScreener, RugCheck, Solscan, GitHub, and Helius or Alchemy for a free RPC key).
+Each of these services sees your IP address, as with any website. Links you click open in your browser (GMGN, Axiom, Based Bot, DexScreener, RugCheck, Solscan, Etherscan, BscScan, BaseScan, GitHub, and Helius or Alchemy for a free RPC key).
 
 ## How it works
 
 - **The app**: [Tauri 2](https://tauri.app). Rust for the window, the tray, the settings file and the network calls; TypeScript with no framework for the island.
-- **The island**: a borderless, transparent, always-on-top window that never takes the keyboard unless you type in it. On Windows and macOS it reads the cursor about 60 times a second while it is on screen, to know when you hover it, to let clicks through everywhere else and to drag it; hidden, it costs nothing. On Linux it is a layer-shell overlay (KDE, Sway, Hyprland, COSMIC) or an X11 window (GNOME), and the compositor sends it only the clicks on the island itself.
+- **The island**: a borderless, transparent, always-on-top window that never takes the keyboard unless you type in it. On Windows and macOS it reads the cursor about 60 times a second while it is on screen, to know when you hover it, to let clicks through everywhere else and to drag it; hidden, it shrinks to a thin edge that lets clicks through too (a browser tab under it stays clickable) and comes back when the cursor rests there, checked 20 times a second. On Linux it is a layer-shell overlay (KDE, Sway, Hyprland, COSMIC) or an X11 window (GNOME), and the compositor sends it only the clicks on the island itself.
 - **Candy**: drawn on a canvas every frame from its SVG art, with springs for the hops, the leans and the bits of a hat that swing, and particles for the hearts, confetti, coins and rain.
 - **The market**: DexScreener and CoinGecko polled while you watch, a price history kept per token for the windowed alerts, and the mood worked out from all of it.
 
@@ -320,7 +329,7 @@ npm run i18n          # what each language is missing (src/i18n/); -- --keys lis
 
 Every visible line goes through `t("…")` (`src/core/i18n.ts`), with English as the key; `src/i18n/<language>.ts` holds the other nine, and a test fails when one of them misses a line the code uses.
 
-In a browser the island runs on the same code, with settings kept in localStorage; open `/settings.html` for the settings window and `/demo.html` for the scripted demo.
+In a browser the island runs on the same code, with settings kept in localStorage; Settings and the Closet open in the island there too (the gear), and `/demo.html` plays the scripted demo. With `npm run dev` running, `npm run panel-check` opens and closes them a few times and fails if anything of theirs keeps running afterwards (Candy uses no CPU while the island is hidden).
 
 ### The demo, the pictures and the GIFs
 
@@ -344,7 +353,7 @@ They drive a headless Microsoft Edge; no ffmpeg needed. The music and the effect
 | `src/mascot/` | Candy: the canvas engine, the pieces that swing, the particles, the art in `public/mascot/` |
 | `src/island/`, `src/views/` | The island window and its views |
 | `src/desktop/` | Candy's desktop window |
-| `src/settings/` | The settings window |
+| `src/settings/`, `src/closet/` | Settings and the Closet, the pages that open in the island (`src/core/panel.ts` places the panel) |
 | `src/i18n/` | The nine other languages (English is in the code) |
 | `src/demo/` | The scripted demo, its clips and stills |
 | `src-tauri/` | Window placement, click-through, tray, settings file, links, one file per OS in `platform/` |

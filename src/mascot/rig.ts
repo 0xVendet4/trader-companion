@@ -63,6 +63,12 @@ export interface Op {
   /** What it moves with when the face turns: its clip's box when clipped (the clipped group moves as one), else its own. */
   pivot: Box;
   part: Part;
+  /**
+   * Skin his wax runs over when he melts (paint.ts → meltSeat): a sheet over
+   * the body, a costume's white face. The art says so: data-melt="over" on
+   * the shape or its group.
+   */
+  meltOver?: true;
 }
 
 export interface Rig {
@@ -81,8 +87,8 @@ const ATTR = /([\w:-]+)\s*=\s*"([^"]*)"/g;
 /** Elements a rig is made of; anything else in the art means "draw it as a picture". */
 const SHAPES = new Set(["rect", "ellipse", "circle", "path", "polygon", "polyline", "line", "text"]);
 const CONTAINERS = new Set(["svg", "defs", "linearGradient", "stop", "title", "desc"]);
-/** Presentation attributes a group hands down to what it holds (opacity multiplies instead). */
-const INHERITED = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "paint-order", "fill-opacity", "stroke-opacity"];
+/** Presentation attributes a group hands down to what it holds (opacity multiplies instead), and the melt's mark (Op.meltOver). */
+const INHERITED = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "paint-order", "fill-opacity", "stroke-opacity", "data-melt"];
 /** A face feature wider than this share of the body is skin (a mask, a pattern): it stays put when the face turns. */
 const SKIN_W = 0.8;
 const SKIN_H = 0.6;
@@ -486,6 +492,7 @@ function shapeOp(name: string, a: Record<string, string>, gradients: Map<string,
     fillAlpha: opacity * num(a["fill-opacity"], 1),
     strokeAlpha: opacity * num(a["stroke-opacity"], 1),
     strokeUnder: (a["paint-order"] ?? "").trim().startsWith("stroke"),
+    ...(a["data-melt"] === "over" ? { meltOver: true as const } : {}),
     pts: geo.pts,
   };
 }
@@ -562,4 +569,45 @@ export function wickOf(rig: Rig): { op: Op; color: string } | null {
     if (op.box.h > rig.body.h && op.box.w < rig.body.w * 0.3 && Math.abs(c.x - mid) < 4) return { op, color: op.fill.color };
   }
   return null;
+}
+
+/** How light a colour (#rgb or #rrggbb) is, 0–1 (relative luminance); null for anything else. */
+function lightness(color: string): number | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? [...m[1]].map((c) => c + c).join("") : m[1];
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * A halo under the mouth: a lighter, wider copy of one of its lines, drawn
+ * under it (the bee's, in the face's own colour, so its mouth reads where it
+ * meets a dark stripe). The ink is the first line's colour: the engine fills
+ * a mouth it opens with it (paint.ts → drawMouth), and rings it in the halo.
+ * Null: none, the open mouth has no ring.
+ */
+export function mouthHalo(rig: Rig): string | null {
+  let halo = halos.get(rig);
+  if (halo === undefined) halos.set(rig, (halo = findHalo(rig)));
+  return halo;
+}
+
+const halos = new WeakMap<Rig, string | null>();
+
+function findHalo(rig: Rig): string | null {
+  const lines = rig.ops.filter((o) => o.part === "mouth" && o.stroke && o.strokeWidth > 0);
+  const ink = lines.length ? lightness(lines[0].stroke!) : null;
+  if (ink === null) return null;
+  return (
+    lines.find((o, k) => {
+      const l = lightness(o.stroke!);
+      if (l === null || l - ink < 0.3) return false;
+      const shape = JSON.stringify(o.shape);
+      return lines.slice(k + 1).some((d) => d.strokeWidth < o.strokeWidth && JSON.stringify(d.shape) === shape && lightness(d.stroke!) === ink);
+    })?.stroke ?? null
+  );
 }

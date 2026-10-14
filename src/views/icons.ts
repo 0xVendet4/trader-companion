@@ -99,4 +99,10 @@ export const ICONS = {
   shuffle: "M3.5 7h3.6c2 0 3.2 1 4.3 2.7l2.2 3.6c1 1.7 2.3 2.7 4.3 2.7h2.6M3.5 17h3.6c1.5 0 2.6-.6 3.5-1.6M14.6 8.6c.9-1 2-1.6 3.5-1.6h2.4M18 4.5l2.5 2.5L18 9.5M18 14.5l2.5 2.5-2.5 2.5",
   // repeat (stroke)
   repeat: "M4.5 11V9.5a3 3 0 0 1 3-3h11.5M16.5 4l2.5 2.5L16.5 9M19.5 13v1.5a3 3 0 0 1-3 3H5M7.5 20 5 17.5 7.5 15",
+  // A closet (stroke): two doors with their handles, on little feet.
+  closet: "M5 3.5h14v16H5zM12 3.5v16M9.6 10.2v2.6M14.4 10.2v2.6M7 19.5V21M17 19.5V21",
+  // A hand waving (stroke): Candy's wave emote.
+  hand: "M7.5 12.5V7.5a1.5 1.5 0 0 1 3 0v4M10.5 11V5.5a1.5 1.5 0 0 1 3 0V11M13.5 11V7a1.5 1.5 0 0 1 3 0v7a6 6 0 0 1-6 6h-.4a6 6 0 0 1-4.7-2.3L3 14.4a1.5 1.5 0 0 1 2.3-1.9L7.5 15M18.6 3.6c1.1.7 1.8 1.8 2 3.1",
+  // A face laughing (stroke): Candy's laugh emote.
+  laugh: "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM7.9 10.3l1.4-1.4 1.4 1.4M13.3 10.3l1.4-1.4 1.4 1.4M8 13.4h8a4 4 0 0 1-8 0z",
 } as const;

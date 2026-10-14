@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_BOOK, crossedLevels, crossedTargets, normalizeBook, parseLevels, positionStats, setEntry, setTargets, updateBook, walletTrades } from "./positions";
+import { EMPTY_BOOK, crossedLevels, crossedTargets, dropWalletKeys, normalizeBook, parseLevels, positionStats, setEntry, setTargets, updateBook, walletTrades } from "./positions";
 
 const A = "WalletA";
 const B = "WalletB";
@@ -115,14 +115,14 @@ describe("walletTrades", () => {
     const half = updateBook(book, [A], [{ address: A, holdings: { [BONK]: 500 } }], px(0.02), 3, DAY);
     expect(walletTrades(half.changes, "USD", 150)).toEqual([{ pnl: 5, partial: true }]);
     const rest = updateBook(half.book, [A], [{ address: A, holdings: {} }], px(0.03), 4, DAY);
-    expect(walletTrades(rest.changes, "USD", 150)).toEqual([{ pnl: 10, partial: false, tradePnl: 15, note: "Auto: BONK closed (+$15)" }]);
-    expect(walletTrades(rest.changes, "SOL", 150)).toEqual([{ pnl: 0.0667, partial: false, tradePnl: 0.1, note: "Auto: BONK closed (+$15)" }]);
+    expect(walletTrades(rest.changes, "USD", 150)).toEqual([{ pnl: 10, partial: false, tradePnl: 15, note: "Auto: BONK closed (+$15)", symbol: "BONK" }]);
+    expect(walletTrades(rest.changes, "SOL", 150)).toEqual([{ pnl: 0.0667, partial: false, tradePnl: 0.1, note: "Auto: BONK closed (+$15)", symbol: "BONK" }]);
   });
 
   it("waits for a SOL price, and has nothing to count for buys", () => {
     const closed = [{ mint: BONK, symbol: "BONK", side: "closed" as const, usd: 1, realizedUsd: -3, totalRealizedUsd: -3, fromTracking: true }];
     expect(walletTrades(closed, "SOL", null)).toBeNull();
-    expect(walletTrades(closed, "USD", null)).toEqual([{ pnl: -3, partial: false, tradePnl: -3, note: "Auto: BONK closed (−$3, since tracking)" }]);
+    expect(walletTrades(closed, "USD", null)).toEqual([{ pnl: -3, partial: false, tradePnl: -3, note: "Auto: BONK closed (−$3, since tracking)", symbol: "BONK" }]);
     expect(walletTrades([{ ...closed[0], side: "opened" }], "SOL", null)).toEqual([]);
   });
 });
@@ -145,5 +145,25 @@ describe("targets", () => {
     expect(setTargets(withTargets, BONK, null, null).positions[BONK].target).toBeUndefined();
     // Saved and read back.
     expect(normalizeBook(withTargets).positions[BONK].target).toBe(0.03);
+  });
+});
+
+describe("dropWalletKeys", () => {
+  it("takes a wallet's share out of the positions on a chain it no longer follows, with no sale", () => {
+    const book = normalizeBook({
+      wallets: ["W", "V"],
+      positions: {
+        "bsc:0xaaa": { mint: "bsc:0xaaa", symbol: "A", amounts: { W: 100, V: 300 }, costUsd: 400, realizedUsd: 0, openedAt: 0, fromTracking: false, alerted: [] },
+        "base:0xbbb": { mint: "base:0xbbb", symbol: "B", amounts: { W: 50 }, costUsd: 50, realizedUsd: 0, openedAt: 0, fromTracking: false, alerted: [] },
+        "ethereum:0xccc": { mint: "ethereum:0xccc", symbol: "C", amounts: { W: 10 }, costUsd: 10, realizedUsd: 0, openedAt: 0, fromTracking: false, alerted: [] },
+      },
+    });
+    const next = dropWalletKeys(book, "W", (mint) => mint.startsWith("bsc:") || mint.startsWith("base:"));
+    expect(next.positions["bsc:0xaaa"]).toMatchObject({ amounts: { V: 300 }, costUsd: 300 });
+    expect(next.positions["base:0xbbb"]).toBeUndefined();
+    expect(next.positions["ethereum:0xccc"]).toMatchObject({ amounts: { W: 10 }, costUsd: 10 });
+    expect(next.activity).toEqual([]);
+    // The book handed in is left alone.
+    expect(book.positions["base:0xbbb"]).toBeDefined();
   });
 });

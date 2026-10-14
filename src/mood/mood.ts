@@ -102,7 +102,8 @@ function positionMood(list: PositionMood[] | undefined): Mood | null {
   if (up) {
     const p = { symbol: up.symbol, multiple: (Math.floor(up.multiple! * 10) / 10).toFixed(1) };
     const text = up.fromTracking ? t("Your {symbol}: {multiple}x since tracking!", p) : t("Your {symbol}: {multiple}x from entry!", p);
-    return { state: "celebrate", text, lasting: "position", subject: up.symbol };
+    // Each new whole multiple (3x, 4x…) is news again; 4.1x to 4.9x is the same run.
+    return { state: "celebrate", text, lasting: "position", subject: `${up.symbol}:${Math.floor(up.multiple!)}x` };
   }
   return null;
 }
@@ -150,6 +151,34 @@ export function settlesIn(mood: Mood, since: number, now: number): number | null
 /** Same condition and token, numbers aside: a new key restarts the settle clock. */
 export function moodKey(mood: Mood): string {
   return `${mood.state}:${mood.lasting ?? ""}:${mood.subject ?? ""}`;
+}
+
+/**
+ * A mood that comes back this soon after it last showed keeps the clock it
+ * had: a brief interruption (a volume spike, a 5-minute flash) does not make
+ * Candy celebrate the same 4x all over again.
+ */
+export const MOOD_MEMORY_MS = 30 * 60_000;
+
+/** When the current mood's condition began, remembering the moods seen lately (see MOOD_MEMORY_MS). */
+export class MoodClock {
+  private key = "";
+  private since = 0;
+  private recent = new Map<string, { since: number; seen: number }>();
+
+  /** The start of `mood`'s condition, for settleMood and settlesIn. */
+  start(mood: Mood, now: number): number {
+    const key = moodKey(mood);
+    if (key !== this.key) {
+      // A 5-minute move is news each time it happens: it never resumes an old clock.
+      const back = mood.lasting === "move" ? undefined : this.recent.get(key);
+      this.since = back && now - back.seen < MOOD_MEMORY_MS ? back.since : now;
+      this.key = key;
+    }
+    this.recent.set(key, { since: this.since, seen: now });
+    for (const [k, v] of this.recent) if (now - v.seen >= MOOD_MEMORY_MS) this.recent.delete(k);
+    return this.since;
+  }
 }
 
 export function computeMood(input: MoodInput): Mood {

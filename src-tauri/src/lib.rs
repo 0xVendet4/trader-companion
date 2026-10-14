@@ -1,11 +1,12 @@
 // Candy (Trader Companion) for Windows — app wiring and the commands the pages call.
 //
-// The window shell (island placement, click-through, wake strip, settings
-// window) comes from Coucou for Windows (MIT, © Louis Raillé). Everything the
-// mascot shows is computed in the page from public market data; Rust only
-// places windows, stores preferences and opens links.
+// The window shell (island placement, click-through, wake strip) comes from
+// Coucou for Windows (MIT, © Louis Raillé). Everything the mascot shows is
+// computed in the page from public market data; Rust only places windows,
+// stores preferences and opens links.
 
 mod calendar;
+mod chart;
 mod desktop;
 mod identity;
 mod island;
@@ -22,7 +23,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, Url};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use island::{PollGate, ScreenInfo};
@@ -52,7 +53,18 @@ pub struct BootInfo {
 }
 
 #[tauri::command]
-fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
+fn boot(app: AppHandle, window: tauri::WebviewWindow, shared: State<Shared>) -> BootInfo {
+    // The island's page (re)starting has no panel open: one left from before a
+    // reload (a WebView2 renderer recovering, a dev reload) is let go of, or the
+    // window would stay panel-sized and taking the keyboard.
+    if window.label() == island::WINDOW_LABEL && shared.gate.panel().is_some() {
+        shared.gate.forget_panel();
+        platform::set_activating(&window, false);
+        let settings = shared.settings.lock().unwrap().clone();
+        let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
+        island::apply_geometry(&app, &settings, collapsed);
+        island::refresh_click_through(&app, &shared.gate);
+    }
     let settings = shared.settings.lock().unwrap().clone();
     let screen = island::screen_info(&app, &settings);
     BootInfo {
@@ -99,20 +111,31 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         island::apply_geometry(&app, &settings, collapsed);
         island::refresh_click_through(&app, &shared.gate);
     }
-    // Keep the other window in step (island ⇄ settings window).
+    // The island hears its own saves too (and Candy's desktop window).
     let _ = app.emit("settings-changed", settings);
 }
 
 /// Hidden island → shrink the window to the invisible wake strip and park the
-/// cursor poll; anything else → full panel and 60 Hz polling.
+/// cursor poll; anything else → full panel and 60 Hz polling. `asleep`: it was
+/// minimized, and the edge doesn't bring it back.
 #[tauri::command]
-fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
+fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool, asleep: Option<bool>) {
     let settings = shared.settings.lock().unwrap().clone();
+    shared.gate.asleep.store(collapsed && asleep.unwrap_or(false), Ordering::Relaxed);
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
     island::apply_geometry(&app, &settings, collapsed);
-    // The wake strip must always take the mouse, and a resize invalidates the flag.
+    // The wake strip lets clicks through to what is under it (the edge watch,
+    // or on Linux its input region, wakes the island), and a resize
+    // invalidates the flag.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
+}
+
+/// The page says whether the ticker sits on a screen edge, where it lets
+/// clicks through until the cursor rests on it (island.rs, TICKER_DWELL).
+#[tauri::command]
+fn set_click_guard(shared: State<Shared>, on: bool) {
+    shared.gate.guard.store(on, Ordering::Relaxed);
 }
 
 /// The front end pushes the island shape; the cursor poll decides click-through
@@ -125,14 +148,121 @@ fn set_island_rect(app: AppHandle, shared: State<Shared>, x: f64, y: f64, width:
     }
 }
 
+/// The page says where the ticker's mascot sits (layout.ts tickerSeat, logical
+/// px from the island's top-left corner): Candy's flights to and from the
+/// desktop start and end there (desktop.rs island_spot).
+#[tauri::command]
+fn set_ticker_seat(shared: State<Shared>, x: f64, y: f64) {
+    shared.gate.set_seat((x, y));
+}
+
 /// Lets a text field in the island take the keyboard (pasting a token address,
 /// typing an alert price), and gives the focus back afterwards.
 #[tauri::command]
-fn focus_window(app: AppHandle, focused: bool) {
+fn focus_window(app: AppHandle, shared: State<Shared>, focused: bool) {
+    // An open panel keeps the keyboard until it closes (set_panel).
+    if !focused && shared.gate.panel_holds() {
+        return;
+    }
     let Some(win) = island::window(&app) else { return };
     platform::set_activating(&win, focused);
     if focused {
         let _ = win.set_focus();
+    }
+}
+
+/// Settings or the Closet open in the island (src/core/panel.ts): the window
+/// grows to hold a panel of width × height (logical px; less where the screen
+/// is smaller), takes the mouse over all of it and the keyboard, and the
+/// island stays out (no collapse, no sleep, no pass-through) until it closes.
+/// It stays on the display it opened on. Closed, the window goes back to the
+/// island's own and the keyboard to the app that had it. Returns the window's
+/// size as placed and where the island's own window sits from it (logical
+/// px): the page lays the panel out in it and keeps the island in its spot.
+#[tauri::command]
+fn set_panel(app: AppHandle, shared: State<Shared>, open: bool, width: f64, height: f64) -> PanelPlaced {
+    let settings = shared.settings.lock().unwrap().clone();
+    let gate = &shared.gate;
+    let held = gate.panel_holds();
+    if open && gate.panel().is_none() {
+        // Pinned to the display the island is on now.
+        *gate.panel_screen.lock().unwrap() = island::monitor_of_window(&app).and_then(|m| m.name().cloned());
+    }
+    let want = island::clamp_panel(width, height);
+    if open {
+        *gate.panel.lock().unwrap() = Some(want);
+        gate.closing.store(false, Ordering::Relaxed);
+        gate.lowered.store(false, Ordering::Relaxed);
+        gate.asleep.store(false, Ordering::Relaxed);
+        gate.collapsed.store(false, Ordering::Relaxed);
+    }
+    let offset = island::panel_display(&app, &settings).map_or((0.0, 0.0), |d| island::panel_offset(d, &island::effective(&settings), want));
+    if !open {
+        gate.forget_panel();
+    }
+    let collapsed = gate.collapsed.load(Ordering::Relaxed);
+    island::apply_geometry(&app, &settings, collapsed);
+    island::refresh_click_through(&app, gate);
+    gate.set_active(!collapsed);
+    if let Some(win) = island::window(&app) {
+        if open {
+            if !held {
+                platform::remember_foreground(&win);
+                platform::set_activating(&win, true);
+            }
+            // On top and in front again (opened, or asked for while behind another app).
+            platform::keep_on_top(&win);
+            let _ = win.set_focus();
+        } else if held {
+            platform::set_activating(&win, false);
+            platform::restore_foreground(&win);
+        }
+    }
+    let (w, h) = gate.placed_size();
+    PanelPlaced { w, h, dx: offset.0, dy: offset.1 }
+}
+
+/// Where the window would go for a panel of width × height, without moving
+/// it: a swap between Settings and the Closet morphs the island toward it.
+#[tauri::command]
+fn panel_place(app: AppHandle, shared: State<Shared>, width: f64, height: f64) -> PanelPlaced {
+    let settings = island::effective(&shared.settings.lock().unwrap());
+    let want = island::clamp_panel(width, height);
+    let Some(d) = island::panel_display(&app, &settings) else {
+        return PanelPlaced { w: want.0, h: want.1, dx: 0.0, dy: 0.0 };
+    };
+    let (_, _, pw, ph) = island::panel_frame(d, &settings, want);
+    let (dx, dy) = island::panel_offset(d, &settings, want);
+    PanelPlaced { w: pw as f64 / d.scale, h: ph as f64 / d.scale, dx, dy }
+}
+
+/// The panel's window as placed (logical px), and where the island's own
+/// window sits from it.
+#[derive(Serialize)]
+struct PanelPlaced {
+    w: f64,
+    h: f64,
+    dx: f64,
+    dy: f64,
+}
+
+/// The panel is closing (×, Esc…): the island shrinks back inside the panel's
+/// window, which set_panel(false) puts back once it has; meanwhile the mouse
+/// and the keyboard are already the trader's again.
+#[tauri::command]
+fn panel_closing(app: AppHandle, shared: State<Shared>) {
+    let gate = &shared.gate;
+    if !gate.panel_holds() {
+        return;
+    }
+    gate.closing.store(true, Ordering::Relaxed);
+    island::refresh_click_through(&app, gate);
+    if let Some(win) = island::window(&app) {
+        if gate.lowered.swap(false, Ordering::Relaxed) {
+            platform::keep_on_top(&win);
+        }
+        platform::set_activating(&win, false);
+        platform::restore_foreground(&win);
     }
 }
 
@@ -225,6 +355,9 @@ const ALLOWED_HOSTS: &[&str] = &[
     "dexscreener.com",
     "rugcheck.xyz",
     "solscan.io",
+    "etherscan.io",
+    "bscscan.com",
+    "basescan.org",
     "github.com",
     // Where a trader gets a free Solana RPC key (Settings → General).
     "dashboard.helius.dev",
@@ -242,13 +375,23 @@ fn is_allowed_url(raw: &str) -> bool {
 }
 
 #[tauri::command]
-fn open_url(url: String) -> bool {
+fn open_url(app: AppHandle, url: String) -> bool {
     if !is_allowed_url(&url) {
         log::line(format!("refused to open {url}"));
         return false;
     }
+    // From a panel: where it can't step behind the browser, it closes first.
+    island::handoff(&app);
     platform::open_url(&url);
     true
+}
+
+/// Opens the folder for the trader's own sounds (Settings → Sounds), the panel
+/// first stepping aside where it must (see open_url).
+#[tauri::command]
+fn reveal_sounds_folder(app: AppHandle) {
+    island::handoff(&app);
+    sounds::reveal_sounds_folder();
 }
 
 /// Whether a fullscreen game, video or presentation is up (Windows): alert
@@ -333,14 +476,10 @@ fn set_tray_tooltip(app: AppHandle, text: String) {
 }
 
 /// The words Rust shows, in the trader's language (src/core/i18n.ts): the
-/// tray menu's six items (see tray::set_labels) and the settings window's title.
+/// tray menu's seven items (see tray::set_labels).
 #[tauri::command]
-fn set_ui_labels(app: AppHandle, tray: Vec<String>, settings_title: String) {
+fn set_ui_labels(app: AppHandle, tray: Vec<String>) {
     tray::set_labels(&app, &tray);
-    let title: String = settings_title.chars().filter(|c| !c.is_control()).take(60).collect();
-    if let (false, Some(win)) = (title.is_empty(), app.get_webview_window("settings")) {
-        let _ = win.set_title(&title);
-    }
 }
 
 /// Lets the pages write to the same log as the Rust side.
@@ -370,11 +509,23 @@ async fn economic_calendar() -> Result<serde_json::Value, String> {
     })
 }
 
+/// A pool's candles for the hover chart (see chart.rs): the URL is built there
+/// from these checked parts; the page checks each candle. "busy": a 429.
+#[tauri::command]
+async fn ohlcv(network: String, pool: String, timeframe: String, aggregate: u32, limit: u32) -> Result<serde_json::Value, String> {
+    chart::candles(&network, &pool, &timeframe, aggregate, limit).await.map_err(|e| {
+        if e != "busy" {
+            log::line(format!("chart: {e}"));
+        }
+        e
+    })
+}
+
 /// The user said yes: download the new code, unpack it and start its installer.
 #[tauri::command]
-async fn start_update() -> Result<(), String> {
+async fn start_update(app: AppHandle) -> Result<(), String> {
     log::line("update: starting");
-    update::start().await.map_err(|e| {
+    update::start(app).await.map_err(|e| {
         log::line(format!("update: {e}"));
         e
     })
@@ -483,6 +634,144 @@ async fn solana_rpc(shared: State<'_, Shared>, method: String, params: serde_jso
         Answer::Result(v) => Ok(v),
         Answer::Error(e) | Answer::Refused(e) | Answer::Busy(e, _) => Err(e),
     }
+}
+
+// ── EVM wallets (Ethereum, BSC, Base): read-only, public RPCs ────────────────
+
+/// A chain an EVM wallet is followed on, and the keyless public RPCs asked in
+/// turn when one is busy (README, Privacy). Each sees the wallet and token
+/// addresses asked about.
+struct EvmChain {
+    id: &'static str,
+    label: &'static str,
+    rpcs: &'static [&'static str],
+}
+
+const EVM_CHAINS: &[EvmChain] = &[
+    EvmChain { id: "ethereum", label: "Ethereum", rpcs: &["https://ethereum-rpc.publicnode.com", "https://eth.llamarpc.com"] },
+    EvmChain { id: "bsc", label: "BSC", rpcs: &["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.binance.org"] },
+    EvmChain { id: "base", label: "Base", rpcs: &["https://base-rpc.publicnode.com", "https://mainnet.base.org"] },
+];
+
+/// Transfer(address,address,uint256): the one event the app reads logs of.
+const TRANSFER_TOPIC: &str = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+/// balanceOf(address) and decimals(): the two calls made to a token contract.
+const BALANCE_OF: &str = "0x70a08231";
+const DECIMALS: &str = "0x313ce567";
+/// The most blocks one eth_getLogs may span (mirrors LOG_SPAN in src/wallets/evm.ts).
+const MAX_LOG_SPAN: u64 = 2000;
+
+/// Only hex digits (so only ASCII: the checks below index bytes, and a
+/// multibyte character in the page's string must never make them panic).
+fn is_hex(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|c| c.is_ascii_hexdigit())
+}
+
+/// "0x" + `digits` hex digits, nothing else.
+fn is_hex_of(s: &str, digits: usize) -> bool {
+    s.len() == 2 + digits && s.starts_with("0x") && is_hex(&s[2..])
+}
+
+/// "0x" + 40 hex digits (checksum casing or not).
+fn is_evm_address(s: &str) -> bool {
+    is_hex_of(s, 40)
+}
+
+/// A 32-byte topic holding an address: 24 zero bytes, then the address.
+fn is_address_topic(s: &str) -> bool {
+    is_hex_of(s, 64) && s.as_bytes()[2..26].iter().all(|&c| c == b'0')
+}
+
+/// A block number as the RPC writes it: "0x" + up to 16 hex digits.
+fn hex_quantity(s: &str) -> Option<u64> {
+    let digits = s.strip_prefix("0x")?;
+    if !is_hex(digits) || digits.len() > 16 {
+        return None;
+    }
+    u64::from_str_radix(digits, 16).ok()
+}
+
+/// The params to forward for an allowed EVM call, rebuilt from scratch; None
+/// when the call is refused. Four read-only calls: a native balance, a token
+/// balance (eth_call with balanceOf(address), or decimals() to scale it), the
+/// latest block, and the Transfer logs of one token contract with the wallet
+/// as sender or receiver, over at most MAX_LOG_SPAN blocks. Nothing that
+/// writes, signs or sends.
+fn evm_params(method: &str, params: &serde_json::Value) -> Option<serde_json::Value> {
+    use serde_json::json;
+    match method {
+        "eth_blockNumber" => Some(json!([])),
+        "eth_getBalance" => {
+            let who = params.get(0)?.as_str()?;
+            is_evm_address(who).then(|| json!([who, "latest"]))
+        }
+        "eth_call" => {
+            let call = params.get(0)?;
+            let to = call.get("to")?.as_str()?;
+            let data = call.get("data")?.as_str()?;
+            if !is_evm_address(to) {
+                return None;
+            }
+            // The selector, then one address as a 32-byte word: nothing else fits.
+            let balance_of = is_hex_of(data, 8 + 64) && data.starts_with(BALANCE_OF) && data.as_bytes()[10..34].iter().all(|&c| c == b'0');
+            let decimals = data == DECIMALS;
+            (balance_of || decimals).then(|| json!([{ "to": to, "data": data.to_lowercase() }, "latest"]))
+        }
+        "eth_getLogs" => {
+            let filter = params.get(0)?;
+            let address = filter.get("address")?.as_str()?;
+            let from = hex_quantity(filter.get("fromBlock")?.as_str()?)?;
+            let to = hex_quantity(filter.get("toBlock")?.as_str()?)?;
+            if !is_evm_address(address) || to < from || to - from >= MAX_LOG_SPAN {
+                return None;
+            }
+            let topics = filter.get("topics")?.as_array()?;
+            if topics.len() != 3 || topics[0].as_str() != Some(TRANSFER_TOPIC) {
+                return None;
+            }
+            // The wallet as sender or as receiver: one of the two, the other open.
+            let party = |t: &serde_json::Value| t.as_str().filter(|s| is_address_topic(s)).map(|s| s.to_lowercase());
+            let rebuilt = match (topics[1].is_null(), topics[2].is_null()) {
+                (false, true) => json!([TRANSFER_TOPIC, party(&topics[1])?, null]),
+                (true, false) => json!([TRANSFER_TOPIC, null, party(&topics[2])?]),
+                _ => return None,
+            };
+            Some(json!([{
+                "address": address,
+                "fromBlock": format!("0x{from:x}"),
+                "toBlock": format!("0x{to:x}"),
+                "topics": rebuilt,
+            }]))
+        }
+        _ => None,
+    }
+}
+
+/// A read-only call to one of the EVM chains' public RPCs, made from Rust
+/// like solana_rpc: the chain and the method are allowlisted, the params
+/// rebuilt from validated inputs (evm_params), and the chain's endpoints are
+/// asked in turn when one is busy or refuses, each spaced like the public
+/// Solana RPC. A JSON-RPC error is the call's own problem and comes back as is.
+#[tauri::command]
+async fn evm_rpc(chain: String, method: String, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    let Some(chain) = EVM_CHAINS.iter().find(|c| c.id == chain) else {
+        return Err(format!("{chain} is not a chain the app reads"));
+    };
+    let Some(params) = evm_params(&method, &params) else {
+        return Err(format!("{method} is not allowed"));
+    };
+    let body = serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
+    let whose = format!("the public {} RPC", chain.label);
+    let mut last = format!("{whose} did not answer");
+    for &rpc in chain.rpcs {
+        turn(rpc, PUBLIC_SPACING).await;
+        match ask(rpc, &body, &whose).await {
+            Answer::Result(v) => return Ok(v),
+            Answer::Error(e) => return Err(e),
+            Answer::Refused(e) | Answer::Busy(e, _) => last = e,
+        }
+    }
+    Err(last)
 }
 
 /// What an RPC made of a call.
@@ -712,6 +1001,69 @@ mod rpc_tests {
     }
 
     #[test]
+    fn evm_allows_only_the_four_read_calls_with_rebuilt_params() {
+        use super::{evm_params, EVM_CHAINS, TRANSFER_TOPIC};
+        let wallet = "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B";
+        let token = "0x4200000000000000000000000000000000000006";
+        let padded = "0x000000000000000000000000ab5801a7d398351b8be11c439e05c5b3259aec9b";
+        assert_eq!(evm_params("eth_blockNumber", &json!([1, 2])), Some(json!([])));
+        assert_eq!(evm_params("eth_getBalance", &json!([wallet, "0x10"])), Some(json!([wallet, "latest"])));
+        assert_eq!(evm_params("eth_getBalance", &json!(["0x1234"])), None);
+        let data = format!("0x70a08231{}", &padded[2..]);
+        assert_eq!(
+            evm_params("eth_call", &json!([{ "to": token, "data": data, "gas": "0xffff" }, "0x1"])),
+            Some(json!([{ "to": token, "data": data }, "latest"]))
+        );
+        assert_eq!(evm_params("eth_call", &json!([{ "to": token, "data": "0x313ce567" }])), Some(json!([{ "to": token, "data": "0x313ce567" }, "latest"])));
+        // transfer(address,uint256), approve, anything else: refused.
+        assert_eq!(evm_params("eth_call", &json!([{ "to": token, "data": format!("0xa9059cbb{}", &padded[2..]) }])), None);
+        assert_eq!(evm_params("eth_call", &json!([{ "to": token, "data": format!("0x70a08231{}ff", &padded[2..]) }])), None);
+        assert_eq!(evm_params("eth_call", &json!([{ "to": "not a contract", "data": data }])), None);
+        let logs = |from: &str, to: &str, topics: serde_json::Value| json!([{ "address": token, "fromBlock": from, "toBlock": to, "topics": topics }]);
+        assert_eq!(
+            evm_params("eth_getLogs", &logs("0x1f41", "0x2710", json!([TRANSFER_TOPIC, null, padded]))),
+            Some(json!([{ "address": token, "fromBlock": "0x1f41", "toBlock": "0x2710", "topics": [TRANSFER_TOPIC, null, padded] }]))
+        );
+        assert!(evm_params("eth_getLogs", &logs("0x1f41", "0x2710", json!([TRANSFER_TOPIC, padded, null]))).is_some());
+        // Too wide, backwards, both parties open, another event, a wallet in both places.
+        assert_eq!(evm_params("eth_getLogs", &logs("0x0", "0x7d0", json!([TRANSFER_TOPIC, null, padded]))), None);
+        assert_eq!(evm_params("eth_getLogs", &logs("0x2710", "0x1f41", json!([TRANSFER_TOPIC, null, padded]))), None);
+        assert_eq!(evm_params("eth_getLogs", &logs("0x1f41", "0x2710", json!([TRANSFER_TOPIC, null, null]))), None);
+        assert_eq!(evm_params("eth_getLogs", &logs("0x1f41", "0x2710", json!([format!("0x{}", "1".repeat(64)), null, padded]))), None);
+        assert_eq!(evm_params("eth_getLogs", &logs("0x1f41", "0x2710", json!([TRANSFER_TOPIC, padded, padded]))), None);
+        assert_eq!(evm_params("eth_getLogs", &logs("latest", "0x2710", json!([TRANSFER_TOPIC, null, padded]))), None);
+        for m in ["eth_sendTransaction", "eth_sendRawTransaction", "eth_sign", "personal_sign", "eth_accounts", "eth_getCode"] {
+            assert_eq!(evm_params(m, &json!([wallet])), None, "{m}");
+        }
+        for chain in EVM_CHAINS {
+            assert!(chain.rpcs.len() >= 2 && chain.rpcs.iter().all(|u| u.starts_with("https://")), "{}", chain.id);
+        }
+    }
+
+    #[test]
+    fn evm_refuses_odd_strings_without_panicking() {
+        use super::{evm_params, TRANSFER_TOPIC};
+        let token = "0x4200000000000000000000000000000000000006";
+        // The right lengths in bytes, with multibyte characters where the
+        // address digits go: refused, never a slice in the middle of one.
+        let odd_topic = format!("0x{}é{}", "0".repeat(23), "a".repeat(39));
+        assert_eq!(odd_topic.len(), 66);
+        let odd_data = format!("0x70a08231{}", &odd_topic[2..]);
+        assert_eq!(evm_params("eth_call", &json!([{ "to": token, "data": odd_data }])), None);
+        assert_eq!(evm_params("eth_call", &json!([{ "to": format!("0x{}é", "a".repeat(38)), "data": "0x313ce567" }])), None);
+        let logs = |topics: serde_json::Value| json!([{ "address": token, "fromBlock": "0x1f41", "toBlock": "0x2710", "topics": topics }]);
+        assert_eq!(evm_params("eth_getLogs", &logs(json!([TRANSFER_TOPIC, null, odd_topic]))), None);
+        assert_eq!(evm_params("eth_getLogs", &logs(json!([TRANSFER_TOPIC, "é", null]))), None);
+        // A signed or padded block number, a topic that is not a string, a missing filter.
+        assert_eq!(evm_params("eth_getLogs", &json!([{ "address": token, "fromBlock": "0x+1", "toBlock": "0x10", "topics": [TRANSFER_TOPIC, null, "0x".to_string() + &"0".repeat(64)] }])), None);
+        assert_eq!(evm_params("eth_getLogs", &logs(json!([TRANSFER_TOPIC, 7, null]))), None);
+        assert_eq!(evm_params("eth_getLogs", &json!(["0x1"])), None);
+        assert_eq!(evm_params("eth_getBalance", &json!({ "0": token })), None);
+        assert_eq!(evm_params("eth_getBalance", &json!([format!("0x{}é", "a".repeat(38))])), None);
+        assert_eq!(evm_params("eth_call", &json!(["0x313ce567"])), None);
+    }
+
+    #[test]
     fn waits_as_long_as_a_busy_rpc_asks() {
         use std::time::Duration;
         assert_eq!(retry_after(Some("3")), Duration::from_secs(3));
@@ -722,70 +1074,14 @@ mod rpc_tests {
     }
 }
 
-// ── Settings window ───────────────────────────────────────────────────────────
+// ── Windows ───────────────────────────────────────────────────────────────────
 
 /// WebView2 allows exactly one browser environment per app, and its options are
-/// fixed by whichever webview is created first. Every window must therefore ask
-/// for the *same* arguments as the island (see `additionalBrowserArgs` in
+/// fixed by whichever webview is created first. Every window (Candy's desktop
+/// window, desktop.rs) must therefore ask for the *same* arguments as the island (see `additionalBrowserArgs` in
 /// tauri.conf.json) — a mismatch makes the second window come up blank, with no
 /// error anywhere.
 pub(crate) const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
-
-/// In a dev build the pages are served by Vite, so the second window needs the
-/// absolute dev URL; a bundled build resolves it inside the app bundle.
-fn settings_page_url(app: &AppHandle) -> WebviewUrl {
-    #[cfg(dev)]
-    if let Some(mut base) = app.config().build.dev_url.clone() {
-        base.set_path("/settings.html");
-        return WebviewUrl::External(base);
-    }
-    let _ = app;
-    WebviewUrl::App("settings.html".into())
-}
-
-/// The settings window is created hidden at launch and only ever shown and
-/// hidden afterwards. A WebView2 window created later silently comes up blank,
-/// so the window that works is the one that exists before the island's does.
-fn create_settings_window(app: &AppHandle) {
-    let url = settings_page_url(app);
-    match WebviewWindowBuilder::new(app, "settings", url)
-        .additional_browser_args(BROWSER_ARGS)
-        .title("Settings — Candy")
-        .inner_size(600.0, 720.0)
-        .min_inner_size(480.0, 500.0)
-        .resizable(true)
-        .visible(false)
-        .center()
-        .build()
-    {
-        Ok(win) => {
-            // Closing it must only hide it, or it could never be reopened.
-            let hidden = win.clone();
-            win.on_window_event(move |event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = hidden.hide();
-                }
-            });
-        }
-        Err(err) => log::line(format!("settings window failed: {err}")),
-    }
-}
-
-pub fn show_settings_window(app: &AppHandle) {
-    let Some(win) = app.get_webview_window("settings") else {
-        log::line("settings window missing");
-        return;
-    };
-    let _ = win.unminimize();
-    let _ = win.show();
-    let _ = win.set_focus();
-}
-
-#[tauri::command]
-fn open_settings_window(app: AppHandle) {
-    show_settings_window(&app);
-}
 
 pub fn run() {
     platform::prepare_environment();
@@ -809,7 +1105,9 @@ pub fn run() {
             boot,
             save_settings,
             set_collapsed,
+            set_click_guard,
             set_island_rect,
+            set_ticker_seat,
             focus_window,
             reposition,
             start_float_drag,
@@ -823,7 +1121,7 @@ pub fn run() {
             media_control,
             sounds::custom_sounds,
             sounds::custom_sound,
-            sounds::reveal_sounds_folder,
+            reveal_sounds_folder,
             sounds::reload_sounds,
             desktop::desktop_info,
             desktop::desktop_pick_up,
@@ -843,9 +1141,13 @@ pub fn run() {
             log_line,
             check_update,
             economic_calendar,
+            ohlcv,
             start_update,
             solana_rpc,
-            open_settings_window,
+            evm_rpc,
+            set_panel,
+            panel_place,
+            panel_closing,
         ])
         .setup(move |app| {
             // A menu bar app on a Mac: no Dock icon, no menu bar of its own (Info.plist says so too).
@@ -853,19 +1155,26 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let handle = app.handle().clone();
             tray::build(&handle)?;
-            // Before the island: see create_settings_window. Candy's desktop
-            // window too, for the same reason.
-            create_settings_window(&handle);
+            // Candy's desktop window before the island's is shown: a WebView2
+            // window created later silently comes up blank (see BROWSER_ARGS).
             desktop::setup(&handle);
 
             if let Some(win) = island::window(&handle) {
                 platform::make_non_activating(&win);
+                // A panel steps behind the app the trader goes to, and comes back on top when clicked.
+                let app = handle.clone();
+                win.on_window_event(move |e| {
+                    if let tauri::WindowEvent::Focused(focused) = e {
+                        island::panel_focus(&app, *focused);
+                    }
+                });
                 island::apply_geometry(&handle, &loaded, false);
                 let _ = win.show();
             }
             gate.collapsed.store(false, Ordering::Relaxed);
             gate.set_active(true);
             island::spawn_cursor_poll(handle.clone(), gate.clone());
+            island::spawn_edge_watch(handle.clone(), gate.clone());
 
             // "Start with Windows" is registered under the app's name and path:
             // registered again on every start, so it survives a rename or a move

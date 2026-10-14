@@ -4,7 +4,6 @@
   "description": "What the app's windows may do. Everything that touches the OS goes through the app's own commands.",
   "windows": [
     "island",
-    "settings",
     "candy"
   ],
   "permissions": [

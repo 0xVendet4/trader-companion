@@ -38,6 +38,12 @@ describe("wallet board", () => {
     expect(allocation([], 0)).toEqual([]);
   });
 
+  it("shares an EVM wallet out with each chain's coin", () => {
+    const slices = allocation([a], [{ symbol: "ETH", value: 300 }, { symbol: "BNB", value: 0 }, { symbol: "ETH", value: 100 }]);
+    expect(slices.map((s) => [s.key, s.value])).toEqual([["ETH", 400], ["A", 250]]);
+    expect(slices.reduce((s, x) => s + x.share, 0)).toBeCloseTo(1);
+  });
+
   it("measures the way to the target, the stop, or the next level", () => {
     // Entry 1, now 1.5, target 3: a quarter of the way.
     expect(progressOf(held(pos("T", 100, 100, { target: 3 }), 1.5), [2, 3])).toMatchObject({ kind: "target", frac: 0.25 });

@@ -74,7 +74,8 @@ async function draw(look: TrayLook, key: string) {
     ctx.filter = "none";
     if (eyes) ctx.drawImage(eyes, 0, 0, SIZE, SIZE);
     if (look.dot) {
-      // An amber dot in the corner, cut out of the candle so it reads on any taskbar.
+      // An amber dot in the corner, cut out of the candle so it reads on any
+      // taskbar, in a thin dark ring: a badge, not a part of a yellow costume (the bee).
       const x = SIZE - 7;
       const y = 7;
       ctx.globalCompositeOperation = "destination-out";
@@ -83,9 +84,14 @@ async function draw(look: TrayLook, key: string) {
       ctx.fill();
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = "#f5a524";
+      ctx.strokeStyle = "#1d1306";
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+      ctx.stroke();
     }
     const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
     await Bridge.setTrayIcon(Array.from(data), SIZE, SIZE);
