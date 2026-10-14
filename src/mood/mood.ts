@@ -29,8 +29,6 @@ export interface MoodInput {
   /** Local hour, 0–23. */
   hour?: number;
   nightSleep?: boolean;
-  /** SOL itself, when the mascot should react to it. */
-  sol?: Quote | null;
   /** The trader's own positions (see src/positions), priced. */
   positions?: PositionMood[];
   /** The crypto Fear & Greed index (0–100), when the header shows it. */
@@ -111,19 +109,17 @@ function positionMood(list: PositionMood[] | undefined): Mood | null {
 /** Local hours (from 1 am to before 6 am) when the mascot dozes off. */
 const NIGHT_FROM = 1;
 const NIGHT_TO = 6;
-/** SOL moving this much in an hour colours the mood when the watchlist is calm. */
-export const SOL_MOVE_H1 = 3;
 
 export interface Mood {
   state: MascotState;
   text: string;
   /**
-   * A market mood (a big move, a liquidity drop, the watchlist's trend, SOL,
-   * the trader's position): its face shows when it starts, then settles
+   * A market mood (a big move, a liquidity drop, the watchlist's trend, the
+   * trader's position): its face shows when it starts, then settles
    * (see settleMood). Moods without it (loss limit, pause, sleep, cooldown,
    * no data) stay as long as their reason.
    */
-  lasting?: "move" | "liquidity" | "trend" | "sol" | "position";
+  lasting?: "move" | "liquidity" | "trend" | "position";
   /** The token it is about: another token restarts the face. */
   subject?: string;
 }
@@ -248,14 +244,6 @@ export function computeMood(input: MoodInput): Mood {
   if (avgH1 <= ROUGH_H1) return { state: "sick", text: t("Rough hour: watchlist {pct} avg (1h).", avg), lasting: "trend" };
   if (avgH1 >= TREND_H1) return { state: "happy", text: t("Watchlist is green: {pct} avg (1h).", avg), lasting: "trend" };
   if (avgH1 <= -TREND_H1) return { state: "worried", text: t("Watchlist is red: {pct} avg (1h).", avg), lasting: "trend" };
-
-  const sol = input.sol;
-  if (sol && sol.change.h1 >= SOL_MOVE_H1) {
-    return { state: "happy", text: t("SOL {pct} in the last hour. Good vibes.", { pct: formatPct(sol.change.h1) }), lasting: "sol" };
-  }
-  if (sol && sol.change.h1 <= -SOL_MOVE_H1) {
-    return { state: "worried", text: t("SOL {pct} in the last hour. Careful out there.", { pct: formatPct(sol.change.h1) }), lasting: "sol" };
-  }
 
   if (input.fearGreed != null && input.fearGreed >= EXTREME_GREED) {
     return { state: "excited", text: t("Extreme greed in crypto: {value}/100.", { value: input.fearGreed }), lasting: "trend" };

@@ -153,9 +153,10 @@ describe("mood: night and SOL", () => {
     expect(computeMood({ ...base, quotes: pump, hour: 3, nightSleep: true }).state).toBe("celebrate");
   });
 
-  it("reacts to SOL when the watchlist is calm", () => {
-    expect(computeMood({ ...base, hour: 14, sol: quote({ change: { m5: 0, h1: 4, h6: 0, h24: 0 } }) }).state).toBe("happy");
-    expect(computeMood({ ...base, hour: 14, sol: quote({ change: { m5: 0, h1: -4, h6: 0, h24: 0 } }) }).state).toBe("worried");
+  it("a setting saved when the mascot still reacted to SOL is dropped", async () => {
+    const { normalizeSettings } = await import("./core/state");
+    const s = normalizeSettings({ companion: { reactToSol: true } } as never);
+    expect("reactToSol" in s.companion).toBe(false);
   });
 });
 

@@ -1869,7 +1869,6 @@ class CompanionController {
       liquidityWarnings: new Set(this.liqWarnings.keys()),
       hour: new Date().getHours(),
       nightSleep: c.nightSleep,
-      sol: c.reactToSol ? State.sol : null,
       fearGreed: c.headerMarket ? (State.fearGreed?.value ?? null) : null,
       positions: this.positions().map(({ p, s }) => ({
         symbol: p.symbol,

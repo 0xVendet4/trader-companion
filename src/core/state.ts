@@ -511,8 +511,6 @@ export interface Companion {
   recapHideMoney: boolean;
   /** BTC and the Fear & Greed index in the island's header. */
   headerMarket: boolean;
-  /** The mascot reacts to SOL's 1-hour move. */
-  reactToSol: boolean;
   /** An alert when a token's 5-minute volume runs this many times the hour's pace; 0 = off. */
   volumeAlertX: number;
   /** Tokens whose alerts are silenced, until when (ms), by key. */
@@ -668,7 +666,6 @@ export const DEFAULT_COMPANION: Companion = {
   meltOnDrop: true,
   headerMarket: true,
   recapHideMoney: false,
-  reactToSol: true,
   volumeAlertX: 5,
   muted: {},
   addChecklist: true,
@@ -770,6 +767,8 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
       ? c.wallets.filter((w) => w && typeof w.address === "string" && w.address).slice(0, MAX_WALLETS).map(normalizeWallet)
       : [],
   };
+  // Retired: the mascot no longer reacts to SOL's hour.
+  Reflect.deleteProperty(s.companion, "reactToSol");
   s.companion.pollSeconds = Math.min(120, Math.max(10, Number(s.companion.pollSeconds) || 20));
   if (typeof s.companion.hotkey !== "string") s.companion.hotkey = DEFAULT_HOTKEY;
   // Files from before the paste shortcut get it; "" is a chosen Off.

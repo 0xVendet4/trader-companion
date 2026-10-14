@@ -1206,7 +1206,6 @@ function appearanceSection(manifest: Manifest): HTMLElement {
     row(t("Music card"), toggle(() => settings.companion.musicCard, (v) => (settings.companion.musicCard = v)), IS_TAURI ? t("What plays on this PC (Spotify, a browser video…) gets a Music tab in the island: cover, progress, play, pause, next.") : t("In the app only.")),
     row(t("Dance when music plays"), toggle(() => settings.companion.danceToMusic, (v) => (settings.companion.danceToMusic = v)), IS_TAURI ? t("Candy bobs along while the island is on screen, folded or open.") : t("In the app only.")),
     row(t("Doze off late at night"), toggle(() => settings.companion.nightSleep, (v) => (settings.companion.nightSleep = v)), t("From 1 to 6 am the mascot sleeps, unless something big moves.")),
-    row(t("React to SOL"), toggle(() => settings.companion.reactToSol, (v) => (settings.companion.reactToSol = v)), t("Happy or worried when SOL moves 3% in an hour.")),
   );
 }
 
