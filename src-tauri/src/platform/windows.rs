@@ -713,10 +713,20 @@ pub fn update_dir() -> PathBuf {
     base.join("Candy-build").join("source")
 }
 
-/// Unpacks the update with Windows' own tar and starts its `Install Candy.cmd`
-/// in update mode, in a window of its own: it shows its three steps, installs
-/// silently (closing this Candy) and starts the new one.
-pub fn unpack_and_install(dir: &std::path::Path, archive: &std::path::Path, root: &std::path::Path) -> Result<(), String> {
+/// Runs the release's installer the way scripts/setup.mjs runs the one it
+/// built: silently (/S: no wizard; it closes this Candy and keeps the
+/// settings) and starting the new Candy when it's done (/R).
+pub fn run_installer(setup: &std::path::Path) -> Result<(), String> {
+    Command::new(setup)
+        .args(["/S", "/R"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Unpacks the update's code with Windows' own tar.
+pub fn unpack(dir: &std::path::Path, archive: &std::path::Path) -> Result<(), String> {
     let unpacked = Command::new("tar")
         .arg("-xzf")
         .arg(archive)
@@ -728,7 +738,14 @@ pub fn unpack_and_install(dir: &std::path::Path, archive: &std::path::Path, root
     if !unpacked.success() {
         return Err("couldn't unpack the update".into());
     }
-    let script = dir.join(root).join("Install Candy.cmd");
+    Ok(())
+}
+
+/// Starts the unpacked code's own `Install Candy.cmd` in update mode, in a
+/// window of its own: it shows its three steps, builds, installs silently
+/// (closing this Candy) and starts the new one.
+pub fn install_from_source(root: &std::path::Path) -> Result<&'static str, String> {
+    let script = root.join("Install Candy.cmd");
     if !script.is_file() {
         return Err(format!("no installer in the update ({})", script.display()));
     }
@@ -741,5 +758,5 @@ pub fn unpack_and_install(dir: &std::path::Path, archive: &std::path::Path, root
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| e.to_string())?;
-    Ok(())
+    Ok("build")
 }

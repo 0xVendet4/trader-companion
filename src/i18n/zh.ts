@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "整个市场常会围绕它波动。",
   "Update": "更新",
   "{app} {version} is out (you have {current}).": "{app} {version} 已发布（你的版本是 {current}）。",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "立即更新：从 GitHub 下载新代码，在这台电脑上构建（约一分钟）后重新启动。你的设置会保留。",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "更新方法：在 Candy 文件夹中获取新代码（git pull 或下载新的 ZIP），然后运行 npm ci 和 npm run setup。你的设置会保留。",
   "Later: fold it into the ticker": "稍后：收进行情条",
   "{name} is going over it…": "{name} 正在检查…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "再 15 分钟",
   "What's new": "更新内容",
   "Update now": "立即更新",
-  "Downloading the new code…": "正在下载新代码…",
   "The update didn't start: {error}": "更新没有启动：{error}",
   "Building in its own window: Candy starts again when it's done.": "正在单独的窗口中构建：完成后 Candy 会重新启动。",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "立即更新：从 GitHub 下载新代码，在这台电脑上构建（几分钟）后重新启动。你的设置会保留。",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "蓝图",
   "Penguin": "企鹅",
   "Bee": "蜜蜂",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "立即更新：从 GitHub 下载新版本，安装后重新启动。你的设置会保留。",
+  "Downloading the new version…": "正在下载新版本…",
+  "Installing: Candy starts again when it's done.": "正在安装：完成后 Candy 会重新启动。",
 };
 
 export default words;

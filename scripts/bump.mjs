@@ -1,7 +1,8 @@
 // npm run bump -- 0.1.2: sets Candy's version everywhere it is written —
 // package.json and its lock, src-tauri/tauri.conf.json, Cargo.toml and
-// Cargo.lock — so they agree (CI checks). Once pushed, every installed Candy
-// older than it offers the update (src/core/update.ts).
+// Cargo.lock — so they agree (CI checks). Once pushed, CI publishes the
+// version's release (.github/workflows/build.yml) and every installed Candy
+// older than it offers the update (src-tauri/src/update.rs).
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -40,4 +41,4 @@ edit("src-tauri/tauri.conf.json", (s) => s.replace(/("version":\s*")[^"]+(")/, `
 edit("Cargo.toml", (s) => s.replace(/(\[workspace\.package\][^[]*?\nversion\s*=\s*")[^"]+(")/, `$1${version}$2`));
 edit("Cargo.lock", (s) => s.replace(/(\[\[package\]\]\nname = "trader-companion"\nversion = ")[^"]+(")/, `$1${version}$2`));
 
-console.log(`\n  Add ${version} to the Versions table in README.md, then commit and push: installed Candys older than it will offer the update.\n`);
+console.log(`\n  Add ${version} to the Versions table in README.md, then commit and push: GitHub builds and publishes release v${version}, and installed Candys older than it offer the update.\n`);

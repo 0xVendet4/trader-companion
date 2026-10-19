@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "O mercado inteiro costuma se mexer em torno disso.",
   "Update": "Atualização",
   "{app} {version} is out (you have {current}).": "Saiu o {app} {version} (você tem a {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "Atualizar agora: baixa o código novo do GitHub, compila neste PC (cerca de um minuto) e reinicia. Suas configurações ficam.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "Para atualizar: na pasta do Candy, pegue o código novo (git pull ou um ZIP novo) e rode npm ci e npm run setup. Suas configurações ficam.",
   "Later: fold it into the ticker": "Depois: recolher no ticker",
   "{name} is going over it…": "{name} está conferindo…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "Mais 15 min",
   "What's new": "Novidades",
   "Update now": "Atualizar agora",
-  "Downloading the new code…": "Baixando o código novo…",
   "The update didn't start: {error}": "A atualização não começou: {error}",
   "Building in its own window: Candy starts again when it's done.": "Compilando numa janela própria: o Candy reinicia quando terminar.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "Atualizar agora: baixa o código novo do GitHub, compila neste computador (alguns minutos) e reinicia. Suas configurações ficam.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "Planta",
   "Penguin": "Pinguim",
   "Bee": "Abelha",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Atualizar agora: baixa a versão nova do GitHub, instala e reinicia. Suas configurações ficam.",
+  "Downloading the new version…": "Baixando a versão nova…",
+  "Installing: Candy starts again when it's done.": "Instalando: o Candy reinicia quando terminar.",
 };
 
 export default words;

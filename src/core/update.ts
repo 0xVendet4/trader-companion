@@ -1,13 +1,13 @@
-// Updates from source, asked first (see src-tauri/src/update.rs): which version
-// is newer, and where to read what changed. Pure.
+// Updates, asked first (see src-tauri/src/update.rs): which version is newer,
+// and where to read what changed. Pure.
 
 /** Where Candy's code lives: the same as REPO in src-tauri/src/update.rs. */
 export const UPDATE_REPO = "0xVendet4/trader-companion";
 
-/** What changed lately, for the update card's "What's new". */
-export const WHATS_NEW_URL = `https://github.com/${UPDATE_REPO}/commits/main`;
+/** What changed lately, for the update card's "What's new": the releases and their notes. */
+export const WHATS_NEW_URL = `https://github.com/${UPDATE_REPO}/releases`;
 
-/** How often the app asks GitHub for a newer version: one small file, so a release reaches everyone within the hour. */
+/** How often the app asks GitHub for a newer version: one small request, so a release reaches everyone within the hour. */
 export const UPDATE_CHECK_MS = 30 * 60_000;
 
 /** "0.1.10" > "0.1.9": compares x.y.z numbers; anything unreadable is never newer. */

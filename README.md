@@ -113,16 +113,22 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 
 ## Install
 
-Candy ships as source and builds on your own computer, so what you run is exactly the code in this repository: there is nothing prebuilt to download, and nothing to trust that you can't read here. Get the code first: **Code → Download ZIP** at the top of this page, then unzip it (or `git clone` it).
+Candy is open source, and the installers on its [Releases page](https://github.com/0xVendet4/trader-companion/releases/latest) are built from this code by GitHub itself, in public (every build is on the [Actions](https://github.com/0xVendet4/trader-companion/actions) page): what you run is what you can read here. Rather compile it on your own computer? Each system has that way too, below.
 
 ### Windows
+
+Download **`Candy-Windows-<version>-setup.exe`** from the [latest release](https://github.com/0xVendet4/trader-companion/releases/latest) and double-click it. Windows asks once, because the installer isn't signed with a paid certificate: click *More info → Run anyway*. It installs Candy for your user, with no wizard to click through, and starts it; Candy lands in your Start menu, and *Installed apps* removes it.
+
+<details>
+<summary><b>Or build it yourself</b></summary>
+
+Get the code: **Code → Download ZIP** at the top of this page, then unzip it (or `git clone` it).
 
 **The simple way:** double-click **`Install Candy.cmd`** in the unzipped folder (opened from inside the ZIP, it finds nothing to build).
 
 Windows warns that the file came from the internet: click *More info → Run anyway* (or *Run*). It is a short text file; right-click → *Edit* shows all it does. It asks before installing the tools a build needs (Node.js, Rust and Microsoft's C++ build tools, with winget, Windows' own app installer), builds Candy (some minutes the first time, about a minute after), installs it and starts it: there is no installer to click through. Its window shows three steps and closes by itself. If something goes wrong, it says what, and the details are in `%LOCALAPPDATA%\Candy-build\install.log`.
 
-<details>
-<summary><b>Or type it yourself</b></summary>
+**Or type it yourself:**
 
 1. **The tools, once.** In a terminal (search "Terminal" in the Start menu):
 
@@ -147,14 +153,20 @@ Windows warns that the file came from the internet: click *More info → Run any
 
 ### macOS
 
-**The simple way:** double-click **`Install Candy.command`** in the unzipped folder (Safari unzips the download by itself; otherwise double-click the ZIP).
+Download **`Candy-macOS-<version>.zip`** from the [latest release](https://github.com/0xVendet4/trader-companion/releases/latest), double-click it to unzip, and drag **`Candy.app`** to your Applications folder. The first time you open it, macOS says it can't check the app, because it isn't signed with an Apple developer certificate: open *System Settings → Privacy & Security*, scroll down and click *Open Anyway* (on macOS 14 or older: right-click Candy → *Open* → *Open*). Candy lives in the menu bar, with no Dock icon; one app runs on Apple Silicon and Intel Macs, macOS 11 or newer. To remove it, drag `Candy.app` to the Trash.
+
+<details>
+<summary><b>Or build it yourself</b></summary>
+
+Get the code: **Code → Download ZIP** at the top of this page (Safari unzips the download by itself; otherwise double-click the ZIP), or `git clone` it.
+
+**The simple way:** double-click **`Install Candy.command`** in the unzipped folder.
 
 macOS says it can't check the file, because it came from the internet: open *System Settings → Privacy & Security*, scroll down and click *Open Anyway* (on macOS 14 or older: right-click the file → *Open* → *Open*). It is a short text file; TextEdit shows all it does. It asks before installing the tools a build needs (Apple's Command Line Tools, Rust and Node.js, each from its own official source; Apple's tools and Node.js ask for your Mac's password), builds Candy (10–20 minutes the first time, a few after), puts `Candy.app` in your own `~/Applications` and starts it. It lives in the menu bar, with no Dock icon. If macOS asks whether Terminal may use your Downloads folder, click *OK*. If something goes wrong, it says what, and the details are in `~/Library/Caches/Candy/install.log`.
 
-To remove Candy, double-click **`Uninstall Candy.command`** in the same folder: it removes the app, its settings and its build files, and asks before removing the tools too.
+To remove a Candy built this way, double-click **`Uninstall Candy.command`** in the same folder: it removes the app, its settings and its build files, and asks before removing the tools too.
 
-<details>
-<summary><b>Or type it yourself</b></summary>
+**Or type it yourself:**
 
 1. **The tools, once.** In Terminal:
 
@@ -177,6 +189,8 @@ To remove Candy, double-click **`Uninstall Candy.command`** in the same folder: 
 On a MacBook with a notch, the island at the top of the screen grows out of the notch, over the menu bar. On a Mac there is no music card or dance yet (no public way to know what plays), no buttons on notifications and no quiet mode for fullscreen apps. The shortcuts use ⌘ where Windows has Ctrl (⌘ ⌥ V adds the copied token), and holding ⌃ Control over the island clicks through it.
 
 ### Linux
+
+Candy builds on your own computer on Linux, 10–20 minutes the first time.
 
 1. **The tools, once.** The build libraries, from your distribution:
 
@@ -217,7 +231,7 @@ What `npm run setup` does is in [`scripts/setup.mjs`](scripts/setup.mjs), a shor
 
 ### Updates
 
-Candy checks GitHub for a newer version a minute after it starts and every half hour after, and asks before doing anything. **Update now** downloads the new code, builds it (on Windows in its own window, about a minute; on macOS and Linux in the background while you keep using Candy, a few minutes: what it compiled before is reused) and starts Candy again; your settings stay. By hand, anywhere: get the new code and run the installer again. Which version you have: hover Candy's tray icon, or look next to the title of its Settings.
+Candy checks GitHub for a newer release a minute after it starts and every half hour after, and asks before doing anything. **Update now** downloads the new version and installs it (on Windows the installer runs on its own; on a Mac the app is swapped for the new one), then starts Candy again; your settings stay. On Linux, and wherever a release has no file for your system, it downloads the new code instead and builds it in the background while you keep using Candy, a few minutes (what it compiled before is reused). By hand, anywhere: download the new installer, or get the new code and run the installer again. Which version you have: hover Candy's tray icon, or look next to the title of its Settings.
 
 What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux: `~/.cache/candy/build`, macOS: `~/Library/Caches/Candy/build`); delete that folder to free a few GB.
 
@@ -257,10 +271,11 @@ Put a recording named after one of Candy's sounds in `%APPDATA%\TraderCompanion\
 
 ## Versions
 
-Candy ships as source: a new version is a commit on `main`, and a running Candy offers it within half an hour.
+A new version is a commit on `main` with the version bumped: GitHub builds it, publishes the [release](https://github.com/0xVendet4/trader-companion/releases), and a running Candy offers it within the hour.
 
 | Version | Date | Highlights |
 | --- | --- | --- |
+| 0.1.16 | Oct 19, 2026 | Installers for Windows and macOS on the Releases page, built by GitHub; Update now installs them |
 | 0.1.15 | Oct 14, 2026 | Island themes, a compact island, the hover chart, 0x wallets on Ethereum, BSC and Base, the Closet, night looks, emotes, Settings and the Closet inside the island, Update now on macOS and Linux |
 | 0.1.14 | Oct 10, 2026 | Candy can be dragged out of the island |
 | 0.1.13 | Oct 10, 2026 | 10 languages, economic calendar, swinging accessories, macOS, now-and-then effects, market cap milestones, sell pressure, pin and sort, monthly recap |

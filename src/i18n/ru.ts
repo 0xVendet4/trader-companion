@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "Весь рынок часто движется вокруг этого.",
   "Update": "Обновление",
   "{app} {version} is out (you have {current}).": "Вышел {app} {version} (у тебя {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "«Обновить сейчас»: скачивает новый код с GitHub, собирает его на этом ПК (около минуты) и перезапускается. Настройки сохранятся.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "Как обновить: в папке Candy получи новый код (git pull или новый ZIP), затем выполни npm ci и npm run setup. Настройки сохранятся.",
   "Later: fold it into the ticker": "Позже: свернуть в тикер",
   "{name} is going over it…": "{name} проверяет…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "Ещё 15 мин",
   "What's new": "Что нового",
   "Update now": "Обновить сейчас",
-  "Downloading the new code…": "Скачиваю новый код…",
   "The update didn't start: {error}": "Обновление не запустилось: {error}",
   "Building in its own window: Candy starts again when it's done.": "Сборка идёт в отдельном окне: Candy перезапустится, когда она закончится.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "«Обновить сейчас»: скачивает новый код с GitHub, собирает его на этом компьютере (несколько минут) и перезапускается. Настройки сохранятся.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "Чертёж",
   "Penguin": "Пингвин",
   "Bee": "Пчела",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "«Обновить сейчас»: скачивает новую версию с GitHub, устанавливает её и перезапускается. Настройки сохранятся.",
+  "Downloading the new version…": "Скачиваю новую версию…",
+  "Installing: Candy starts again when it's done.": "Устанавливаю: Candy перезапустится, когда всё будет готово.",
 };
 
 export default words;

@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "市場全体がこの前後で動くことがよくあります。",
   "Update": "アップデート",
   "{app} {version} is out (you have {current}).": "{app} {version}がリリースされました（現在は{current}）。",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "今すぐアップデート：GitHubから新しいコードをダウンロードし、このPCでビルドして（約1分）、再起動します。設定はそのまま残ります。",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "アップデート方法：Candyのフォルダで新しいコードを取得し（git pull、または新しいZIP）、npm ciとnpm run setupを実行してください。設定はそのまま残ります。",
   "Later: fold it into the ticker": "後で：ティッカーに畳む",
   "{name} is going over it…": "{name}が確認中…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "あと15分",
   "What's new": "新機能",
   "Update now": "今すぐアップデート",
-  "Downloading the new code…": "新しいコードをダウンロード中…",
   "The update didn't start: {error}": "アップデートを開始できませんでした：{error}",
   "Building in its own window: Candy starts again when it's done.": "別ウィンドウでビルド中：完了するとCandyが再起動します。",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "今すぐアップデート：GitHubから新しいコードをダウンロードし、このコンピューターでビルドして（数分）、再起動します。設定はそのまま残ります。",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "青写真",
   "Penguin": "ペンギン",
   "Bee": "ミツバチ",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "今すぐアップデート：GitHubから新しいバージョンをダウンロードしてインストールし、再起動します。設定はそのまま残ります。",
+  "Downloading the new version…": "新しいバージョンをダウンロード中…",
+  "Installing: Candy starts again when it's done.": "インストール中：完了するとCandyが再起動します。",
 };
 
 export default words;

@@ -581,9 +581,79 @@ pub fn set_input_region(_win: &WebviewWindow, _rect: Region) {}
 
 // ── Updates ───────────────────────────────────────────────────────────────────
 
-/// Where an update's code would be unpacked: next to the build cache.
+/// Where an update is downloaded, and its code unpacked: next to the build cache.
 pub fn update_dir() -> PathBuf {
     home_dir().join("Library").join("Caches").join(APP_DIR).join("source")
+}
+
+/// The bundle this Candy runs from (…/Candy.app/Contents/MacOS/candy).
+fn running_bundle() -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let bundle = exe
+        .ancestors()
+        .nth(3)
+        .filter(|p| p.extension().is_some_and(|e| e == "app"))
+        .ok_or("Candy isn't running from an app bundle")?;
+    // An app opened where it was unzipped runs from a copy macOS makes
+    // (App Translocation): the real one is wherever the user left it.
+    if bundle.to_string_lossy().contains("/AppTranslocation/") {
+        return Err("move Candy.app to your Applications folder first, then update again".into());
+    }
+    Ok(bundle.to_path_buf())
+}
+
+/// Puts the release's Candy.app (its zip, downloaded by update.rs) in place
+/// of the one running, as scripts/setup.mjs installs a build: unpacked with
+/// ditto, copied beside the running app, then swapped. The running Candy
+/// keeps going from its unlinked files until it quits (reopen).
+pub fn install_app(zip: &Path) -> Result<(), String> {
+    let running = running_bundle()?;
+    let unpacked = zip.with_extension("unpacked");
+    let _ = std::fs::remove_dir_all(&unpacked);
+    std::fs::create_dir_all(&unpacked).map_err(|e| e.to_string())?;
+    let status = Command::new("ditto").args(["-x", "-k"]).arg(zip).arg(&unpacked).status().map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err("couldn't unpack the app".into());
+    }
+    let app = unpacked.join("Candy.app");
+    if !app.join("Contents").join("MacOS").is_dir() {
+        return Err(format!("no app in the update ({})", app.display()));
+    }
+    let new = running.with_extension("app.new");
+    let _ = std::fs::remove_dir_all(&new);
+    let copied = Command::new("ditto").arg(&app).arg(&new).status().map_err(|e| e.to_string())?;
+    if !copied.success() {
+        return Err(format!("couldn't copy the app next to {}", running.display()));
+    }
+    std::fs::remove_dir_all(&running).map_err(|e| format!("couldn't replace {}: {e}", running.display()))?;
+    std::fs::rename(&new, &running).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_dir_all(&unpacked);
+    Ok(())
+}
+
+/// Opens the Candy just installed once this one has quit.
+pub fn reopen(app: &AppHandle) {
+    use std::os::unix::process::CommandExt;
+    let bundle = match running_bundle() {
+        Ok(b) => b,
+        Err(e) => return crate::log::line(format!("update: installed, but couldn't reopen: {e}")),
+    };
+    let started = Command::new("/bin/sh")
+        .arg("-c")
+        .arg(r#"sleep 1; open "$0""#)
+        .arg(&bundle)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn();
+    match started {
+        Ok(_) => {
+            crate::log::line("update: installed, starting again");
+            app.exit(0);
+        }
+        Err(e) => crate::log::line(format!("update: installed, but couldn't open {}: {e}", bundle.display())),
+    }
 }
 
 

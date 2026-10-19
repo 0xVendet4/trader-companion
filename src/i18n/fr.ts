@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "Tout le marché bouge souvent autour.",
   "Update": "Mise à jour",
   "{app} {version} is out (you have {current}).": "{app} {version} est sorti (tu as {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "Mettre à jour : télécharge le nouveau code depuis GitHub, le compile sur ce PC (environ une minute) et redémarre. Tes réglages restent.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "Pour mettre à jour : dans le dossier de Candy, récupère le nouveau code (git pull, ou un nouveau ZIP), puis lance npm ci et npm run setup. Tes réglages restent.",
   "Later: fold it into the ticker": "Plus tard : la replier dans le bandeau",
   "{name} is going over it…": "{name} l'examine…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "15 min de plus",
   "What's new": "Nouveautés",
   "Update now": "Mettre à jour",
-  "Downloading the new code…": "Téléchargement du nouveau code…",
   "The update didn't start: {error}": "La mise à jour n'a pas démarré : {error}",
   "Building in its own window: Candy starts again when it's done.": "Compilation dans sa propre fenêtre : Candy redémarre quand c'est fini.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "Mettre à jour : télécharge le nouveau code depuis GitHub, le compile sur cet ordinateur (quelques minutes) et redémarre. Tes réglages restent.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "Plan",
   "Penguin": "Pingouin",
   "Bee": "Abeille",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Mettre à jour : télécharge la nouvelle version depuis GitHub, l'installe et redémarre. Tes réglages restent.",
+  "Downloading the new version…": "Téléchargement de la nouvelle version…",
+  "Installing: Candy starts again when it's done.": "Installation : Candy redémarre quand c'est fini.",
 };
 
 export default words;

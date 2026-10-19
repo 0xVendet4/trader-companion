@@ -243,17 +243,21 @@ export const Bridge = {
   /** Writes to %LOCALAPPDATA%\TraderCompanion\companion.log. */
   log: (message: string) => call<void>("log_line", { message }),
 
-  /** The newest version on GitHub (src-tauri/src/update.rs), or null: offline, or a browser. */
+  /** The latest release's version on GitHub (src-tauri/src/update.rs), or null: offline, or a browser. */
   checkUpdate: () => call<string>("check_update"),
 
-  /** Downloads the new code and starts its installer; resolves to what went wrong, or null once under way. */
-  async startUpdate(): Promise<string | null> {
-    if (!IS_TAURI) return t("Updates come with the app.");
+  /**
+   * Downloads the release and installs it; resolves to how it went under way
+   * ("installer": the release's installer or app, Candy closes by itself;
+   * "build": its code, built here), or to what went wrong.
+   */
+  async startUpdate(version: string): Promise<{ how: "installer" | "build" } | { error: string }> {
+    if (!IS_TAURI) return { error: t("Updates come with the app.") };
     try {
-      await invoke("start_update");
-      return null;
+      const how = await invoke<string>("start_update", { version });
+      return { how: how === "build" ? "build" : "installer" };
     } catch (err) {
-      return String(err);
+      return { error: String(err) };
     }
   },
 

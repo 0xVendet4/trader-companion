@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "이 시점 전후로 시장 전체가 자주 움직여요.",
   "Update": "업데이트",
   "{app} {version} is out (you have {current}).": "{app} {version} 출시 (현재 {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "지금 업데이트: GitHub에서 새 코드를 받아 이 PC에서 빌드하고(약 1분) 다시 시작해요. 설정은 그대로예요.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "업데이트 방법: Candy 폴더에서 새 코드를 받은 뒤(git pull 또는 새 ZIP) npm ci와 npm run setup을 실행하세요. 설정은 그대로예요.",
   "Later: fold it into the ticker": "나중에: 티커로 접기",
   "{name} is going over it…": "{name} 확인 중…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "15분 더",
   "What's new": "업데이트 내용",
   "Update now": "지금 업데이트",
-  "Downloading the new code…": "새 코드 다운로드 중…",
   "The update didn't start: {error}": "업데이트를 시작하지 못했어요: {error}",
   "Building in its own window: Candy starts again when it's done.": "별도 창에서 빌드 중: 끝나면 Candy가 다시 시작돼요.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "지금 업데이트: GitHub에서 새 코드를 받아 이 컴퓨터에서 빌드하고(몇 분) 다시 시작해요. 설정은 그대로예요.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "청사진",
   "Penguin": "펭귄",
   "Bee": "꿀벌",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "지금 업데이트: GitHub에서 새 버전을 받아 설치하고 다시 시작해요. 설정은 그대로예요.",
+  "Downloading the new version…": "새 버전 다운로드 중…",
+  "Installing: Candy starts again when it's done.": "설치 중: 끝나면 Candy가 다시 시작돼요.",
 };
 
 export default words;

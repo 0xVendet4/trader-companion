@@ -199,17 +199,17 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
         title: t("{app} {version} is out (you have {current}).", { app: APP_NAME, version: e.version, current: State.version }),
         detail: !updatesInApp()
           ? t("To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.")
-          : State.os === "windows"
-            ? t("Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.")
-            : t("Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay."),
+          : State.os === "linux"
+            ? t("Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.")
+            : t("Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay."),
         tone: "calm",
       };
   }
 }
 
 /**
- * "Update now" builds the main branch's code (src-tauri/src/update.rs). Not
- * for a friend's edition: its costume is not in that code, and it would come
+ * "Update now" installs the latest release (src-tauri/src/update.rs). Not for
+ * a friend's edition: its costume is not in that release, and it would come
  * back as plain Candy.
  */
 function updatesInApp(): boolean {
@@ -608,25 +608,32 @@ export function buildEvent(actions: ViewActions): ViewHost {
         case "update": {
           const whatsNew = btn(t("What's new"), "secondary", () => actions.openUrl(WHATS_NEW_URL));
           if (updatesInApp()) {
-            // Windows builds in an installer window; a Mac and Linux build
-            // while Candy waits, and the new one replaces it when it's done.
+            // The release's installer (Windows) or app (a Mac) closes Candy and
+            // starts the new one. Built from its code instead (Linux, or a
+            // release with no file for this computer): Windows builds in an
+            // installer window; a Mac and Linux build while Candy waits, and
+            // the new one replaces it when it's done.
             const windows = State.os === "windows";
             const go = btn(t("Update now"), "primary", async () => {
               go.disabled = true;
-              detail.textContent = windows
-                ? t("Downloading the new code…")
-                : t("Downloading and building the new code: Candy starts again by itself when it's done. You can keep using it meanwhile.");
-              const failed = await Bridge.startUpdate();
-              if (failed) {
+              detail.textContent =
+                State.os === "linux"
+                  ? t("Downloading and building the new code: Candy starts again by itself when it's done. You can keep using it meanwhile.")
+                  : t("Downloading the new version…");
+              const started = await Bridge.startUpdate(e.version);
+              if ("error" in started) {
                 go.disabled = false;
                 detail.textContent = windows
-                  ? t("The update didn't start: {error}", { error: failed })
-                  : t("The update didn't finish: {error}", { error: failed });
+                  ? t("The update didn't start: {error}", { error: started.error })
+                  : t("The update didn't finish: {error}", { error: started.error });
                 return;
               }
-              detail.textContent = windows
-                ? t("Building in its own window: Candy starts again when it's done.")
-                : t("Installed: Candy starts again.");
+              detail.textContent =
+                started.how === "installer" && windows
+                  ? t("Installing: Candy starts again when it's done.")
+                  : windows
+                    ? t("Building in its own window: Candy starts again when it's done.")
+                    : t("Installed: Candy starts again.");
             });
             buttons.append(go, whatsNew, btn(t("Later"), "secondary", () => actions.dismissEvent()));
           } else {

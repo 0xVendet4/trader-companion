@@ -1,10 +1,12 @@
 name: Build
 
-# Proves the source builds: runs the tests and builds the app the way
-# `npm run setup` does on a user's PC (README → Install), on every push and
-# pull request. Nothing is published or kept: Candy ships as source, and
-# each user compiles their own (README → Install), so what they run is the
-# code they can read here.
+# Runs the tests and builds the app the way `npm run setup` does on a user's
+# computer (README → Install), on every push and pull request. On main, once
+# every system is green and the version has no release yet, the Windows
+# installer and the Mac app built here are published as that version's
+# release (the `release` job): what a user downloads is what this public
+# build made from the code they can read here, and a running Candy offers it
+# within the hour (src-tauri/src/update.rs).
 
 on:
   push:
@@ -64,6 +66,14 @@ jobs:
       - name: Build the installer
         shell: pwsh
         run: '& "./Install Candy.cmd" --build-only'
+
+      - name: Keep the installer for the release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/Candy-Windows-*-setup.exe
+          if-no-files-found: error
 
   linux:
     runs-on: ubuntu-24.04
@@ -139,6 +149,24 @@ jobs:
       - name: Build the app
         run: '"./Install Candy.command" --build-only'
 
+      # The release's app runs on Apple Silicon and Intel Macs alike: both
+      # halves are built and joined into one bundle, zipped as Finder would.
+      - name: Build the universal app for the release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          npx tauri build --bundles app --target universal-apple-darwin
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          ditto -c -k --sequesterRsrc --keepParent "$CARGO_TARGET_DIR/universal-apple-darwin/release/bundle/macos/Candy.app" "Candy-macOS-$version.zip"
+
+      - name: Keep the app for the release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: Candy-macOS-*.zip
+          if-no-files-found: error
+
       # On demand (Actions → Build → Run workflow), not on every push: the
       # runner opens the Candy it just built and goes through the first things
       # a trader does, a screenshot at each step (scripts/mac-check.sh).
@@ -158,3 +186,37 @@ jobs:
           path: mac-screenshots/*.png
           retention-days: 1
           if-no-files-found: warn
+
+  # One release per version: when main's version has none yet, the installer
+  # and the app the jobs above built are published under its tag (v0.1.16),
+  # with the README's line about it as the notes. A version already released
+  # is left alone, so a push that changes nothing but code publishes nothing.
+  release:
+    needs: [windows, linux, macos]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Publish the release, once per version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "v$version is published already"
+            exit 0
+          fi
+          notes=$(grep -E "^\| $version \|" README.md | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//')
+          ls -l assets
+          gh release create "v$version" assets/* --target "$GITHUB_SHA" --title "Candy $version" --latest --notes "${notes:-See the commits.}
+
+          Windows: download the setup.exe and run it (Windows asks once because the installer isn't signed: More info → Run anyway). macOS: unzip, drag Candy.app to Applications, then System Settings → Privacy & Security → Open Anyway. Linux and the rest: README → Install."

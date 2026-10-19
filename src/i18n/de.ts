@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "Oft bewegt sich der ganze Markt rund um diesen Termin.",
   "Update": "Update",
   "{app} {version} is out (you have {current}).": "{app} {version} ist da (du hast {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "Jetzt updaten: Lädt den neuen Code von GitHub, baut ihn auf diesem PC (etwa eine Minute) und startet neu. Deine Einstellungen bleiben.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "Zum Updaten: Hol dir im Candy-Ordner den neuen Code (git pull oder ein neues ZIP) und führ dann npm ci und npm run setup aus. Deine Einstellungen bleiben.",
   "Later: fold it into the ticker": "Später: in den Ticker einklappen",
   "{name} is going over it…": "{name} geht es durch…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "Noch 15 Min.",
   "What's new": "Was ist neu",
   "Update now": "Jetzt updaten",
-  "Downloading the new code…": "Lade den neuen Code…",
   "The update didn't start: {error}": "Das Update ist nicht gestartet: {error}",
   "Building in its own window: Candy starts again when it's done.": "Baut in eigenem Fenster: Candy startet neu, wenn es fertig ist.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "Jetzt updaten: Lädt den neuen Code von GitHub, baut ihn auf diesem Computer (ein paar Minuten) und startet neu. Deine Einstellungen bleiben.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "Blaupause",
   "Penguin": "Pinguin",
   "Bee": "Biene",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Jetzt updaten: Lädt die neue Version von GitHub, installiert sie und startet neu. Deine Einstellungen bleiben.",
+  "Downloading the new version…": "Lade die neue Version…",
+  "Installing: Candy starts again when it's done.": "Installiere: Candy startet neu, wenn es fertig ist.",
 };
 
 export default words;

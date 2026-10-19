@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "Tüm piyasa genelde bu verinin etrafında hareket eder.",
   "Update": "Güncelleme",
   "{app} {version} is out (you have {current}).": "{app} {version} çıktı (sendeki: {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "Şimdi güncelle: yeni kodu GitHub'dan indirir, bu PC'de derler (yaklaşık bir dakika) ve yeniden başlar. Ayarların korunur.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "Güncellemek için: Candy klasöründe yeni kodu al (git pull ya da yeni bir ZIP), sonra npm ci ve npm run setup çalıştır. Ayarların korunur.",
   "Later: fold it into the ticker": "Sonra: şeride katla",
   "{name} is going over it…": "{name} inceliyor…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "15 dk daha",
   "What's new": "Yenilikler",
   "Update now": "Şimdi güncelle",
-  "Downloading the new code…": "Yeni kod indiriliyor…",
   "The update didn't start: {error}": "Güncelleme başlamadı: {error}",
   "Building in its own window: Candy starts again when it's done.": "Kendi penceresinde derleniyor: bitince Candy yeniden başlar.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "Şimdi güncelle: yeni kodu GitHub'dan indirir, bu bilgisayarda derler (birkaç dakika) ve yeniden başlar. Ayarların korunur.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "Ozalit",
   "Penguin": "Penguen",
   "Bee": "Arı",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Şimdi güncelle: yeni sürümü GitHub'dan indirir, kurar ve yeniden başlar. Ayarların korunur.",
+  "Downloading the new version…": "Yeni sürüm indiriliyor…",
+  "Installing: Candy starts again when it's done.": "Kuruluyor: bitince Candy yeniden başlar.",
 };
 
 export default words;

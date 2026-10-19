@@ -726,7 +726,6 @@ const words: Dict = {
   "The whole market often moves around it.": "Todo el mercado suele moverse en torno a esto.",
   "Update": "Actualización",
   "{app} {version} is out (you have {current}).": "Salió {app} {version} (tienes {current}).",
-  "Update now: it downloads the new code from GitHub, builds it on this PC (about a minute) and starts again. Your settings stay.": "Actualizar ahora: descarga el código nuevo de GitHub, lo compila en esta PC (alrededor de un minuto) y vuelve a iniciar. Tu configuración se mantiene.",
   "To update: in the Candy folder, get the new code (git pull, or a new ZIP), then run npm ci and npm run setup. Your settings stay.": "Para actualizar: en la carpeta de Candy, obtén el código nuevo (git pull, o un ZIP nuevo) y luego ejecuta npm ci y npm run setup. Tu configuración se mantiene.",
   "Later: fold it into the ticker": "Después: plegarla en el ticker",
   "{name} is going over it…": "{name} lo está revisando…",
@@ -752,7 +751,6 @@ const words: Dict = {
   "15 more min": "15 min más",
   "What's new": "Novedades",
   "Update now": "Actualizar ahora",
-  "Downloading the new code…": "Descargando el código nuevo…",
   "The update didn't start: {error}": "La actualización no arrancó: {error}",
   "Building in its own window: Candy starts again when it's done.": "Compilando en su propia ventana: Candy vuelve a iniciar al terminar.",
   "Update now: it downloads the new code from GitHub, builds it on this computer (a few minutes) and starts again. Your settings stay.": "Actualizar ahora: descarga el código nuevo de GitHub, lo compila en esta computadora (unos minutos) y vuelve a iniciar. Tu configuración se mantiene.",
@@ -1034,6 +1032,9 @@ const words: Dict = {
   "Blueprint": "Plano",
   "Penguin": "Pingüino",
   "Bee": "Abeja",
+  "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Actualizar ahora: descarga la versión nueva de GitHub, la instala y vuelve a iniciar. Tu configuración se mantiene.",
+  "Downloading the new version…": "Descargando la versión nueva…",
+  "Installing: Candy starts again when it's done.": "Instalando: Candy vuelve a iniciar al terminar.",
 };
 
 export default words;

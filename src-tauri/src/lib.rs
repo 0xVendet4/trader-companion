@@ -489,7 +489,7 @@ fn log_line(message: String) {
     log::line(format!("ui  {message}"));
 }
 
-/// The newest version on GitHub (see update.rs); the page compares it.
+/// The latest release's version on GitHub (see update.rs); the page compares it.
 #[tauri::command]
 async fn check_update() -> Result<String, String> {
     update::latest_version().await.map_err(|e| {
@@ -522,11 +522,13 @@ async fn ohlcv(network: String, pool: String, timeframe: String, aggregate: u32,
     })
 }
 
-/// The user said yes: download the new code, unpack it and start its installer.
+/// The user said yes: download the release and install it (see update.rs).
+/// Says how it went under way: "installer" (this Candy closes by itself) or
+/// "build" (its code is being built).
 #[tauri::command]
-async fn start_update(app: AppHandle) -> Result<(), String> {
-    log::line("update: starting");
-    update::start(app).await.map_err(|e| {
+async fn start_update(app: AppHandle, version: String) -> Result<String, String> {
+    log::line(format!("update: starting {version}"));
+    update::start(app, &version).await.map(str::to_owned).map_err(|e| {
         log::line(format!("update: {e}"));
         e
     })
