@@ -113,7 +113,7 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 
 ## Install
 
-Candy is open source, and the installers on its [Releases page](https://github.com/0xVendet4/trader-companion/releases/latest) are built from this code by GitHub itself, in public (every build is on the [Actions](https://github.com/0xVendet4/trader-companion/actions) page): what you run is what you can read here. Rather compile it on your own computer? Each system has that way too, below.
+Candy is open source, and the installers on its [Releases page](https://github.com/0xVendet4/trader-companion/releases/latest) are built from this code by GitHub itself, in public (every build is on the [Actions](https://github.com/0xVendet4/trader-companion/actions) page): what you run is what you can read here, and each release lists the SHA256 of its files next to the build that made them. Rather compile it on your own computer? Each system has that way too, below.
 
 ### Windows
 

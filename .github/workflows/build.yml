@@ -217,6 +217,16 @@ jobs:
           fi
           notes=$(grep -E "^\| $version \|" README.md | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//')
           ls -l assets
+          # The notes end with each file's SHA256 and a link to this build, so a
+          # download can be checked against what GitHub built from this commit.
+          sums=$(cd assets && sha256sum *)
+          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           gh release create "v$version" assets/* --target "$GITHUB_SHA" --title "Candy $version" --latest --notes "${notes:-See the commits.}
 
-          Windows: download the setup.exe and run it (Windows asks once because the installer isn't signed: More info → Run anyway). macOS: unzip, drag Candy.app to Applications, then System Settings → Privacy & Security → Open Anyway. Linux and the rest: README → Install."
+          Windows: download the setup.exe and run it (Windows asks once because the installer isn't signed: More info → Run anyway). macOS: unzip, drag Candy.app to Applications, then System Settings → Privacy & Security → Open Anyway. Linux and the rest: README → Install.
+
+          Built by GitHub from commit ${GITHUB_SHA::7}, in the open: $run. To check a download, compare its SHA256 (PowerShell: \`Get-FileHash the-file\`; macOS: \`shasum -a 256 the-file\`):
+
+          \`\`\`
+          $sums
+          \`\`\`"
