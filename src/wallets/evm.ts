@@ -25,8 +25,6 @@ export const LOG_SPAN = 2000;
 export const DEFAULT_DECIMALS = 18;
 /** About how long a block takes, per chain, to date a log by its block number. */
 export const BLOCK_SECONDS: Record<EvmChain, number> = { ethereum: 12, bsc: 0.75, base: 2 };
-/** What each chain pays gas in. */
-export const NATIVE_SYMBOL: Record<EvmChain, "ETH" | "BNB"> = { ethereum: "ETH", bsc: "BNB", base: "ETH" };
 /** A price sample this far from a transfer's moment still prices it. */
 export const PRICE_TOLERANCE_MS = 15 * 60_000;
 

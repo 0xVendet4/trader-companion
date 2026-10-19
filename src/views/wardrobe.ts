@@ -1,7 +1,7 @@
 // The wardrobe: hat, face accessory, colour and costume, picked inside the
 // island with Candy itself as the preview, and the island's own background.
 // The shelves and their names are core/looks.ts's; every look, large, with the
-// free colour's sliders, is in the closet window (src/closet), one click away.
+// free colour's sliders, is in the closet panel (src/closet), one click away.
 
 import { h, clear, svg } from "./dom";
 import { ICONS } from "./icons";
@@ -121,7 +121,7 @@ export function buildWardrobe(actions: ViewActions): ViewHost {
   let key = "";
   function sync() {
     const c = State.companion;
-    // The slider follows the setting (the settings window may have moved it) without redrawing the looks.
+    // The slider follows the setting (the Settings panel may have moved it) without redrawing the looks.
     paintAlpha();
     const next = `${shelf.id}|${c.theme}|${c.costume}|${c.outfit}|${c.face}|${c.skin}|${JSON.stringify(c.customSkin)}|${State.art ? 1 : 0}`;
     if (next === key) return;

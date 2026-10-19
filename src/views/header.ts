@@ -1,5 +1,5 @@
-// The island header: six tabs (only the open one shows its label, so they
-// fit), live prices of the chosen chains' coins, BTC, the Fear & Greed index
+// The island header: seven tabs (only the open one shows its label, so they
+// fit; Following, Discipline and Music only when on), live prices of the chosen chains' coins, BTC, the Fear & Greed index
 // and the next US release on the economic calendar, the data status, refresh,
 // where the island sits, settings and sound.
 

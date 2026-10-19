@@ -1,4 +1,4 @@
-// Candy (Trader Companion) for Windows — app wiring and the commands the pages call.
+// Candy (Trader Companion) — app wiring and the commands the pages call.
 //
 // The window shell (island placement, click-through, wake strip) comes from
 // Coucou for Windows (MIT, © Louis Raillé). Everything the mascot shows is
@@ -386,7 +386,8 @@ fn open_url(app: AppHandle, url: String) -> bool {
     true
 }
 
-/// Opens the folder for the trader's own sounds (Settings → Sounds), the panel
+/// Opens the folder for the trader's own sounds (Settings → General → Your own
+/// sounds), the panel
 /// first stepping aside where it must (see open_url).
 #[tauri::command]
 fn reveal_sounds_folder(app: AppHandle) {

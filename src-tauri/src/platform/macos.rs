@@ -4,7 +4,7 @@
 // it for hover, click-through, Ctrl, clicks elsewhere and dragging — with less
 // around it (and, on a MacBook with a notch, the top island around the notch):
 //   * no music card or dance (no public API says what plays);
-//   * no buttons on notifications, no fullscreen quiet, no in-app update;
+//   * no buttons on notifications, no fullscreen quiet;
 //   * the island takes focus when clicked (an NSWindow, not a panel).
 // The system calls are declared by hand with their documented C signatures,
 // so they need no extra crate.

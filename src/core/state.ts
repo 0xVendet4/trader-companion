@@ -3,7 +3,7 @@
 
 import type { Manifest, MascotState } from "../mascot/mascot";
 import type { NowPlaying } from "./music";
-import { SHORTCUTS, type ShortcutId } from "./shortcuts";
+import { SHORTCUTS, shortcutDefault, type ShortcutId } from "./shortcuts";
 import { ALL_CHAINS, EVM_CHAINS, isChain, tokenKey, walletFamily, type ChainId, type EvmChain, type WalletFamily } from "../market/chains";
 import { COINGECKO_ID } from "../market/coingecko";
 import { DEFAULT_CUSTOM_SKIN, normalizeCustomSkin } from "../mascot/skins";
@@ -609,8 +609,9 @@ export const MAX_NOTE = 280;
 /** The volume alert's choices: 0 is off. */
 export const VOLUME_ALERT_CHOICES: readonly number[] = [0, 3, 5, 8];
 
-export const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-export const DEFAULT_PASTE_HOTKEY = "CommandOrControl+Alt+V";
+/** The show/hide and paste shortcuts out of the box: shortcuts.ts's defaults. */
+export const DEFAULT_HOTKEY = shortcutDefault("toggle");
+export const DEFAULT_PASTE_HOTKEY = shortcutDefault("paste");
 
 export const DEFAULT_COMPANION: Companion = {
   watchlist: [],
@@ -1051,7 +1052,7 @@ class AppState {
     error: null,
   };
   wallets: Record<string, WalletSnapshot> = {};
-  /** SOL itself, for the mascot (and its header chip). */
+  /** SOL itself: the header chip, the wallets' values, trades counted in SOL. */
   sol: Quote | null = null;
   /** Native coins of the chosen chains, for the header chips. */
   natives: Partial<Record<"SOL" | "BNB" | "ETH", Quote>> = {};
@@ -1100,7 +1101,6 @@ class AppState {
   /** Candy is out on the desktop (src/island/desktop.ts): the island's own hides. */
   mascotAway = false;
   mouse = { x: 0, y: 0 };
-  lastActivity = performance.now();
 
   private listeners = new Set<Listener>();
 

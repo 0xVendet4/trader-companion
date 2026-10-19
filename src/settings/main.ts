@@ -12,16 +12,20 @@ import type { PanelHost, PanelPage, SettingsSection } from "../core/panel";
 import { SOUND_NAMES, Sound, soundFile, type SoundName } from "../core/sound";
 import { shortAddress } from "../core/format";
 import { SHORTCUTS, keysLabel, recordPress, shortcutKeys, statusLabel, twice, type ShortcutId, type ShortcutStatus } from "../core/shortcuts";
+import { lookNameKey } from "../core/looks";
 import { ISLAND_THEMES, themeSwatch } from "../core/themes";
 import { COMPACT_SCREEN_H } from "../core/layout";
 import { APP_NAME } from "../core/brand";
 import { enableNotifications, notify } from "../core/notify";
 import { parseShared, shareEntry, shareText } from "../core/share";
 import {
+  FACE_IDS,
   MAX_ISLAND_TRANSPARENCY,
   MAX_WALLETS,
   MAX_WATCHLIST,
   OFFERED_COSTUMES,
+  OUTFIT_IDS,
+  SKIN_IDS,
   State,
   THEME_IDS,
   VOLUME_ALERT_CHOICES,
@@ -38,7 +42,7 @@ import {
   type Terminal,
   type Theme,
 } from "../core/state";
-import { ALL_CHAINS, CHAINS, EVM_CHAINS, isChain, tokenKey, walletFamily, type ChainId } from "../market/chains";
+import { ALL_CHAINS, CHAINS, EVM_CHAINS, splitKey, tokenKey, walletFamily } from "../market/chains";
 import { parseInput, resolveAddress } from "../market/dexscreener";
 import { majorFor } from "../market/majors";
 import { AXIOM_REFERRAL_URL, RPC_KEY_SITES, TERMINALS } from "../market/links";
@@ -584,7 +588,7 @@ function ownSoundsRow(): HTMLElement {
   return row(
     t("Your own sounds"),
     h("span", { class: "with-unit" }, open, reload, count),
-    t("A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.", {
+    t("A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a, .flac or .aiff plays instead of Candy's own. The names are in the README.", {
       files: [...SOUND_NAMES.slice(0, 3).map(soundFile), "alert-up"].join(", "),
     }),
   );
@@ -876,111 +880,10 @@ function chainsSection(): HTMLElement {
 
 const THEMES: [Theme, string][] = THEME_IDS.map((id) => [id, ISLAND_THEMES[id].name]);
 
-const OUTFITS: [Outfit, string][] = [
-  ["none", N_("None")],
-  ["cap", N_("Cap")],
-  ["crown", N_("Crown")],
-  ["party", N_("Party hat")],
-  ["headphones", N_("Headphones")],
-  ["tophat", N_("Top hat")],
-  ["cowboy", N_("Cowboy")],
-  ["beanie", N_("Beanie")],
-  ["halo", N_("Halo")],
-  ["horns", N_("Horns")],
-  ["wizard", N_("Wizard")],
-  ["viking", N_("Viking")],
-  ["bow", N_("Bow")],
-  ["chef", N_("Chef")],
-  ["pirate", N_("Pirate")],
-  ["santa", N_("Santa")],
-  ["grad", N_("Grad cap")],
-  ["beret", N_("Beret")],
-  ["propeller", N_("Propeller")],
-  ["flowers", N_("Flower crown")],
-  ["bunny", N_("Bunny ears")],
-  ["pumpkin", N_("Pumpkin")],
-  ["catears", N_("Cat ears")],
-  ["rocket", N_("Rocket")],
-  ["sombrero", N_("Sombrero")],
-  ["hardhat", N_("Hard hat")],
-  ["fez", N_("Fez")],
-  ["jester", N_("Jester hat")],
-  ["bucket", N_("Bucket hat")],
-  ["frog", N_("Frog hat")],
-  ["alien", N_("Alien antennae")],
-  ["sprout", N_("Sprout")],
-  ["mushroom", N_("Mushroom")],
-  ["sweatband", N_("Sweatband")],
-  ["unicorn", N_("Unicorn horn")],
-  ["fedora", N_("Fedora")],
-  ["nightcap", N_("Nightcap")],
-];
-
-const FACES: [Face, string][] = [
-  ["none", N_("None")],
-  ["shades", N_("Shades")],
-  ["laser", N_("Laser eyes")],
-  ["glasses", N_("Glasses")],
-  ["monocle", N_("Monocle")],
-  ["mustache", N_("Mustache")],
-  ["starglasses", N_("Star glasses")],
-  ["threed", N_("3D glasses")],
-  ["eyepatch", N_("Eye patch")],
-  ["heartglasses", N_("Heart glasses")],
-  ["clownnose", N_("Clown nose")],
-  ["beard", N_("Beard")],
-  ["domino", N_("Hero mask")],
-  ["vr", N_("VR headset")],
-  ["pixel", N_("Pixel shades")],
-  ["goggles", N_("Goggles")],
-  ["whiskers", N_("Whiskers")],
-  ["freckles", N_("Freckles")],
-  ["bandaid", N_("Band-aid")],
-  ["lollipop", N_("Lollipop")],
-  ["bubblegum", N_("Bubble gum")],
-  ["warpaint", N_("War paint")],
-  ["dollareyes", N_("Dollar eyes")],
-  ["facemask", N_("Face mask")],
-  ["scarf", N_("Scarf")],
-  ["aviators", N_("Aviators")],
-  ["sleepmask", N_("Sleep mask")],
-  ["snorkel", N_("Snorkel")],
-  ["cateye", N_("Cat-eye glasses")],
-  ["hypno", N_("Hypno glasses")],
-  ["cyborg", N_("Cyborg eye")],
-  ["partyhorn", N_("Party horn")],
-  ["pacifier", N_("Pacifier")],
-  ["rose", N_("Red rose")],
-  ["bowtie", N_("Bow tie")],
-  ["goldchain", N_("Gold chain")],
-];
-
-const SKINS: [Skin, string][] = [
-  ["mint", N_("Mint")],
-  ["neon", N_("Neon")],
-  ["forest", N_("Forest")],
-  ["lime", N_("Lime")],
-  ["lemon", N_("Lemon")],
-  ["gold", N_("Gold")],
-  ["sunset", N_("Sunset")],
-  ["peach", N_("Peach")],
-  ["cherry", N_("Cherry")],
-  ["ruby", N_("Ruby")],
-  ["rose", N_("Rose")],
-  ["magenta", N_("Magenta")],
-  ["grape", N_("Grape")],
-  ["lavender", N_("Lavender")],
-  ["violet", N_("Violet")],
-  ["teal", N_("Teal")],
-  ["sky", N_("Sky")],
-  ["ice", N_("Ice")],
-  ["ocean", N_("Ocean")],
-  ["navy", N_("Navy")],
-  ["ghost", N_("Ghost white")],
-  ["slate", N_("Slate")],
-  ["charcoal", N_("Charcoal")],
-  ["custom", N_("Custom")],
-];
+// Hats, faces and colours: looks.ts names them once (the wardrobe and the closet read the same).
+const OUTFITS: [Outfit, string][] = OUTFIT_IDS.map((id): [Outfit, string] => [id, lookNameKey(id, "hat") ?? id]);
+const FACES: [Face, string][] = FACE_IDS.map((id): [Face, string] => [id, lookNameKey(id, "face") ?? id]);
+const SKINS: [Skin, string][] = SKIN_IDS.map((id): [Skin, string] => [id, lookNameKey(id, "colour") ?? id]);
 
 function appearanceSection(manifest: Manifest): HTMLElement {
   const themes = h("div", { class: "choices" });
@@ -1396,8 +1299,7 @@ function shareSection(): HTMLElement {
     let added = 0;
     for (const entry of entries) {
       if (settings.companion.watchlist.length >= MAX_WATCHLIST) break;
-      const [chainPart, address] = entry.includes(":") ? entry.split(":", 2) : ["solana", entry];
-      const chainId: ChainId = isChain(chainPart) ? chainPart : "solana";
+      const { chainId, address } = splitKey(entry);
       if (settings.companion.watchlist.some((tok) => tok.key === tokenKey(chainId, address))) continue;
       try {
         const tok = await resolveAddress({ kind: "address", address, chainId, isPool: false });

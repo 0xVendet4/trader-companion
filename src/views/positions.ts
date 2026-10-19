@@ -13,8 +13,7 @@ import { Bridge } from "../core/bridge";
 import { formatAge, formatPct, formatPrice, formatUsd, pctClass, shortAddress } from "../core/format";
 import { N_, t, tn } from "../core/i18n";
 import { State, type ActivityItem, type TrackedWallet, type WalletSnapshot, type WatchToken } from "../core/state";
-import { NATIVE_SYMBOL } from "../wallets/evm";
-import { isEvmChain, splitKey } from "../market/chains";
+import { CHAINS, isEvmChain, splitKey } from "../market/chains";
 import { explorerLink } from "../market/links";
 import { todayKey } from "../discipline/discipline";
 import { entrySource, formatMultiple, formatSignedUsd, sinceWords } from "../positions/positions";
@@ -36,7 +35,7 @@ function coinsOf(snap: WalletSnapshot | undefined): Coin[] {
   if (snap.sol > 0) out.set("SOL", snap.sol);
   for (const [chain, amount] of Object.entries(snap.natives ?? {})) {
     if (!isEvmChain(chain) || !(amount! > 0)) continue;
-    const sym = NATIVE_SYMBOL[chain];
+    const sym = CHAINS[chain].native.symbol;
     out.set(sym, (out.get(sym) ?? 0) + amount!);
   }
   return [...out].map(([symbol, amount]) => ({ symbol, amount, value: amount * Companion.coinPrice(symbol as "SOL" | "ETH" | "BNB") }));

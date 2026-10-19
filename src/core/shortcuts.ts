@@ -93,6 +93,11 @@ const KEY_WORDS: Record<string, string> = { Left: "←", Right: "→", Up: "↑"
 const PC_KEYS: Record<string, string> = { CommandOrControl: "Ctrl", Control: "Ctrl", Super: "Win" };
 const MAC_KEYS: Record<string, string> = { CommandOrControl: "⌘", Super: "⌘", Control: "⌃", Alt: "⌥", Shift: "⇧" };
 
+/** A shortcut's keys out of the box. */
+export function shortcutDefault(id: ShortcutId): string {
+  return SHORTCUTS.find((s) => s.id === id)?.dflt ?? "";
+}
+
 /** How keys read in Settings: "Ctrl + Alt + V", on a Mac "⌘ + ⌥ + V". */
 export function keysLabel(accel: string, mac = false): string {
   if (!accel) return t("Off");

@@ -380,7 +380,7 @@ const words: Dict = {
   "Open sounds folder": "Открыть папку звуков",
   "Reload": "Перезагрузить",
   "Your own sounds": "Свои звуки",
-  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.": "Файл с именем звука ({files}, …) в формате .wav, .mp3, .ogg, .m4a или .flac играет вместо звука Candy. Имена есть в README.",
+  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a, .flac or .aiff plays instead of Candy's own. The names are in the README.": "Файл с именем звука ({files}, …) в формате .wav, .mp3, .ogg, .m4a, .flac или .aiff играет вместо звука Candy. Имена есть в README.",
   "General": "Общие",
   "Language": "Язык",
   "Same as the system ({language})": "Как в системе ({language})",

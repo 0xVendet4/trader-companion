@@ -338,6 +338,3 @@ export async function searchPairs(query: string, signal?: AbortSignal): Promise<
   const found = await getJson<{ pairs?: DexPair[] | null }>(`/latest/dex/search?q=${encodeURIComponent(query.trim())}`, signal);
   return found.pairs ?? [];
 }
-
-/** Solana base58 check, re-exported for callers that only need it. */
-export { SOLANA_ADDRESS };

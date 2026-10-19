@@ -108,7 +108,7 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 | Hold Ctrl (⌃ on a Mac) over the island *(Windows, macOS)* | fades and lets your clicks through to what is behind |
 | Click a browser tab under the ticker at the top *(Windows, macOS)* | the click goes to the tab: the ticker only takes the mouse once the cursor rests on it |
 | Copy an address, press Ctrl + Alt + V (⌘ ⌥ V) | adds the token |
-| Tray icon → Demo | a 30-second tour with made-up coins, nothing saved |
+| Tray icon → Try the demo | a 30-second tour with made-up coins, nothing saved |
 | Run it on a laptop | the island comes compact by itself: lower, smaller type, fewer columns (Settings → General → Compact island) |
 
 ## Install
@@ -249,11 +249,11 @@ Open the island and drag Candy out of it: it lands on your desktop, in its own l
 
 ### Dance when music plays
 
-Whatever plays on the computer (Spotify, a browser video, any player the system knows about), Candy bobs along while the island is on screen, unless its mood is in no state for it. Nothing is polled: the system says when playback changes. Settings → Candy → Dance when music plays turns it off. Windows and Linux.
+Whatever plays on the computer (Spotify, a browser video, any player the system knows about), Candy bobs along while the island is on screen, unless its mood is in no state for it. Nothing is polled: the system says when playback changes. Settings → Appearance → Dance when music plays turns it off. Windows and Linux.
 
 ### Your own sounds
 
-Put a recording named after one of Candy's sounds in `%APPDATA%\TraderCompanion\sounds` (Linux: `~/.config/candy/sounds`, macOS: `~/Library/Application Support/Candy/sounds`) and it plays instead of the built-in one. The names: `open`, `close`, `blip`, `hover`, `pop`, `alert-up`, `alert-down`, `warn`, `reminder`, `greet`, `boing`, `squeak`, `whee`, `eep`, `dizzy`, `grumble`, `achoo`, `tada`, `hmm`; as `.wav`, `.mp3`, `.ogg`, `.m4a`, `.flac` or `.aiff`, up to 8 MB each. Settings → General → Your own sounds opens the folder and reloads it.
+Put a recording named after one of Candy's sounds in `%APPDATA%\TraderCompanion\sounds` (Linux: `~/.config/candy/sounds`, macOS: `~/Library/Application Support/Candy/sounds`) and it plays instead of the built-in one. The names: `open`, `close`, `blip`, `hover`, `pop`, `alert-up`, `alert-down`, `warn`, `reminder`, `greet`, `boing`, `squeak`, `whee`, `eep`, `dizzy`, `grumble`, `achoo`, `tada`, `hmm`; as `.wav`, `.mp3`, `.ogg` or `.oga`, `.m4a` or `.aac`, `.flac`, `.aiff` or `.aif`, or `.caf`, up to 8 MB each. Settings → General → Your own sounds opens the folder and reloads it.
 
 ## Versions
 
@@ -261,6 +261,7 @@ Candy ships as source: a new version is a commit on `main`, and a running Candy 
 
 | Version | Date | Highlights |
 | --- | --- | --- |
+| 0.1.15 | Oct 14, 2026 | Island themes, a compact island, the hover chart, 0x wallets on Ethereum, BSC and Base, the Closet, night looks, emotes, Settings and the Closet inside the island, Update now on macOS and Linux |
 | 0.1.14 | Oct 10, 2026 | Candy can be dragged out of the island |
 | 0.1.13 | Oct 10, 2026 | 10 languages, economic calendar, swinging accessories, macOS, now-and-then effects, market cap milestones, sell pressure, pin and sort, monthly recap |
 | 0.1.12 | Oct 10, 2026 | Candy drawn live, Candy on the desktop, music, shortcuts, the entry checklist, a new wallet tab, Discipline on or off, Based Bot |

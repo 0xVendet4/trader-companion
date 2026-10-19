@@ -3,6 +3,7 @@
 // Candy swallows something. The turning follows Coucou's Mochi engine (MIT,
 // © Louis Raillé): features slide across the body as if it were round.
 
+import { lerp } from "../core/anim";
 import { alpha, sway, type Particle } from "./particles";
 import { centre, cheeksOf, mouthHalo, turnFeature, type Box, type Clip, type Matrix, type Op, type Rig, type Shape } from "./rig";
 
@@ -921,7 +922,6 @@ function bodyColor(rig: Rig, look: Look): string {
 export function drawHands(c: CanvasRenderingContext2D, rig: Rig, look: Look, k: number, wave: number) {
   const body = rig.body;
   if (!body || k <= 0.01) return;
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const fill = bodyColor(rig, look);
   // Outlined like the body: the art's darkest stroke, or Candy's ink.
   const outline = rig.ops.find((o) => o.part === "body" && o.stroke && o.strokeWidth > 0);

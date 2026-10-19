@@ -51,11 +51,3 @@ export function svg(path: string, size = 14, opts: { fill?: string; stroke?: num
 export function clear(el: Element) {
   while (el.firstChild) el.removeChild(el.firstChild);
 }
-
-/** Card dot used in every "who" row. */
-export function dot(color: string, size = 7): HTMLElement {
-  return h("i", {
-    class: "dot",
-    style: `width:${size}px;height:${size}px;background:${color}`,
-  });
-}

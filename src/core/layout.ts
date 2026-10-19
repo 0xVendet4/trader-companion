@@ -30,10 +30,9 @@ export const CLOSE_MS = 190;
 
 /**
  * On a side edge, the compact island is the top's ticker stood upright: as
- * thin as the top one is tall, as tall as it is wide, the mascot at its top
- * and the same line running down.
+ * thin as the top one is tall (the density's tickerH), as tall as it is wide,
+ * the mascot at its top and the same line running down.
  */
-export const SIDE_TAB_W = COMPACT_H;
 export const SIDE_TAB_H = COMPACT_W;
 
 /**

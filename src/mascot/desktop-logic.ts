@@ -47,7 +47,6 @@ export const DESKTOP_EVENTS = {
   /** desktop window → island */
   ready: "desktop-ready",
   home: "desktop-home",
-  poked: "desktop-poked",
   /** A link or address dropped on him: the island adds it. */
   drop: "desktop-drop",
   /** Right-click on him: his menu (emotes, the wardrobe), in the island. */

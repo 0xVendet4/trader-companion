@@ -6,7 +6,7 @@
 
 import type { WatchToken } from "./state";
 import { MAX_WATCHLIST } from "./state";
-import { EVM_ADDRESS, SOLANA_ADDRESS, isChain, isEvm } from "../market/chains";
+import { EVM_ADDRESS, SOLANA_ADDRESS, isEvm, splitKey } from "../market/chains";
 
 
 export function shareEntry(t: Pick<WatchToken, "chainId" | "address">): string {
@@ -20,8 +20,8 @@ export function shareText(entries: string[]): string {
 
 function validEntry(part: string): boolean {
   if (SOLANA_ADDRESS.test(part)) return true;
-  const [chain, address] = part.split(":");
-  return isChain(chain) && isEvm(chain) && EVM_ADDRESS.test(address ?? "");
+  const { chainId, address } = splitKey(part);
+  return isEvm(chainId) && EVM_ADDRESS.test(address);
 }
 
 /** Entries from a shared link, a query string, or a pasted comma list. */

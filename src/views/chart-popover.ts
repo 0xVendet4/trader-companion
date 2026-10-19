@@ -403,8 +403,3 @@ function paint(candles: Candle[] | null) {
   ctx.fillStyle = dim;
   ctx.fillText(label, w - 3, ly);
 }
-
-/** Test hook: the popover's element, when open. */
-export function chartPopoverEl(): HTMLElement | null {
-  return open ? el : null;
-}

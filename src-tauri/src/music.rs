@@ -83,8 +83,10 @@ pub fn art_key(np: &NowPlaying) -> String {
 /// A cover bigger than this is left out (they are a few hundred KB at most).
 pub const ART_MAX: usize = 2 * 1024 * 1024;
 
-/// The app's own name from a Windows media session's id: "Spotify.exe" →
+/// The app's own name from a Windows media session's id (Windows' media
+/// sessions, platform/windows.rs, and the tests call these two): "Spotify.exe" →
 /// "Spotify", "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic" → "ZuneMusic".
+#[cfg(any(windows, test))]
 pub fn app_name(id: &str) -> String {
     let last = id.rsplit(['\\', '/', '!']).next().unwrap_or(id);
     let last = last.strip_suffix(".exe").or_else(|| last.strip_suffix(".EXE")).unwrap_or(last);
@@ -98,6 +100,7 @@ pub fn app_name(id: &str) -> String {
 }
 
 /// Windows' 100 ns ticks since 1601 → Unix milliseconds.
+#[cfg(any(windows, test))]
 pub fn filetime_to_unix_ms(ticks: i64) -> f64 {
     (ticks - 116_444_736_000_000_000) as f64 / 10_000.0
 }

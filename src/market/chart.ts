@@ -5,7 +5,7 @@
 // the fetching lives in src/market/charts.ts, the drawing in
 // src/views/chart-popover.ts.
 
-import type { ChainId } from "./chains";
+import { EVM_ADDRESS, SOLANA_ADDRESS, type ChainId } from "./chains";
 
 /** One candle: its start (ms), open, high, low, close and volume. */
 export interface Candle {
@@ -87,12 +87,9 @@ export function geckoNetwork(chain: ChainId): string | null {
   }
 }
 
-const BASE58_POOL = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const EVM_POOL = /^0x[0-9a-fA-F]{40}$/;
-
 /** A pool address with the shape its network uses (the same check Rust makes before fetching). */
 export function validPool(network: string, pool: string): boolean {
-  return network === "solana" ? BASE58_POOL.test(pool) : network === "bsc" || network === "eth" || network === "base" ? EVM_POOL.test(pool) : false;
+  return network === "solana" ? SOLANA_ADDRESS.test(pool) : network === "bsc" || network === "eth" || network === "base" ? EVM_ADDRESS.test(pool) : false;
 }
 
 /** A chart is never kept longer than this: the forming candle of a 12 h or 24 h chart follows the price within minutes. */

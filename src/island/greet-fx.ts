@@ -3,6 +3,8 @@
 // canvas for under two seconds, then nothing runs. Adapted from Coucou's
 // greeting (MIT, © Louis Raillé): same seeded streaks and ring.
 
+import { Ease, seg } from "../core/anim";
+
 interface Streak {
   x: number;
   speed: number;
@@ -42,9 +44,6 @@ const RING_AT = 0.45;
 const RING_FOR = 1.35;
 export const ARRIVAL_FX_S = RING_AT + RING_FOR;
 
-const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
-const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /** The streaks' and dots' colour: white, or the theme's (--fx-rgb, an "r, g, b" triple). */
 export const DEFAULT_FX_RGB = "255, 255, 255";
@@ -68,7 +67,7 @@ export function drawArrivalFx(c: CanvasRenderingContext2D, w: number, h: number,
   }
   const k = seg(t, RING_AT, RING_AT + RING_FOR);
   if (k > 0 && k < 1) {
-    const rx = 14 + (Math.max(w, 300) * 0.6 - 14) * easeOut(k);
+    const rx = 14 + (Math.max(w, 300) * 0.6 - 14) * Ease.out(k);
     const ry = rx * 0.34;
     const fade = (1 - k) * (k < 0.08 ? k / 0.08 : 1);
     for (const d of FX.ring) {

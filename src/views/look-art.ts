@@ -1,5 +1,5 @@
 // Little still pictures of looks, for the cards of the island's wardrobe and
-// of the closet window: Candy wearing one, or a scrap of island in a background.
+// of the closet panel: Candy wearing one, or a scrap of island in a background.
 
 import { h } from "./dom";
 import type { Look } from "../core/looks";

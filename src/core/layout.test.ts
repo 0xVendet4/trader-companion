@@ -15,7 +15,6 @@ import {
   SIDE_PANEL_H,
   SIDE_PANEL_W,
   SIDE_TAB_H,
-  SIDE_TAB_W,
   compactFor,
   density,
   floatsUp,
@@ -69,7 +68,7 @@ describe("placement", () => {
   });
 
   it("stands the compact island upright on a side edge, and never hides a floating one", () => {
-    expect(islandSize("compact", "watchlist", 3, "left")).toEqual({ w: SIDE_TAB_W, h: SIDE_TAB_H });
+    expect(islandSize("compact", "watchlist", 3, "left")).toEqual({ w: NORMAL.tickerH, h: SIDE_TAB_H });
     expect(islandSize("hidden", "watchlist", 3, "right").w).toBe(0);
     expect(islandSize("hidden", "watchlist", 3, "float")).toEqual(islandSize("compact", "watchlist", 3, "top"));
     // Open on a side edge, it is a sidebar: narrow, and taller for the same list.

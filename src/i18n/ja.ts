@@ -380,7 +380,7 @@ const words: Dict = {
   "Open sounds folder": "サウンドフォルダを開く",
   "Reload": "再読み込み",
   "Your own sounds": "自分のサウンド",
-  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.": "サウンド名（{files}、…）のファイルを.wav、.mp3、.ogg、.m4a、.flacで置くと、Candyの標準音の代わりに再生されます。名前はREADMEに記載しています。",
+  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a, .flac or .aiff plays instead of Candy's own. The names are in the README.": "サウンド名（{files}、…）のファイルを.wav、.mp3、.ogg、.m4a、.flac、.aiffで置くと、Candyの標準音の代わりに再生されます。名前はREADMEに記載しています。",
   "General": "一般",
   "Language": "言語",
   "Same as the system ({language})": "システムと同じ（{language}）",

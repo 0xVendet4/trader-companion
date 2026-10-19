@@ -30,8 +30,6 @@ export interface DesktopHost {
   mood(): MascotState;
   /** A reaction on the island's own Candy. */
   react(state: MascotState, ms: number): void;
-  /** A poke on the desktop Candy: the island's streak logic says what it does. */
-  poked(): void;
   /** A link or address dropped on the desktop Candy: added like one dropped on the island. */
   dropped(text: string): void;
   /** Right-click on the desktop Candy: his menu, in the island. */
@@ -87,7 +85,6 @@ export class DesktopLink {
 
     await onEvent<{ from: "island" | "desktop"; home: boolean }>(DESKTOP_EVENTS.dropped, (e) => this.onDropped(e.from, e.home));
     await onEvent<null>(DESKTOP_EVENTS.home, () => void this.controller.flyHome());
-    await onEvent<null>(DESKTOP_EVENTS.poked, () => this.host.poked());
     await onEvent<string>(DESKTOP_EVENTS.drop, (text) => this.host.dropped(text));
     await onEvent<null>(DESKTOP_EVENTS.menu, () => this.host.menu());
     // The window's page (re)loaded: it knows nothing yet.

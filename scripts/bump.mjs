@@ -40,4 +40,4 @@ edit("src-tauri/tauri.conf.json", (s) => s.replace(/("version":\s*")[^"]+(")/, `
 edit("Cargo.toml", (s) => s.replace(/(\[workspace\.package\][^[]*?\nversion\s*=\s*")[^"]+(")/, `$1${version}$2`));
 edit("Cargo.lock", (s) => s.replace(/(\[\[package\]\]\nname = "trader-companion"\nversion = ")[^"]+(")/, `$1${version}$2`));
 
-console.log(`\n  Commit and push: installed Candys older than ${version} will offer the update.\n`);
+console.log(`\n  Add ${version} to the Versions table in README.md, then commit and push: installed Candys older than it will offer the update.\n`);

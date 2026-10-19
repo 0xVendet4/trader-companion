@@ -264,9 +264,9 @@ fn body_shape() -> MouseShape {
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
-/// Same reasoning as the settings window: created at launch, before the
-/// island's webview, then only moved (or shown and hidden). Nothing is created
-/// where the feature is off.
+/// Created at launch, before the island's webview is shown (a WebView2 window
+/// created later comes up blank: see BROWSER_ARGS in lib.rs), then only moved
+/// (or shown and hidden). Nothing is created where the feature is off.
 pub fn setup(app: &AppHandle) {
     let mut mode = platform::desktop_mode();
     if mode != DesktopMode::Off {

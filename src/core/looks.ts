@@ -1,6 +1,6 @@
 // Every look Candy can wear, named once, on shelves: hats, face accessories,
 // colours, costumes and the island's backgrounds. The island's wardrobe and
-// the closet window lay out the same shelves. Pure: names come translated
+// the closet panel lay out the same shelves. Pure: names come translated
 // when asked for, and a pick is worked out on the settings handed in.
 //
 // A new hat, face or colour: its id in state.ts, its art from the generator,
@@ -32,7 +32,8 @@ export type Look = Pick<Companion, "outfit" | "face" | "skin" | "customSkin" | "
 /**
  * Costume names live in state.ts (COSTUME_NAMES, costumeName): a character
  * keeps its own name, a common noun (the ones in NOUN_COSTUMES: robot, bee…)
- * is shown in the trader's language. Settings reads the same list.
+ * is shown in the trader's language. Settings reads the same list, as it
+ * reads the hat, face and colour names below (lookNameKey).
  */
 export { COSTUME_NAMES } from "./state";
 

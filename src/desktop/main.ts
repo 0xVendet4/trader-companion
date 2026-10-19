@@ -295,7 +295,6 @@ class DesktopCandy {
         this.mascot.nudgeHat(0.8);
         this.mascot.react("happy", 1200);
         Sound.play("boing");
-        void emitToWindow(ISLAND, DESKTOP_EVENTS.poked);
       }, DOUBLE_CLICK_MS);
     });
 

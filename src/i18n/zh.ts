@@ -380,7 +380,7 @@ const words: Dict = {
   "Open sounds folder": "打开声音文件夹",
   "Reload": "重新加载",
   "Your own sounds": "自定义声音",
-  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.": "以声音名命名的文件（{files}，…），格式为 .wav、.mp3、.ogg、.m4a 或 .flac，会替代 Candy 自带的声音播放。名称见 README。",
+  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a, .flac or .aiff plays instead of Candy's own. The names are in the README.": "以声音名命名的文件（{files}，…），格式为 .wav、.mp3、.ogg、.m4a、.flac 或 .aiff，会替代 Candy 自带的声音播放。名称见 README。",
   "General": "通用",
   "Language": "语言",
   "Same as the system ({language})": "跟随系统（{language}）",

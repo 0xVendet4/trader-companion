@@ -10,10 +10,11 @@
 import "../style.css";
 import "./demo.css";
 import { Companion } from "../companion";
+import { Ease } from "../core/anim";
 import { FULL_NAME, MASCOT_NAME } from "../core/brand";
-import { hotkeyLabel } from "../core/hotkey";
 import { Sound, type SoundName } from "../core/sound";
 import type { PanelKind, SettingsSection } from "../core/panel";
+import { keysLabel } from "../core/shortcuts";
 import { DEFAULT_HOTKEY, State, normalizeSettings, type Placement, type Quote, type Skin, type Theme, type TrendingItem, type WatchToken } from "../core/state";
 import { todayKey } from "../discipline/discipline";
 import { Island } from "../island/island";
@@ -463,7 +464,6 @@ function onStage(el: Element): { x: number; y: number; w: number; h: number } {
 // ── Cursor ────────────────────────────────────────────────────────────────────
 
 const cursor = { x: 1060, y: 660 };
-const easeInOut = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2);
 
 /** Runs `step` every frame for `ms`, with an ease-in-out progress. */
 function tween(ms: number, step: (e: number) => void): Promise<void> {
@@ -471,7 +471,7 @@ function tween(ms: number, step: (e: number) => void): Promise<void> {
   return new Promise((done) => {
     const frame = (t: number) => {
       const k = Math.min(1, (t - t0) / ms);
-      step(easeInOut(k));
+      step(Ease.inOut(k));
       if (k < 1) requestAnimationFrame(frame);
       else done();
     };
@@ -675,7 +675,7 @@ function confetti() {
 async function pressKeys() {
   const el = $<HTMLElement>("#demo-keys");
   el.replaceChildren();
-  hotkeyLabel(DEFAULT_HOTKEY)
+  keysLabel(DEFAULT_HOTKEY)
     .split(/\s*\+\s*/)
     .forEach((k, i) => {
       if (i > 0) el.append("+");

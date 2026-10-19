@@ -303,7 +303,6 @@ export class Island {
     },
     mood: () => meltMood(State.mood.state, this.meltShown()),
     react: (state, ms) => this.mascot.react(state, ms),
-    poked: () => (State.lastActivity = performance.now()),
     dropped: (text) => void this.dropped(text),
     menu: () => this.toggleEmoteMenu(),
     // The sign only while he is out: it changes with every price poll, and the
@@ -797,7 +796,6 @@ export class Island {
     State.view = view;
     if (State.mode !== "expanded") this.setMode("expanded");
     else this.animateGeometry();
-    State.lastActivity = performance.now();
     State.notify();
   }
 
@@ -812,7 +810,6 @@ export class Island {
       return;
     }
     State.view = view;
-    State.lastActivity = performance.now();
     this.animateGeometry();
     State.notify();
   }
@@ -964,7 +961,6 @@ export class Island {
     this.fsm.frozen = out.frozen;
     this.fsm.cancelTimers();
     State.minimized = false;
-    State.lastActivity = performance.now();
     if (this.fsm.state !== "home") this.fsm.forceHome();
     else Sound.play("open");
     this.labelPanel(kind);
@@ -1618,7 +1614,7 @@ export class Island {
     applyTheme(document.body, c.theme, shownTransparency(c.islandTransparency, !!this.panel, this.alphaPreview));
   }
 
-  /** Applies settings at boot and whenever the settings window saves. */
+  /** Applies settings at boot and whenever Settings or the Closet saves. */
   applySettings() {
     Sound.setEnabled(State.settings.soundEnabled);
     Sound.setVolume(State.settings.soundVolume);
@@ -2023,7 +2019,6 @@ export class Island {
 
     this.islandEl.addEventListener("mousedown", (e) => {
       Sound.resume();
-      State.lastActivity = performance.now();
       if (State.mode !== "expanded") {
         // Candy himself in the ticker: a drag pulls him out to the desktop, a
         // click opens the island (on release). Anywhere else on a floating
@@ -2121,7 +2116,6 @@ export class Island {
     // Ctrl+1–9 picks a tab, Ctrl+, opens Settings; Esc folds it once no field
     // holds it (a field takes its own Esc).
     window.addEventListener("keydown", (e) => {
-      State.lastActivity = performance.now();
       // A panel open: Esc closes it (a key a field or a recording took is left alone); Ctrl+, too, over Settings.
       if (this.panel) {
         if (e.key === "Escape" && !e.defaultPrevented) {
@@ -2928,7 +2922,6 @@ export class Island {
 
   /** Plays an emote on whichever Candy is on screen: the island's, or the desktop's when he is out. */
   playEmote(e: Emote) {
-    State.lastActivity = performance.now();
     Sound.play(EMOTE_INFO[e].sound);
     if (State.mascotAway && this.desktop.supported) this.desktop.emote(e);
     else this.mascot.emote(e);
@@ -3144,7 +3137,7 @@ export class Island {
     if (State.view === "music" && (!State.nowPlaying || !State.companion.musicCard)) State.view = "watchlist";
     this.mascot.setDancing(State.companion.danceToMusic && islandDances({ playing: State.music, mode: State.mode, view: State.view }));
     // Lists that load or grow on their own (trending, a wallet added from the
-    // settings window) change the island's height: follow them.
+    // Settings panel) change the island's height: follow them.
     const rowsKey = `${State.view}:${this.rowsFor(State.view)}`;
     if (expanded && rowsKey !== this.lastRowsKey) {
       this.lastRowsKey = rowsKey;

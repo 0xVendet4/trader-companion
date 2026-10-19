@@ -1,7 +1,7 @@
 // Easing + spring helpers.
-// Ease.* mirrors BotEngine.swift `enum Ease` (itself the prototype's `E`).
+// Ease.* mirrors Coucou's BotEngine.swift `enum Ease` (itself the prototype's `E`).
 // Spring mirrors SwiftUI `.spring(response:dampingFraction:)` so open/close motion
-// matches the macOS app exactly.
+// matches Coucou's macOS app exactly.
 
 export const Ease = {
   out: (t: number) => 1 - Math.pow(1 - t, 3),

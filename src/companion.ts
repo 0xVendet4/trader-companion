@@ -122,8 +122,6 @@ const EVM_MOVES_EVERY_MS = 10 * 60_000;
 /** Watched tokens whose transfers are read per chain for a followed EVM wallet, per round. */
 const EVM_LOG_TOKENS = 8;
 
-/** The key a position's quotes live under: a Solana mint's key, or the chain:address it already is. */
-const positionKey = (mint: string) => (mint.includes(":") ? mint : tokenKey("solana", mint));
 /** Holdings priced per wallet and check (DexScreener: 30 per request). See wallets/pricing. */
 const MAX_PRICED_HOLDINGS = 300;
 
@@ -261,8 +259,9 @@ class CompanionController {
     State.notify();
 
     try {
-      // The native coins of the chosen chains (and SOL, for the mascot) ride
-      // along: they share each chain's request, so they cost nothing extra.
+      // The native coins of the chosen chains (and SOL, for the header chip and
+      // the wallets' prices) ride along: they share each chain's request, so
+      // they cost nothing extra.
       const natives = nativeCoins(State.companion.chains);
       const refs = [
         ...tokens.map((tok) => ({ chainId: tok.chainId, address: tok.address })),
@@ -550,8 +549,7 @@ class CompanionController {
     const book = State.companion.book;
     let changed = false;
     for (const p of Object.values(book.positions)) {
-      const key = positionKey(p.mint);
-      const q = quotes[key];
+      const q = quotes[p.mint];
       if (!q) continue;
       State.positionQuotes[p.mint] = q;
       const levels = crossedLevels(p, q.priceUsd, State.companion.positionAlerts);
@@ -568,14 +566,14 @@ class CompanionController {
           kind: "alert",
           id: uid(),
           ruleId: `position:${p.mint}:${hit.key}`,
-          address: key,
+          address: p.mint,
           title: hit.title,
           detail: hit.detail,
           tone: hit.tone,
-          token: State.token(key) ?? {
-            key,
-            chainId: splitKey(key).chainId,
-            address: splitKey(key).address,
+          token: State.token(p.mint) ?? {
+            key: p.mint,
+            chainId: splitKey(p.mint).chainId,
+            address: splitKey(p.mint).address,
             symbol: p.symbol,
             name: p.symbol,
             pairAddress: q.pairAddress,
@@ -590,7 +588,7 @@ class CompanionController {
 
   /** The price a position is valued at: the latest quote, or none yet. */
   positionPrice(mint: string): number | null {
-    const q = State.positionQuotes[mint] ?? State.quotes[positionKey(mint)];
+    const q = State.positionQuotes[mint] ?? State.quotes[mint];
     return q ? q.priceUsd : null;
   }
 
@@ -1925,7 +1923,7 @@ class CompanionController {
     State.notify();
   }
 
-  /** Settings written by the other window. */
+  /** Settings saved by a panel (Settings, the Closet) or by the desktop Candy's window. */
   applyExternal(s: Settings) {
     const pollChanged = s.companion.pollSeconds !== State.companion.pollSeconds;
     const ids = new Set(s.companion.alerts.map((a) => a.id));
@@ -1941,10 +1939,10 @@ class CompanionController {
     const mineChanged = mineKey(s.companion.wallets) !== mineKey(State.companion.wallets);
     // Following just turned on: read the followed wallets now.
     const followOn = s.companion.following && !State.companion.following;
-    // The positions book is this window's: the settings window never edits it,
+    // The positions book is this window's: the Settings panel never edits it,
     // and its copy may be a poll behind.
     s.companion.book = State.companion.book;
-    // Discipline switched in the settings window: let go of what it had running.
+    // Discipline switched in the Settings panel: let go of what it had running.
     const discipline = s.companion.disciplineOn;
     const discChanged = discipline !== State.companion.disciplineOn;
     if (discChanged) s.companion.disciplineOn = !discipline;

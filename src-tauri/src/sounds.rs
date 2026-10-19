@@ -1,7 +1,8 @@
 // The trader's own sounds: a file named like one of Candy's sounds in the
 // sounds folder plays instead of the synthesised one (open.wav, alert-up.mp3,
 // greet.ogg…). The folder is platform::config_dir()/sounds: %APPDATA%\
-// TraderCompanion\sounds on Windows, ~/.config/candy/sounds on Linux.
+// TraderCompanion\sounds on Windows, ~/.config/candy/sounds on Linux,
+// ~/Library/Application Support/Candy/sounds on macOS.
 // Adapted from Coucou's sounds.rs (MIT, © Louis Raillé).
 //
 // The page decodes the bytes itself (src/core/sound.ts); a file it can't

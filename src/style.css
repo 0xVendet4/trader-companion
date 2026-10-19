@@ -531,32 +531,14 @@ body.passing #island {
   text-align: right;
 }
 
-.c-price {
-  width: 80px;
-  text-align: right;
-  color: var(--dim);
-}
 
 .c-pct {
   width: 54px;
   text-align: right;
 }
 
-.c-act {
-  width: 58px;
-  display: flex;
-  justify-content: flex-end;
-  opacity: 0;
-}
 
-.row:hover .c-act {
-  opacity: 1;
-}
 
-.c-act .icon-btn {
-  width: 24px;
-  height: 24px;
-}
 
 .sym {
   font-weight: 650;
@@ -2253,16 +2235,7 @@ select option {
   color: var(--dim-3);
 }
 
-.w-total {
-  margin-left: auto;
-  font-weight: 650;
-}
 
-.w-change {
-  min-width: 112px;
-  text-align: right;
-  font-size: 11px;
-}
 
 .w-detail {
   display: flex;
@@ -2585,27 +2558,9 @@ select option {
   font-size: 10px;
 }
 
-.pos-summary {
-  display: flex;
-  gap: 16px;
-  padding: 2px 6px 6px;
-  font-size: 11.5px;
-  color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
 
-.pos-summary b {
-  color: var(--ink);
-  font-weight: 700;
-}
 
-.pos-summary b.pct.up {
-  color: var(--up);
-}
 
-.pos-summary b.pct.down {
-  color: var(--down);
-}
 
 /* A column: the lists give way (and scroll) so that the bottom line (fine
    print, Share my day, Replay today) always fits the island. */
@@ -2643,14 +2598,7 @@ select option {
   font-weight: 700;
 }
 
-.positions .c-price.entry {
-  cursor: text;
-  border-bottom: 1px dashed transparent;
-}
 
-.positions .row:hover .c-price.entry {
-  border-bottom-color: var(--dim-2);
-}
 
 .entry-field {
   width: 74px;
@@ -2665,9 +2613,6 @@ select option {
   font-size: 10px;
 }
 
-.empty-actions {
-  margin-top: 10px;
-}
 
 /* ── Watchlist volume and buys / sells (as GMGN shows them) ─────────────── */
 
@@ -2797,10 +2742,6 @@ select option {
 }
 
 /* Many coins in the header: the chips give way, never the buttons. */
-.header-actions {
-  min-width: 0;
-}
-
 .header-actions .natives {
   min-width: 0;
   overflow: hidden;
@@ -3155,7 +3096,7 @@ body[data-placement="top"] .panel-icon {
   margin-bottom: 8px;
 }
 
-/* Every look, large, in the closet window: plain to see, next to the shelves. */
+/* Every look, large, in the closet panel: plain to see, next to the shelves. */
 .wardrobe-closet {
   display: inline-flex;
   align-items: center;
@@ -3557,7 +3498,6 @@ body[data-placement="right"] #content {
 }
 
 /* My wallet: value, profit and %. */
-.sidebar .positions .c-price,
 .sidebar .positions .c-x {
   display: none;
 }
@@ -3574,7 +3514,7 @@ body[data-placement="right"] #content {
   white-space: normal;
 }
 
-/* Six across: six rows of hats, five of faces, four of colours, whole (sidebarHeight). */
+/* Six across: six rows of hats and of faces, four of colours, whole (sidebarHeight). */
 .sidebar .wardrobe-grid {
   grid-template-columns: repeat(6, 1fr);
   max-height: 420px;
@@ -4669,10 +4609,10 @@ body[data-placement="right"] #content {
 
 /* Only as it comes up: the ticker redraws every second. */
 .ticker .t-check.fresh {
-  animation: check-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: tick-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes check-pop {
+@keyframes tick-pop {
   from { transform: scale(0); }
   to { transform: scale(1); }
 }
@@ -4929,8 +4869,7 @@ body.compact .tok-img {
   height: 16px;
 }
 
-body.compact .row-actions .icon-btn,
-body.compact .c-act .icon-btn {
+body.compact .row-actions .icon-btn {
   width: 22px;
   height: 22px;
 }

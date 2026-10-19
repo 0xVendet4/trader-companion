@@ -12,12 +12,6 @@ const TOKEN_PROGRAMS = [
   "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", // Token-2022 (newer pump.fun tokens)
 ];
 
-const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
-export function isAddress(s: string): boolean {
-  return ADDRESS_RE.test(s.trim());
-}
-
 interface ParsedAccount {
   pubkey: string;
   account: { data: { parsed: { info: { mint: string; tokenAmount: { uiAmount: number | null } } } } };

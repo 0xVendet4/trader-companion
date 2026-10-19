@@ -380,7 +380,7 @@ const words: Dict = {
   "Open sounds folder": "Ses klasörünü aç",
   "Reload": "Yeniden yükle",
   "Your own sounds": "Kendi seslerin",
-  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a or .flac plays instead of Candy's own. The names are in the README.": "Bir sesin adını taşıyan .wav, .mp3, .ogg, .m4a ya da .flac dosyası ({files}, …) Candy'nin kendi sesi yerine çalar. İsimler README'de.",
+  "A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a, .flac or .aiff plays instead of Candy's own. The names are in the README.": "Bir sesin adını taşıyan .wav, .mp3, .ogg, .m4a, .flac ya da .aiff dosyası ({files}, …) Candy'nin kendi sesi yerine çalar. İsimler README'de.",
   "General": "Genel",
   "Language": "Dil",
   "Same as the system ({language})": "Sistemle aynı ({language})",

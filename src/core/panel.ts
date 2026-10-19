@@ -5,6 +5,7 @@
 // match panel_frame in src-tauri/src/island.rs; a browser uses them as they
 // are, on the page standing in for the screen.
 
+import { clamp } from "./anim";
 import type { ShowOff } from "./bridge";
 import { COMPACT_H, floatsUp, isSide } from "./layout";
 import type { ShortcutId, ShortcutStatus } from "./shortcuts";
@@ -84,8 +85,6 @@ export function shownTransparency(setting: number, panelOpen: boolean, preview: 
   if (preview != null) return preview;
   return panelOpen ? Math.min(setting, PANEL_MAX_TRANSPARENCY) : setting;
 }
-
-const clamp = (v: number, lo: number, hi: number) => (hi < lo ? lo : Math.min(hi, Math.max(lo, v)));
 
 /** The panel inside its window: everything but the room for the ring on the free sides. */
 export function panelInWindow(placement: Placement, w: number, h: number): Rect {

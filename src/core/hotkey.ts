@@ -3,20 +3,7 @@
 // the page has focus.
 
 import { IS_TAURI } from "./bridge";
-import { N_, t } from "./i18n";
 import { keyName, type ShortcutId } from "./shortcuts";
-
-export const HOTKEY_CHOICES: [string, string][] = [
-  ["CommandOrControl+Shift+Space", "Ctrl + Shift + Space"],
-  ["Alt+Shift+Space", "Alt + Shift + Space"],
-  ["CommandOrControl+Alt+T", "Ctrl + Alt + T"],
-  ["", N_("Off")],
-];
-
-export function hotkeyLabel(accel: string): string {
-  if (!accel) return t("Off");
-  return HOTKEY_CHOICES.find(([a]) => a === accel)?.[1] ?? accel.replace(/CommandOrControl/g, "Ctrl").replace(/\+/g, " + ");
-}
 
 /** Does this key event match an accelerator like "CommandOrControl+Shift+Space"? */
 export function matches(accel: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; code: string; key: string }): boolean {
@@ -81,9 +68,4 @@ export async function unbindHotkey(slot: ShortcutId): Promise<void> {
 /** Lets go of every shortcut (Settings is recording a new one). */
 export async function unbindAll(): Promise<void> {
   await Promise.all([...bound.keys()].map((slot) => unbindHotkey(slot)));
-}
-
-/** The keys a shortcut is registered with right now ("" = none). */
-export function boundKeys(slot: ShortcutId): string {
-  return bound.get(slot)?.accel ?? "";
 }
