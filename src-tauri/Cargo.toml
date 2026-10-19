@@ -40,7 +40,10 @@ libc = "0.2"
 # Alert notifications with buttons (Open, Mute 1 h): already built for the
 # notification plugin, used directly for the buttons it doesn't offer.
 tauri-winrt-notification = "0.8"
+# ApplicationModel: the Store package's identity, notification id and
+# "Start with Windows" task (platform/windows.rs).
 windows = { version = "0.61", features = [
+  "ApplicationModel",
   "Media_Control",
   "Storage_Streams",
   "Win32_Foundation",

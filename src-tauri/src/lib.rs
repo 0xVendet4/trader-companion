@@ -50,6 +50,9 @@ pub struct BootInfo {
     can_place: bool,
     /// The OS account's first name, for the greeting; it never leaves the PC.
     first_name: Option<&'static str>,
+    /// True in the Microsoft Store's package: the Store updates it, so the
+    /// page asks GitHub for no newer version (platform/windows.rs).
+    packaged: bool,
 }
 
 #[tauri::command]
@@ -75,7 +78,19 @@ fn boot(app: AppHandle, window: tauri::WebviewWindow, shared: State<Shared>) -> 
         cursor_poll: platform::CURSOR_POLL,
         can_place: platform::can_place(),
         first_name: identity::first_name(),
+        packaged: platform::packaged(),
     }
+}
+
+/// "Start with Windows", "Start when you log in": the Store package's startup
+/// task, else the autostart plugin's entry (a Run key, a LaunchAgent, a
+/// .desktop file in autostart).
+fn set_autostart(app: &AppHandle, on: bool) -> Result<(), String> {
+    if platform::packaged() {
+        return platform::startup_task(on);
+    }
+    let manager = app.autolaunch();
+    if on { manager.enable() } else { manager.disable() }.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -100,9 +115,7 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         log::line(format!("could not save settings: {err}"));
     }
     if autostart_changed {
-        let manager = app.autolaunch();
-        let result = if settings.autostart { manager.enable() } else { manager.disable() };
-        if let Err(err) = result {
+        if let Err(err) = set_autostart(&app, settings.autostart) {
             log::line(format!("autostart: {err}"));
         }
     }
@@ -426,6 +439,16 @@ fn notify_alert(app: AppHandle, title: String, body: String, key: String, button
     })
 }
 
+/// A plain notification filed by the app under its own id (Windows: the Store
+/// package's differs from the one the page's plugin uses). False where the
+/// page's plugin does it.
+#[tauri::command]
+fn notify_plain(app: AppHandle, title: String, body: String) -> bool {
+    let cut = |s: &str, n: usize| s.chars().filter(|c| !c.is_control()).take(n).collect::<String>();
+    let identifier = app.config().identifier.clone();
+    platform::plain_toast(&identifier, &cut(&title, 120), &cut(&body, 240))
+}
+
 /// The clipboard's text for the paste shortcut (src/core/hotkey.ts). Whatever
 /// the user last copied: handed to the page as is, never logged.
 #[tauri::command]
@@ -490,8 +513,12 @@ fn log_line(message: String) {
 }
 
 /// The latest release's version on GitHub (see update.rs); the page compares it.
+/// Nothing from the Store's package: the Store updates it.
 #[tauri::command]
 async fn check_update() -> Result<String, String> {
+    if platform::packaged() {
+        return Ok(String::new());
+    }
     update::latest_version().await.map_err(|e| {
         log::line(format!("update check: {e}"));
         e
@@ -527,6 +554,9 @@ async fn ohlcv(network: String, pool: String, timeframe: String, aggregate: u32,
 /// "build" (its code is being built).
 #[tauri::command]
 async fn start_update(app: AppHandle, version: String) -> Result<String, String> {
+    if platform::packaged() {
+        return Err("the Microsoft Store updates this Candy".into());
+    }
     log::line(format!("update: starting {version}"));
     update::start(app, &version).await.map(str::to_owned).map_err(|e| {
         log::line(format!("update: {e}"));
@@ -1120,6 +1150,7 @@ pub fn run() {
             read_clipboard,
             fullscreen_busy,
             notify_alert,
+            notify_plain,
             set_media_watch,
             media_control,
             sounds::custom_sounds,
@@ -1181,8 +1212,9 @@ pub fn run() {
 
             // "Start with Windows" is registered under the app's name and path:
             // registered again on every start, so it survives a rename or a move
-            // (Trader Companion became Candy in 0.1.1).
-            if loaded.autostart {
+            // (Trader Companion became Candy in 0.1.1). The Store package's
+            // startup task is Windows' to keep.
+            if loaded.autostart && !platform::packaged() {
                 if let Err(err) = handle.autolaunch().enable() {
                     log::line(format!("autostart: {err}"));
                 }

@@ -35,6 +35,7 @@ async function main() {
   State.os = boot.os ?? "browser";
   State.cursorPoll = boot.cursorPoll ?? true;
   State.canPlace = boot.canPlace ?? true;
+  State.packaged = boot.packaged ?? false;
   State.notch = boot.screen.notch ?? 0;
   State.screenHeight = boot.screen.height;
   State.firstName = boot.firstName ?? null;

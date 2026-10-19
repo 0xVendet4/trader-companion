@@ -9,6 +9,8 @@ use std::time::Duration;
 use tauri::{AppHandle, WebviewWindow};
 
 use crate::music::{self, MusicListener, MusicUpdate, NowPlaying};
+use ::windows::core::HSTRING;
+use ::windows::ApplicationModel::{Package, StartupTask, StartupTaskState};
 use ::windows::Foundation::TypedEventHandler;
 use ::windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession as Session,
@@ -94,6 +96,72 @@ pub fn open_url(url: &str) {
 /// Shows a folder of the app's own (the sounds folder) in Explorer.
 pub fn reveal_folder(path: &str) {
     let _ = Command::new("explorer").arg(path).spawn();
+}
+
+// ── The Store package ─────────────────────────────────────────────────────────
+// From the Microsoft Store, Candy runs inside an MSIX package (msix/): Windows
+// keeps its files and registry writes in the package's own folders, starts it
+// at login through the manifest's startup task rather than a Run key, files
+// its notifications under the package's id, and updates it through the Store.
+
+/// The startup task's id in msix/Package.appxmanifest.
+const STARTUP_TASK: &str = "CandyStartup";
+
+/// The application's id there: the second half of the package's notification id.
+const PACKAGE_APP: &str = "Candy";
+
+/// True when this Candy runs from the Store's package. An install from the
+/// installer, or a build, has no package identity.
+pub fn packaged() -> bool {
+    static PACKAGED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *PACKAGED.get_or_init(|| Package::Current().is_ok())
+}
+
+/// The package's family name, the first half of its notification id.
+fn package_family() -> Option<String> {
+    Package::Current().ok()?.Id().ok()?.FamilyName().ok().map(|s| s.to_string())
+}
+
+/// "Start with Windows" for the Store package: the manifest's startup task,
+/// which Windows lists in Settings → Apps → Startup. Once the user turned it
+/// off there, only they can turn it on again: that comes back as an error.
+pub fn startup_task(on: bool) -> Result<(), String> {
+    let task = StartupTask::GetAsync(&HSTRING::from(STARTUP_TASK))
+        .and_then(|op| op.get())
+        .map_err(|e| e.to_string())?;
+    if !on {
+        return task.Disable().map_err(|e| e.to_string());
+    }
+    let state = task.RequestEnableAsync().and_then(|op| op.get()).map_err(|e| e.to_string())?;
+    if state == StartupTaskState::Enabled || state == StartupTaskState::EnabledByPolicy {
+        Ok(())
+    } else if state == StartupTaskState::DisabledByUser {
+        Err("turned off in Windows' Startup apps, where it can be turned on again".into())
+    } else {
+        Err("not allowed on this PC".into())
+    }
+}
+
+/// The id Windows files a notification under: the Store package's own, the
+/// installed app's (its Start menu shortcut carries it), or PowerShell's for
+/// a dev build, which has none.
+fn toast_app_id(identifier: &str) -> String {
+    use tauri_winrt_notification::Toast;
+    if let Some(family) = package_family() {
+        return format!("{family}!{PACKAGE_APP}");
+    }
+    let dev = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.ends_with("target\\debug") || d.ends_with("target\\release")))
+        .unwrap_or(false);
+    if dev { Toast::POWERSHELL_APP_ID.to_string() } else { identifier.to_string() }
+}
+
+/// A plain notification under the right id (see toast_app_id): the page's
+/// notification plugin knows only the installed app's.
+pub fn plain_toast(identifier: &str, title: &str, body: &str) -> bool {
+    use tauri_winrt_notification::Toast;
+    Toast::new(&toast_app_id(identifier)).title(title).text1(body).show().is_ok()
 }
 
 // ── Clipboard ─────────────────────────────────────────────────────────────────
@@ -489,15 +557,8 @@ pub fn fullscreen_busy() -> bool {
 /// Candy runs. False if it couldn't be shown.
 pub fn alert_toast(identifier: &str, title: &str, body: &str, buttons: (&str, &str), on_action: impl Fn(&str) + Send + 'static) -> bool {
     use tauri_winrt_notification::Toast;
-    // As the notification plugin does: the installed app's own id, which its
-    // Start menu shortcut carries; a dev build has none and borrows PowerShell's.
-    let dev = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|d| d.ends_with("target\\debug") || d.ends_with("target\\release")))
-        .unwrap_or(false);
-    let app_id = if dev { Toast::POWERSHELL_APP_ID } else { identifier };
     // Plain text: the toolkit escapes it into the notification's XML.
-    Toast::new(app_id)
+    Toast::new(&toast_app_id(identifier))
         .title(title)
         .text1(body)
         .add_button(buttons.0, "open")

@@ -75,6 +75,17 @@ jobs:
           path: release/Candy-Windows-*-setup.exe
           if-no-files-found: error
 
+      # The same app, bare, for the Store package (the `store` job).
+      - name: Keep the app for the Store
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: |
+            target/release/Candy.exe
+            target/release/trader-companion.exe
+          if-no-files-found: error
+
   linux:
     runs-on: ubuntu-24.04
 
@@ -186,6 +197,39 @@ jobs:
           path: mac-screenshots/*.png
           retention-days: 1
           if-no-files-found: warn
+
+  # The Microsoft Store's package: the Candy.exe the windows job built, as an
+  # MSIX (msix/, scripts/msix.mjs) under the identity in msix/identity.json.
+  # Unsigned on purpose: the Store signs it at submission (Partner Center), so
+  # it is a build artifact here, not a file on the Releases page.
+  store:
+    needs: windows
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: release
+
+      - uses: microsoft/setup-WinAppCli@v0.1
+
+      - name: Package for the Store
+        run: node scripts/msix.mjs
+
+      - name: Keep the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: microsoft-store
+          path: release/Candy-Store-*.msix
+          if-no-files-found: error
 
   # One release per version: when main's version has none yet, the installer
   # and the app the jobs above built are published under its tag (v0.1.16),

@@ -78,6 +78,8 @@ export interface BootInfo {
   canPlace?: boolean;
   /** The trader's first name from their OS account, for the greeting (src-tauri/src/identity.rs); null when it has none. */
   firstName?: string | null;
+  /** True inside the Microsoft Store's package: the Store updates Candy, so no update check (see State.packaged). */
+  packaged?: boolean;
 }
 
 /** The browser's settings. Ones that can't be read are left alone: the page runs on defaults and saves nothing. */
@@ -176,6 +178,11 @@ export const Bridge = {
   /** An alert's notification with Open and Mute 1 h (`buttons`: their words; Windows); false where there is none. */
   async notifyAlert(title: string, body: string, key: string, buttons: [string, string]): Promise<boolean> {
     return (await call<boolean>("notify_alert", { title, body, key, buttons })) ?? false;
+  },
+
+  /** A plain notification filed by the app under its own id (the Store package's differs); false where the page's plugin does it. */
+  async notifyPlain(title: string, body: string): Promise<boolean> {
+    return (await call<boolean>("notify_plain", { title, body })) ?? false;
   },
 
   /** The ticker on a screen edge lets clicks through until the cursor rests on it (island.rs). */

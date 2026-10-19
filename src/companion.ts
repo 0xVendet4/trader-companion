@@ -208,8 +208,9 @@ class CompanionController {
     window.setInterval(() => {
       if (State.mode === "expanded" && State.view === "trending") void this.refreshTrending();
     }, TRENDING_TTL_MS / 2);
-    // A minute in, then every half hour: a newer Candy on GitHub?
-    if (IS_TAURI) {
+    // A minute in, then every half hour: a newer Candy on GitHub? Not from
+    // the Microsoft Store's package: the Store updates it.
+    if (IS_TAURI && !State.packaged) {
       window.setTimeout(() => void this.checkUpdate(), 60_000);
       window.setInterval(() => void this.checkUpdate(), UPDATE_CHECK_MS);
     }

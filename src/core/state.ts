@@ -999,6 +999,8 @@ class AppState {
    * through XWayland…) has every placement, the page dragging the float itself.
    */
   canPlace = true;
+  /** True when Candy runs from the Microsoft Store's package: the Store updates it, so no update check or card. */
+  packaged = false;
   /**
    * The notch's height (logical px) on a MacBook that has one, else 0. At the
    * top there, the island grows out of the notch: a black band that tall over

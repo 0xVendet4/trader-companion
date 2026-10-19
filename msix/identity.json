@@ -1,0 +1,6 @@
+{
+  "_": "The package's identity, from Partner Center → the app → Product management → Product identity (Package/Identity/Name, Package/Identity/Publisher, Package/Properties/PublisherDisplayName). Until the name is reserved there, these stand-ins let `npm run store -- --run` run Candy as a package on this PC.",
+  "name": "Candy.Dev",
+  "publisher": "CN=Candy Dev",
+  "publisherDisplayName": "Candy Dev"
+}

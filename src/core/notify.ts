@@ -3,6 +3,7 @@
 
 import { Bridge, IS_TAURI } from "./bridge";
 import { t } from "./i18n";
+import { State } from "./state";
 
 /** Asks for permission. Resolves to whether notifications can be shown. */
 export async function enableNotifications(): Promise<boolean> {
@@ -29,6 +30,8 @@ export async function notifyAlert(title: string, body: string, key: string): Pro
 export async function notify(title: string, body: string): Promise<void> {
   try {
     if (IS_TAURI) {
+      // Windows: the app files it under its own id (the Store package's is not the plugin's).
+      if (State.os === "windows" && (await Bridge.notifyPlain(title, body))) return;
       const n = await import("@tauri-apps/plugin-notification");
       if (await n.isPermissionGranted()) n.sendNotification({ title, body });
       return;

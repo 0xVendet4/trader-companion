@@ -215,6 +215,21 @@ pub fn fullscreen_busy() -> bool {
     false
 }
 
+/// Only Windows has a Store package.
+pub fn packaged() -> bool {
+    false
+}
+
+/// No startup task outside the Store package: the autostart plugin does it.
+pub fn startup_task(_on: bool) -> Result<(), String> {
+    Err("no startup task".into())
+}
+
+/// No notification id to mind here: the page sends the plain one.
+pub fn plain_toast(_identifier: &str, _title: &str, _body: &str) -> bool {
+    false
+}
+
 /// No buttons on notifications here: the page sends the plain one.
 pub fn alert_toast(_identifier: &str, _title: &str, _body: &str, _buttons: (&str, &str), _on_action: impl Fn(&str) + Send + 'static) -> bool {
     false

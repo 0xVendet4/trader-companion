@@ -11,6 +11,7 @@
     "mascot": "node scripts/gen-placeholder-mascot.mjs",
     "tauri": "tauri",
     "pack": "tauri build && node scripts/pack.mjs",
+    "store": "node scripts/msix.mjs",
     "setup": "node scripts/setup.mjs",
     "bump": "node scripts/bump.mjs",
     "i18n": "node scripts/i18n.mjs",
