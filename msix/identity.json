@@ -1,6 +1,7 @@
 {
-  "_": "The package's identity, from Partner Center → the app → Product management → Product identity (Package/Identity/Name, Package/Identity/Publisher, Package/Properties/PublisherDisplayName). Until the name is reserved there, these stand-ins let `npm run store -- --run` run Candy as a package on this PC.",
-  "name": "Candy.Dev",
-  "publisher": "CN=Candy Dev",
-  "publisherDisplayName": "Candy Dev"
+  "_": "The package's identity, from Partner Center → the app → Product management → Product identity (Package/Identity/Name, Package/Identity/Publisher, Package/Properties/PublisherDisplayName), and displayName, the name reserved there: the Store wants the package's own name to match it (it names the Start menu entry; the island still says Candy).",
+  "displayName": "Candy Trader Companion",
+  "name": "0xVendet4.CandyTraderCompanion",
+  "publisher": "CN=9FB0970E-6FA5-474B-BE73-F7B498576074",
+  "publisherDisplayName": "0xVendet4"
 }

@@ -12,7 +12,7 @@
   <Identity Name="{{NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Candy</DisplayName>
+    <DisplayName>{{DISPLAY_NAME}}</DisplayName>
     <PublisherDisplayName>{{PUBLISHER_DISPLAY}}</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>A mascot at the top of your screen that watches your memecoins</Description>
@@ -30,7 +30,7 @@
     <!-- Id="Candy" is the second half of the package's notification id (platform/windows.rs). -->
     <Application Id="Candy" Executable="Candy.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Candy"
+        DisplayName="{{DISPLAY_NAME}}"
         Description="A mascot at the top of your screen that watches your memecoins"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -42,7 +42,7 @@
         <!-- "Start with Windows": Settings → Apps → Startup lists it, and Candy's
              own setting turns it on and off (platform/windows.rs, startup_task). -->
         <desktop:Extension Category="windows.startupTask" Executable="Candy.exe" EntryPoint="Windows.FullTrustApplication">
-          <desktop:StartupTask TaskId="CandyStartup" Enabled="false" DisplayName="Candy" />
+          <desktop:StartupTask TaskId="CandyStartup" Enabled="false" DisplayName="{{DISPLAY_NAME}}" />
         </desktop:Extension>
       </Extensions>
     </Application>

@@ -7,7 +7,8 @@
 //   npm run store -- --exe <path>  the built Candy.exe to package (else the newest build found)
 //
 // Staged in release/store/: Candy.exe, msix/Package.appxmanifest with its
-// tokens filled from msix/identity.json and the version (four parts: 0.1.16.0),
+// tokens filled from msix/identity.json (the identity Partner Center gave the
+// app, and the name reserved there) and the version (four parts: 0.1.16.0),
 // and msix/Assets. The package is unsigned on purpose: the Store signs it at
 // submission (Partner Center), which is the only place it installs from.
 // It needs the winapp CLI: winget install Microsoft.winappcli --source winget
@@ -31,7 +32,7 @@ function fail(text) {
 
 const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
 const identity = JSON.parse(readFileSync(join(root, "msix", "identity.json"), "utf8"));
-for (const key of ["name", "publisher", "publisherDisplayName"]) {
+for (const key of ["displayName", "name", "publisher", "publisherDisplayName"]) {
   if (typeof identity[key] !== "string" || !identity[key]) fail(`msix/identity.json has no "${key}".`);
 }
 // MSIX versions have four parts; the Store wants each submission's higher.
@@ -68,6 +69,7 @@ mkdirSync(stage, { recursive: true });
 copyFileSync(exe, join(stage, "Candy.exe"));
 cpSync(join(root, "msix", "Assets"), join(stage, "Assets"), { recursive: true });
 const manifest = readFileSync(join(root, "msix", "Package.appxmanifest"), "utf8")
+  .replace(/\{\{DISPLAY_NAME\}\}/g, identity.displayName)
   .replace("{{NAME}}", identity.name)
   .replace("{{PUBLISHER}}", identity.publisher)
   .replace("{{PUBLISHER_DISPLAY}}", identity.publisherDisplayName)
