@@ -3196,6 +3196,19 @@ body[data-placement="top"] .panel-icon {
   aspect-ratio: 6 / 5;
 }
 
+/* Fifteen costumes (the pug made it fifteen): eight to a row on the island,
+   open or compact, so two rows show them all with nothing to scroll to; the
+   sidebar keeps its five, three full rows. The names are a little smaller
+   on the narrower cards (Astronaut, Dinosaur, Spiderman fit at 9 px). */
+body:not(.sidebar) .wardrobe-grid.costumes:has(> .look:nth-child(15)) {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+body:not(.sidebar) .wardrobe-grid.costumes:has(> .look:nth-child(15)) .look-name {
+  font-size: 9px;
+  letter-spacing: -0.02em;
+}
+
 /* Backgrounds: a little island with a dot and a line of ticker on it, the
    line in the look's own text colour (--sw-ink, see islandSwatch). */
 .island-swatch {

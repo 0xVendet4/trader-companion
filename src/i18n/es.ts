@@ -1032,6 +1032,7 @@ const words: Dict = {
   "Blueprint": "Plano",
   "Penguin": "Pingüino",
   "Bee": "Abeja",
+  "Pug": "Pug",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Actualizar ahora: descarga la versión nueva de GitHub, la instala y vuelve a iniciar. Tu configuración se mantiene.",
   "Downloading the new version…": "Descargando la versión nueva…",
   "Installing: Candy starts again when it's done.": "Instalando: Candy vuelve a iniciar al terminar.",

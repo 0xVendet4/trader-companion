@@ -2985,6 +2985,200 @@
           ]
         }
       }
+    },
+    "pug": {
+      "name": "Pug",
+      "states": {
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/pug/idle.svg"
+          ],
+          "eyes": "costumes/pug/eyes-open.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/pug/happy.svg"
+          ],
+          "eyes": "costumes/pug/eyes-happy.svg"
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/pug/celebrate-1.svg",
+            "costumes/pug/celebrate-2.svg"
+          ],
+          "eyes": "costumes/pug/eyes-stars.svg"
+        },
+        "worried": {
+          "motion": "sway",
+          "tint": false,
+          "frames": [
+            "costumes/pug/worried.svg"
+          ],
+          "eyes": "costumes/pug/eyes-open.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "shocked": {
+          "motion": "shake",
+          "tint": false,
+          "frames": [
+            "costumes/pug/shocked.svg"
+          ],
+          "eyes": "costumes/pug/eyes-wide.svg"
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/pug/sleepy.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/pug/alert.svg"
+          ],
+          "eyes": "costumes/pug/eyes-wide.svg"
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/pug/tired.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "tint": false,
+          "frames": [
+            "costumes/pug/stop.svg"
+          ],
+          "eyes": "costumes/pug/eyes-open.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/pug/confused.svg"
+          ],
+          "eyes": "costumes/pug/eyes-dots.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/pug/love.svg"
+          ],
+          "eyes": "costumes/pug/eyes-hearts.svg"
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/pug/wave-1.svg",
+            "costumes/pug/wave-2.svg"
+          ],
+          "eyes": "costumes/pug/eyes-happy.svg"
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/pug/proud.svg"
+          ]
+        },
+        "sad": {
+          "motion": "droop",
+          "tint": false,
+          "frames": [
+            "costumes/pug/sad.svg"
+          ],
+          "eyes": "costumes/pug/eyes-open.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/pug/bored.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/pug/focused.svg"
+          ],
+          "eyes": "costumes/pug/eyes-narrow.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/pug/nervous.svg"
+          ],
+          "eyes": "costumes/pug/eyes-wide.svg"
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/pug/curious.svg"
+          ],
+          "eyes": "costumes/pug/eyes-open.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/pug/angry.svg"
+          ],
+          "eyes": "costumes/pug/eyes-narrow.svg"
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/pug/excited-1.svg",
+            "costumes/pug/excited-2.svg"
+          ],
+          "fps": 4,
+          "eyes": "costumes/pug/eyes-sparkle.svg"
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/pug/relieved.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/pug/dizzy.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/pug/cool.svg"
+          ],
+          "eyes": "costumes/pug/eyes-wink.svg",
+          "eyesBlink": "costumes/pug/eyes-blink.svg"
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/pug/sick.svg"
+          ]
+        }
+      },
+      "mouthDrop": 7
     }
   }
 }

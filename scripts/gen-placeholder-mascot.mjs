@@ -19,6 +19,7 @@ import dino from "./costumes/dino.mjs";
 import ghost from "./costumes/ghost.mjs";
 import ninja from "./costumes/ninja.mjs";
 import penguin from "./costumes/penguin.mjs";
+import pug from "./costumes/pug.mjs";
 import robot from "./costumes/robot.mjs";
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "mascot");
@@ -2034,7 +2035,7 @@ MANIFEST.costumes = {
 // (frames, eye layers, still.svg) and a look for every mood. A new costume is
 // one import and one entry in DRAWN.
 const KIT = { EYES, EYE_LAYERS, BROWS, MOUTHS, EXTRAS, INK, RIM, mirror, stopSign, star, heart, turned, wrap };
-const DRAWN = { astronaut, ninja, robot, dino, bull, bear, ghost, penguin, bee };
+const DRAWN = { astronaut, ninja, robot, dino, bull, bear, ghost, penguin, bee, pug };
 const DRAWN_FILES = {};
 for (const [id, draw] of Object.entries(DRAWN)) {
   const dir = `costumes/${id}/`;

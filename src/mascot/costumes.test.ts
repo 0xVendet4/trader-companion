@@ -80,6 +80,7 @@ describe("costumes", () => {
       expect(costumeName("ghost")).toBe("Fantasma");
       expect(costumeName("penguin")).toBe("Pinguim");
       expect(costumeName("bee")).toBe("Abelha");
+      expect(costumeName("pug")).toBe("Pug");
       expect(costumeName("gengar")).toBe("Gengar");
       expect(costumeName("none")).toBe("Candy");
       useWords("en", {});
@@ -128,7 +129,7 @@ describe("costumes", () => {
 
     it("every common noun is translated, and only those: no character's name is sent to be translated", () => {
       // A merge that drops one of these from the list fails here, not on a screenshot.
-      expect([...NOUN_COSTUMES].sort()).toEqual(["astronaut", "bear", "bee", "bull", "dino", "ghost", "ninja", "penguin", "robot"]);
+      expect([...NOUN_COSTUMES].sort()).toEqual(["astronaut", "bear", "bee", "bull", "dino", "ghost", "ninja", "penguin", "pug", "robot"]);
       for (const id of COSTUME_IDS) {
         // A language that had a word for every name: only the nouns take it.
         useWords("pt", { [COSTUME_NAMES[id]]: "translated" });
@@ -236,8 +237,8 @@ describe("costumes", () => {
       expect(manifest.costumes[id].name).toBe(name);
       expect(COSTUME_NAMES[id]).toBe(name);
     }
-    // Both after the dinosaur, then the bee, a friend's edition last.
-    expect(COSTUME_IDS.slice(-4)).toEqual(["ghost", "penguin", "bee", "edition"]);
+    // Both after the dinosaur, then the bee and the pug, a friend's edition last.
+    expect(COSTUME_IDS.slice(-5)).toEqual(["ghost", "penguin", "bee", "pug", "edition"]);
     expect(OFFERED_COSTUMES).toEqual(expect.arrayContaining(["ghost", "penguin"]));
   });
 
@@ -277,8 +278,54 @@ describe("costumes", () => {
     expect(OFFERED_COSTUMES).toContain("bee");
   });
 
+  it("the pug has a face of its own in every mood; its propeller spins when excited, cheering or waving, and the lollipop goes up when proud", () => {
+    const pug = manifest.costumes.pug;
+    expect(pug.name).toBe("Pug");
+    // His mouth sits lower than Candy's: what is held in it goes down with it.
+    expect((pug as { mouthDrop?: number }).mouthDrop).toBe(7);
+    const states = pug.states;
+    const seen = new Map<string, string>();
+    for (const s of MASCOT_STATES) {
+      const def = states[s]!;
+      // Each mood its own frame (wave, celebrate and excited, two), no two the same picture.
+      expect(def.frames.map((f) => f.replace(/-\d\.svg$/, ".svg")), s).toEqual(def.frames.map(() => `costumes/pug/${s}.svg`));
+      for (const f of def.frames) {
+        const svg = readFileSync(join(DIR, f), "utf8");
+        expect(seen.get(svg), `${s} draws the same as ${seen.get(svg)}`).toBeUndefined();
+        seen.set(svg, s);
+      }
+      // Eyes of his own, not Candy's; Candy's motion and effect.
+      for (const e of [def.eyes, def.eyesBlink].filter(Boolean)) expect(e!.startsWith("costumes/pug/eyes-"), `${s}: ${e}`).toBe(true);
+      expect(def.motion, s).toBe(manifest.states[s]?.motion);
+      expect(def.fx, s).toBe(manifest.states[s]?.fx);
+    }
+    expect(states.idle?.eyes && states.idle?.eyesBlink).toBeTruthy();
+    expect(MASCOT_STATES.filter((s) => states[s]?.eyes).length).toBeGreaterThan(12);
+    // Cool is a wink, not focused's steady look.
+    expect(states.cool?.eyes).toBe("costumes/pug/eyes-wink.svg");
+    expect(states.cool?.eyes).not.toBe(states.focused?.eyes);
+    const spinning = /<g transform="rotate\(\d+ 64 9\.2\)">/g;
+    for (const s of ["excited", "celebrate", "wave"] as const) {
+      const frames = states[s]!.frames;
+      expect(frames, s).toHaveLength(2);
+      // The propeller turns between the two frames: the same pug, the blades turned in the first.
+      const [turned, straight] = frames.map((f) => readFileSync(join(DIR, f), "utf8"));
+      expect(turned.match(spinning), s).toHaveLength(1);
+      expect(straight.match(spinning), s).toBeNull();
+    }
+    expect(readFileSync(join(DIR, states.idle!.frames[0]), "utf8").match(spinning)).toBeNull();
+    // The lollipop arm lifted: proud and cheering, not at rest.
+    const lifted = /<g transform="rotate\(\d+ 40 76\)">/g;
+    expect(readFileSync(join(DIR, states.proud!.frames[0]), "utf8").match(lifted)).toHaveLength(2);
+    expect(readFileSync(join(DIR, states.celebrate!.frames[0]), "utf8").match(lifted)).toHaveLength(2);
+    expect(readFileSync(join(DIR, states.idle!.frames[0]), "utf8").match(lifted)).toBeNull();
+    expect(states.excited?.fps).toBe(4);
+    expect(OFFERED_COSTUMES).toContain("pug");
+  });
+
   it("older or hand-edited settings fall back to Candy, renamed costumes stay on", () => {
     expect(normalizeSettings({ companion: { costume: "bee" } } as never).companion.costume).toBe("bee");
+    expect(normalizeSettings({ companion: { costume: "pug" } } as never).companion.costume).toBe("pug");
     expect(normalizeSettings({ companion: { costume: "robot" } } as never).companion.costume).toBe("robot");
     expect(normalizeSettings({ companion: { costume: "dino" } } as never).companion.costume).toBe("dino");
     expect(normalizeSettings({ companion: { costume: "bull" } } as never).companion.costume).toBe("bull");

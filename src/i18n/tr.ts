@@ -1032,6 +1032,7 @@ const words: Dict = {
   "Blueprint": "Ozalit",
   "Penguin": "Penguen",
   "Bee": "Arı",
+  "Pug": "Pug",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Şimdi güncelle: yeni sürümü GitHub'dan indirir, kurar ve yeniden başlar. Ayarların korunur.",
   "Downloading the new version…": "Yeni sürüm indiriliyor…",
   "Installing: Candy starts again when it's done.": "Kuruluyor: bitince Candy yeniden başlar.",

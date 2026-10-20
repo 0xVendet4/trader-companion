@@ -21,6 +21,7 @@ describe("arms of its own", () => {
       "robot/idle", "robot/happy", "robot/wave-1", "robot/wave-2", "dino/idle", "dino/happy", "dino/wave-1", "dino/wave-2",
       "bull/idle", "bull/happy", "bull/wave-1", "bull/wave-2", "bear/idle", "bear/happy", "bear/wave-1", "bear/wave-2",
       "ghost/idle", "ghost/happy", "ghost/wave-1", "ghost/wave-2", "penguin/idle", "penguin/happy", "penguin/wave-1", "penguin/wave-2",
+      "pug/idle", "pug/happy", "pug/wave-1", "pug/wave-2",
     ]) {
       const rig = parseRig(art(`costumes/${f}.svg`));
       expect(rig, f).not.toBeNull();
@@ -657,6 +658,107 @@ describe("the bee, taken apart", () => {
       expect(Math.max(...xs), e).toBeLessThan(90);
       expect(xs.some((x) => x < 60) && xs.some((x) => x > 68), e).toBe(true);
       for (const o of eyes.ops) expect(Math.abs(centre(o.box).y - 60), e).toBeLessThan(8);
+    }
+  });
+});
+
+describe("the pug, taken apart", () => {
+  const states = (JSON.parse(art("mascot.json")) as { costumes: Record<string, { states: Record<string, { frames: string[]; eyes?: string; eyesBlink?: string }> }> })
+    .costumes.pug.states;
+  const frames = [...new Set(Object.values(states).flatMap((d) => d.frames))];
+  const colour = (o: Op) => (o.fill && "color" in o.fill ? o.fill.color : null);
+
+  it("reads like Candy: his body box, a face that turns, a coat that stays put, ears, arms and a tail of his own", () => {
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      expect(rig, f).not.toBeNull();
+      // Where Candy's is: hats and face accessories land where they do on him.
+      expect(rig.body, f).toEqual({ x: 28, y: 24, w: 72, h: 82 });
+      expect(paletteOf(rig), f).not.toBeNull();
+      expect(wickOf(rig), f).toBeNull();
+      expect(hasArms(rig), f).toBe(true);
+      expect(cheeksOf(rig), f).toHaveLength(2);
+      expect(rig.ops.some((o) => o.part === "mouth"), f).toBe(true);
+      // The sheen on his coat is skin, clipped to the body.
+      expect(rig.ops.filter((o) => o.part === "skin" && o.clips.length).length, f).toBeGreaterThanOrEqual(2);
+      // Ears, arms, feet and the tail behind him.
+      expect(rig.ops.filter((o) => o.part === "back").length, f).toBeGreaterThanOrEqual(8);
+      // No face part as wide as the body: everything on the face turns with it.
+      for (const o of rig.ops.filter((o) => o.part === "face" || o.part === "mouth")) expect(o.pivot.w, f).toBeLessThan(rig.body!.w * 0.8);
+    }
+  });
+
+  it("the beanie turns with the face, propeller and all; the muzzle too, and the nose is no beak", () => {
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      // The propeller's hub, yellow, and the brim, cream: on the face, clipped to the hat's own box.
+      const hub = rig.ops.find((o) => colour(o) === "#fde047" && o.shape.kind === "ellipse")!;
+      const brim = rig.ops.find((o) => colour(o) === "#f8f1e7")!;
+      for (const o of [hub, brim]) {
+        expect(o, f).toBeTruthy();
+        expect(o.part, f).toBe("face");
+        expect(o.clips.length, f).toBe(1);
+      }
+      // The nose, black, on the face; the mouth below it, drawn in a light line, with nothing read as a beak over it.
+      const nose = rig.ops.find((o) => colour(o) === "#0b0809" && o.shape.kind === "path")!;
+      expect(nose.part, f).toBe("face");
+      const lips = rig.ops.filter((o) => o.part === "mouth" && o.stroke === "#c4b8bf");
+      expect(lips.length, f).toBeGreaterThan(0);
+      expect(Math.min(...lips.map((o) => o.box.y)), f).toBeGreaterThan(nose.box.y + nose.box.h);
+    }
+  });
+
+  it("holds the lollipop out in front, beside him, and the stop sign too", () => {
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      const b = rig.body!;
+      // The white disc of the lollipop: in front, its middle past the body's left edge.
+      const disc = rig.ops.find((o) => colour(o) === "#ffffff" && o.shape.kind === "ellipse" && o.shape.rx === 11)!;
+      expect(disc, f).toBeTruthy();
+      expect(disc.part, f).toBe("front");
+      expect(centre(disc.box).x, f).toBeLessThan(b.x);
+      // Its six bands of the rainbow, in front with it.
+      const bands = rig.ops.filter((o) => o.part === "front" && o.fill === null && o.strokeWidth === 1.5 && o.stroke && ["#ef4444", "#f97316", "#facc15", "#22c55e", "#3b82f6", "#a855f7"].includes(o.stroke));
+      expect(bands, f).toHaveLength(6);
+    }
+    // Proud: the lollipop up, higher than at rest.
+    const disc = (f: string) => centre(parseRig(art(`costumes/pug/${f}.svg`))!.ops.find((o) => colour(o) === "#ffffff" && o.shape.kind === "ellipse" && o.shape.rx === 11)!.box);
+    expect(disc("proud").y).toBeLessThan(disc("idle").y - 4);
+    const stop = parseRig(art("costumes/pug/stop.svg"))!;
+    expect(stop.ops.some((o) => o.part === "front" && o.shape.kind === "text")).toBe(true);
+  });
+
+  it("keeps its drops of sweat clear of the body and its outline: in front, nothing covers them", () => {
+    let drops = 0;
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      const b = rig.body!;
+      const edge = rig.ops.find((o) => o.part === "body")!.strokeWidth / 2;
+      for (const o of rig.ops) {
+        if (colour(o) !== "#7dd3fc" || o.part === "face") continue;
+        drops++;
+        expect(o.part, `${f}: a drop`).toBe("front");
+        const r = o.strokeWidth / 2;
+        const apart =
+          o.box.x - r >= b.x + b.w + edge || o.box.x + o.box.w + r <= b.x - edge || o.box.y - r >= b.y + b.h + edge || o.box.y + o.box.h + r <= b.y - edge;
+        expect(apart, `${f}: a drop at ${JSON.stringify(o.box)} touches the body`).toBe(true);
+      }
+    }
+    // Worried, tired, nervous (two), relieved, sick.
+    expect(drops).toBeGreaterThanOrEqual(6);
+  });
+
+  it("puts the eyes where Candy's are, so glasses fit and the gaze reads", () => {
+    for (const n of ["open", "blink", "happy", "wide", "narrow", "sparkle", "hearts", "stars", "dots", "wink"]) {
+      const f = `costumes/pug/eyes-${n}.svg`;
+      const eyes = parseRig(art(f), true)!;
+      expect(eyes, f).not.toBeNull();
+      const xs = eyes.ops.map((o) => centre(o.box).x);
+      const ys = eyes.ops.map((o) => centre(o.box).y);
+      expect(Math.min(...xs), f).toBeGreaterThan(38);
+      expect(Math.max(...xs), f).toBeLessThan(90);
+      expect(xs.some((x) => x < 60) && xs.some((x) => x > 68), f).toBe(true);
+      for (const y of ys) expect(Math.abs(y - 60), f).toBeLessThan(8);
     }
   });
 });
