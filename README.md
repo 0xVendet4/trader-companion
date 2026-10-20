@@ -275,6 +275,7 @@ A new version is a commit on `main` with the version bumped: GitHub builds it, p
 
 | Version | Date | Highlights |
 | --- | --- | --- |
+| 0.1.17 | Oct 20, 2026 | Gutin, a new costume: a black pug in a rainbow propeller beanie with a rainbow lollipop |
 | 0.1.16 | Oct 19, 2026 | Installers for Windows and macOS on the Releases page, built by GitHub; Update now installs them |
 | 0.1.15 | Oct 14, 2026 | Island themes, a compact island, the hover chart, 0x wallets on Ethereum, BSC and Base, the Closet, night looks, emotes, Settings and the Closet inside the island, Update now on macOS and Linux |
 | 0.1.14 | Oct 10, 2026 | Candy can be dragged out of the island |
