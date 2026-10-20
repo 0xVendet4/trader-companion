@@ -80,7 +80,8 @@ describe("costumes", () => {
       expect(costumeName("ghost")).toBe("Fantasma");
       expect(costumeName("penguin")).toBe("Pinguim");
       expect(costumeName("bee")).toBe("Abelha");
-      expect(costumeName("pug")).toBe("Pug");
+      // Gutin is a real pug: his name, in every language.
+      expect(costumeName("pug")).toBe("Gutin");
       expect(costumeName("gengar")).toBe("Gengar");
       expect(costumeName("none")).toBe("Candy");
       useWords("en", {});
@@ -91,6 +92,7 @@ describe("costumes", () => {
       expect(costumeName("ghost")).toBe("Ghost");
       expect(costumeName("penguin")).toBe("Penguin");
       expect(costumeName("bee")).toBe("Bee");
+      expect(costumeName("pug")).toBe("Gutin");
     });
 
     it("the bull and the bear go by the animal's word in every language, not the market's English", () => {
@@ -129,7 +131,7 @@ describe("costumes", () => {
 
     it("every common noun is translated, and only those: no character's name is sent to be translated", () => {
       // A merge that drops one of these from the list fails here, not on a screenshot.
-      expect([...NOUN_COSTUMES].sort()).toEqual(["astronaut", "bear", "bee", "bull", "dino", "ghost", "ninja", "penguin", "pug", "robot"]);
+      expect([...NOUN_COSTUMES].sort()).toEqual(["astronaut", "bear", "bee", "bull", "dino", "ghost", "ninja", "penguin", "robot"]);
       for (const id of COSTUME_IDS) {
         // A language that had a word for every name: only the nouns take it.
         useWords("pt", { [COSTUME_NAMES[id]]: "translated" });
@@ -278,9 +280,9 @@ describe("costumes", () => {
     expect(OFFERED_COSTUMES).toContain("bee");
   });
 
-  it("the pug has a face of its own in every mood; its propeller spins when excited, cheering or waving, and the lollipop goes up when proud", () => {
+  it("Gutin the pug has a face of his own in every mood; its propeller spins when excited, cheering or waving, and the lollipop goes up when proud", () => {
     const pug = manifest.costumes.pug;
-    expect(pug.name).toBe("Pug");
+    expect(pug.name).toBe("Gutin");
     // His mouth sits lower than Candy's: what is held in it goes down with it.
     expect((pug as { mouthDrop?: number }).mouthDrop).toBe(7);
     const states = pug.states;

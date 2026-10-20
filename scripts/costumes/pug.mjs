@@ -1,5 +1,5 @@
-// Pug: Candy as a little black pug, a rainbow propeller beanie on his head and
-// a rainbow swirl lollipop in his paw. A dark warm grey body (black would sink
+// Gutin: Candy as Gutin, a little black pug, a rainbow propeller beanie on his
+// head and a rainbow swirl lollipop in his paw. A dark warm grey body (black would sink
 // into the island's black), a black muzzle with a wide nose and the tongue
 // out, big glossy eyes, wrinkles on the forehead, floppy ears, a curly tail
 // and paws under him. The propeller spins when he is excited, cheering or
@@ -192,7 +192,7 @@ const MUZZLE = (top, bottom) =>
 /** The tongue out, a little, under a closed mouth. */
 const BLEP = `<path d="M61.2 88.4 Q64 95.6 66.8 88.4 Z" fill="${PU.tongue}" stroke="${PU.tongueEdge}" stroke-width="1.2" stroke-linejoin="round"/>`;
 
-export default function drawPug({ mirror, EXTRAS, stopSign, star, INK, dir, wrap }) {
+export default function drawGutin({ mirror, EXTRAS, stopSign, star, INK, dir, wrap }) {
   const EYE = {
     open: pair((x) => glossy(x)),
     blink: pair((x) => line(`M${x - 7} ${EY + 1.5} Q${x} ${EY + 6.4} ${x + 7} ${EY + 1.5}`, 3.4)),
@@ -389,5 +389,5 @@ ${extras.map(extra).join("")}${sign}
   // A still with its eyes in, for previews outside the app.
   files["still.svg"] = pug({ eyes: "open" });
   // His mouth sits lower than Candy's: what is held in it goes down with it (mascot.json → mouthDrop).
-  return { name: "Pug", frames: files, look: LOOK, mouthDrop: 7 };
+  return { name: "Gutin", frames: files, look: LOOK, mouthDrop: 7 };
 }

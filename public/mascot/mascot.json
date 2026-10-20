@@ -2987,7 +2987,7 @@
       }
     },
     "pug": {
-      "name": "Pug",
+      "name": "Gutin",
       "states": {
         "idle": {
           "motion": "breathe",

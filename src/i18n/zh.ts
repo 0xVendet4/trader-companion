@@ -1032,7 +1032,6 @@ const words: Dict = {
   "Blueprint": "蓝图",
   "Penguin": "企鹅",
   "Bee": "蜜蜂",
-  "Pug": "巴哥犬",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "立即更新：从 GitHub 下载新版本，安装后重新启动。你的设置会保留。",
   "Downloading the new version…": "正在下载新版本…",
   "Installing: Candy starts again when it's done.": "正在安装：完成后 Candy 会重新启动。",

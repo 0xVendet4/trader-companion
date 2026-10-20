@@ -365,7 +365,7 @@ export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "
  * Costumes named by a common noun, shown in the trader's language (Robô,
  * Roboter); the others are characters and keep their names everywhere (Gengar).
  */
-export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee", "pug"];
+export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee"];
 /** Costumes that changed id, by their old one. */
 const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow" };
 
@@ -405,7 +405,8 @@ export const COSTUME_NAMES: Record<Costume, string> = {
   ghost: N_("Ghost"),
   penguin: N_("Penguin"),
   bee: N_("Bee"),
-  pug: N_("Pug"),
+  // Gutin is a real pug, so he goes by his name everywhere.
+  pug: "Gutin",
   edition: EDITION_NAME,
 };
 
