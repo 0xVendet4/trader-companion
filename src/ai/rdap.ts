@@ -95,19 +95,12 @@ export function parseRdap(json: unknown): RdapInfo {
   return result;
 }
 
-// Country code → full name (subset of common TLD / registrant countries)
-const CC_NAMES: Record<string, string> = {
-  US: "EUA", BR: "Brasil", GB: "Reino Unido", DE: "Alemanha", FR: "França",
-  JP: "Japão", CN: "China", KR: "Coreia do Sul", CA: "Canadá", AU: "Austrália",
-  NL: "Países Baixos", SG: "Singapura", IN: "Índia", RU: "Rússia", CH: "Suíça",
-  ES: "Espanha", IT: "Itália", PT: "Portugal", SE: "Suécia", NO: "Noruega",
-  FI: "Finlândia", DK: "Dinamarca", IE: "Irlanda", NZ: "Nova Zelândia",
-  ZA: "África do Sul", MX: "México", AR: "Argentina", CL: "Chile",
-  AE: "Emirados Árabes", HK: "Hong Kong", PA: "Panamá", KY: "Ilhas Cayman",
-  VG: "Ilhas Virgens Britânicas", SC: "Seychelles", MH: "Ilhas Marshall",
-};
-
-/** Full country name from a 2-letter code, or the code itself if unknown. */
-export function countryName(cc: string): string {
-  return CC_NAMES[cc.toUpperCase()] ?? cc.toUpperCase();
+/** A country's name in Candy's language ("BR" → "Brasil" in pt, "Brazil" in en), or the code when unknown. */
+export function countryName(cc: string, lang: string): string {
+  const code = cc.toUpperCase();
+  try {
+    return new Intl.DisplayNames([lang], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
 }

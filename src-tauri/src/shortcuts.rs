@@ -122,6 +122,9 @@ mod tests {
             "CommandOrControl+Alt+S",
             "CommandOrControl+Alt+G",
             "CommandOrControl+Alt+D",
+            "CommandOrControl+Alt+C",
+            "CommandOrControl+Alt+M",
+            "CommandOrControl+Alt+P",
         ] {
             assert!(Shortcut::from_str(keys).is_ok(), "{keys}");
         }

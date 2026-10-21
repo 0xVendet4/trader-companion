@@ -6,15 +6,17 @@ vi.mock("../core/state", () => ({
 }));
 
 vi.mock("../ai/openai", () => ({
-  OpenAiProvider: vi.fn().mockImplementation(function(this: { sendMessage: unknown; voiceChat: unknown }) {
+  OpenAiProvider: vi.fn().mockImplementation(function(this: { sendMessage: unknown; voiceChat: unknown; transcribe: unknown }) {
     this.sendMessage = vi.fn().mockResolvedValue("Mocked AI reply");
     this.voiceChat = vi.fn().mockResolvedValue("Mocked AI reply");
+    this.transcribe = vi.fn().mockResolvedValue("what is bitcoin?");
   }),
 }));
 
 vi.mock("../core/i18n", () => ({
   t: (k: string) => k,
   N_: (k: string) => k,
+  currentLang: () => "pt",
 }));
 
 function makeHost(): { host: VoiceChatHost; says: string[]; reacts: string[] } {
@@ -134,6 +136,63 @@ describe("VoiceChat", () => {
     vc["history"] = [];
     await vc.onTranscript("second question");
     expect(captured[1].length).toBe(0);           // history was cleared
+  });
+
+  it("writes a recording down, then answers it", async () => {
+    const { host, says } = makeHost();
+    const vc = new VoiceChat(host);
+    const { OpenAiProvider } = await import("../ai/openai");
+    const transcribe = vi.fn().mockResolvedValue("  what is bitcoin?  ");
+    (OpenAiProvider as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      function(this: { transcribe: unknown; voiceChat: unknown }) {
+        this.transcribe = transcribe;
+        this.voiceChat = vi.fn().mockResolvedValue("A coin");
+      }
+    );
+    (OpenAiProvider as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      function(this: { voiceChat: unknown }) { this.voiceChat = vi.fn().mockResolvedValue("A coin"); }
+    );
+    const blob = new Blob(["x"], { type: "audio/webm" });
+    await vc.onAudio({ blob, mime: "audio/webm", ms: 2400, spoke: true });
+    expect(transcribe).toHaveBeenCalledWith(blob, "audio/webm", "pt");
+    expect(says[0]).toBe("Thinking…");
+    expect(says.at(-1)).toBe("A coin");
+    expect(vc.state).toBe("idle");
+  });
+
+  it("asks again when the recording holds no words, without calling OpenAI", async () => {
+    const { host, says } = makeHost();
+    const vc = new VoiceChat(host);
+    const { OpenAiProvider } = await import("../ai/openai");
+    (OpenAiProvider as ReturnType<typeof vi.fn>).mockClear();
+    await vc.onAudio({ blob: new Blob(), mime: "audio/webm", ms: 7000, spoke: false });
+    await vc.onAudio({ blob: new Blob(), mime: "audio/webm", ms: 200, spoke: true });
+    expect(OpenAiProvider).not.toHaveBeenCalled();
+    expect(says).toEqual(["I didn't catch that — try again", "I didn't catch that — try again"]);
+    expect(vc.state).toBe("idle");
+  });
+
+  it("says why when the transcription fails", async () => {
+    const { host, says } = makeHost();
+    const vc = new VoiceChat(host);
+    const { OpenAiProvider } = await import("../ai/openai");
+    (OpenAiProvider as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      function(this: { transcribe: unknown }) { this.transcribe = vi.fn().mockRejectedValue(new Error("boom")); }
+    );
+    await vc.onAudio({ blob: new Blob(["x"]), mime: "audio/mp4", ms: 3000, spoke: true });
+    expect(says.at(-1)).toBe("Could not transcribe speech");
+    expect(vc.state).toBe("idle");
+  });
+
+  it("names the microphone trouble", async () => {
+    for (const [code, word] of [["permission-denied", "privacy"], ["no-microphone", "No microphone"], ["busy", "another app"], ["unsupported", "not available"], ["failed", "Could not start"]] as const) {
+      const { host, says } = makeHost();
+      const vc = new VoiceChat(host);
+      vc.toggle(vi.fn().mockResolvedValue(code), vi.fn());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(says[1]).toContain(word);
+      expect(vc.state).toBe("idle");
+    }
   });
 
   it("handles transcript error gracefully", () => {

@@ -8,12 +8,12 @@ Adicionado em outubro de 2026. Introduz capacidade de IA à Candy em duas frente
 
 | Feature | Descrição |
 | --- | --- |
-| **Chat overlay** | Aba de chat dentro da island; o usuário conversa com a Candy (OpenAI GPT-4o-mini) |
+| **Chat overlay** | Aba de chat dentro da island (aparece só com uma chave configurada); o usuário conversa com a Candy (OpenAI GPT-4o-mini) |
 | **Análise de site** | Soltar uma URL HTTPS na island dispara busca de HTML + RDAP + DNS MX e gera um resumo estruturado via IA |
 | **Desktop balloon** | Quando o mascot flutuante está visível, o resultado da análise aparece como balão de fala ao lado do avatar |
 | **Shortcut global** | `⌘⌥C` (Mac) / `Ctrl+Alt+C` (Windows/Linux) abre e fecha o painel de chat |
 
-O provedor de IA desta versão é exclusivamente OpenAI. A chave é armazenada em `settings.json` local junto com as demais configurações — sem keychain do SO, sem telemetria.
+O provedor de IA desta versão é exclusivamente OpenAI. A chave é armazenada em `settings.json` local junto com as demais configurações — sem keychain do SO, sem telemetria. Os prompts são em inglês e pedem a resposta no idioma do Candy (Configurações → Idioma); o chat por voz grava na própria página com o microfone escolhido em Configurações → IA (`src/voice/recorder.ts`), em Windows, macOS e Linux; a gravação vai pelo Rust (`openai_transcribe`) para a OpenAI (`gpt-4o-mini-transcribe`), que a transcreve no idioma do Candy.
 
 ---
 
@@ -27,9 +27,9 @@ Todos são TypeScript puro — sem dependência de DOM ou Tauri, totalmente test
 | --- | --- |
 | `types.ts` | Interface `AiProvider`, tipo `ChatMessage`, classe `AiError` (kinds: `invalid-key`, `rate-limit`, `network`, `generic`) |
 | `openai.ts` | `OpenAiProvider` — métodos `sendMessage`, `summarize`, `analyze`; modelo fixo `gpt-4o-mini`; em Tauri passa pelo Rust, em browser usa proxy Vite `/api/openai` |
-| `prompts.ts` | Funções puras de montagem de prompt: `buildSystemMessage`, `buildSummarizeMessages`, `buildAnalyzeMessages` |
+| `prompts.ts` | Funções puras de montagem de prompt, no idioma do Candy: `buildSystemMessage`, `buildVoiceSystemMessage`, `buildSummarizeMessages`, `buildAnalyzeMessages` |
 | `extract.ts` | `extractPageContent(html)` — remove nav/footer/scripts, coleta título + h1–h6 + p + li, trunca a 8 000 chars |
-| `rdap.ts` | `parseRdap(json)` — registrador, datas de criação/expiração, nameservers (até 4), código de país do vcard `adr`; `countryName(cc)` traduz para PT-BR |
+| `rdap.ts` | `parseRdap(json)` — registrador, datas de criação/expiração, nameservers (até 4), código de país do vcard `adr`; `countryName(cc, lang)` dá o nome do país no idioma do Candy |
 | `dns.ts` | `parseDoh(json, type)` — extrai registros A / MX / TXT da resposta DoH da Cloudflare |
 | `chat-channel.ts` | Pub/sub leve: `registerChatChannel` + `pushChatMessages` — desacopla `companion.ts` de `chat.ts` sem dependência circular |
 
@@ -55,7 +55,7 @@ Se não houver chave OpenAI, o fallback monta um texto só com os dados RDAP/DNS
 
 ### Formato da resposta de análise
 
-O prompt força a IA a retornar exatamente estas cinco seções em português:
+O prompt força a IA a retornar exatamente estas cinco seções, no idioma do Candy (abaixo, como ficam em português):
 
 ```
 📌 **Resumo:** [1–2 frases sobre o projeto]
@@ -94,7 +94,7 @@ Mensagens com `id` opcional suportam upsert: se já existe um elemento `[data-id
 | `src/ai/rdap.ts` | `RdapInfo` ganhou `country` e `nameservers`; adicionado `countryName()` |
 | `src/ai/rdap.test.ts` | Testes cobrem os novos campos e `countryName` |
 | `src/i18n/*.ts` | Chave `"Open / close Chat"` adicionada nos 9 idiomas |
-| `src-tauri/src/lib.rs` | Comandos `fetch_page`, `rdap_lookup`, `dns_lookup` com validação SSRF (`is_safe_project_url`) |
+| `src-tauri/src/lib.rs` | Comandos `fetch_page`, `rdap_lookup`, `dns_lookup` com validação SSRF (`is_safe_project_url`), `openai_chat` e `openai_transcribe` |
 | `src/core/bridge.ts` | Métodos `fetchPage`, `rdapLookup`, `dnsLookup` |
 
 ---
@@ -110,9 +110,9 @@ Mensagens com `id` opcional suportam upsert: se já existe um elemento `[data-id
 ## Testes
 
 ```bash
-npm test                  # 373/373 passando
+npm test                  # todos passam
 npx tsc --noEmit          # sem erros
 npm run i18n              # zero strings ausentes
 ```
 
-Os novos testes unitários estão em `src/ai/rdap.test.ts` (parseRdap + countryName). Os módulos `extract.ts` e `dns.ts` já tinham testes em `extract.test.ts` e `dns.test.ts`.
+Os testes unitários estão em `src/ai/rdap.test.ts` (parseRdap + countryName), `src/ai/prompts.test.ts` (os prompts pedem o idioma certo e carregam os fatos do domínio), `src/ai/extract.test.ts`, `src/ai/dns.test.ts`, `src/voice/recorder.test.ts` e `src/voice/voice-chat.test.ts`.

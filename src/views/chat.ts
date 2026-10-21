@@ -18,9 +18,10 @@ export function buildChat(_actions: ViewActions): ViewHost {
 /**
  * Floating chat panel — mounted inside #island, outside #island-clip, so it
  * paints beside the mascot instead of inside the clipped content area.
- * Show/hide is driven by State.view === "chat".
+ * Shown while the open island is on the Chat tab and no panel (Settings, the
+ * Closet) is over the content: those live inside the clip, under this one.
  */
-export function buildChatOverlay(actions: ViewActions): { el: HTMLElement; sync(): void } {
+export function buildChatOverlay(actions: ViewActions): { el: HTMLElement; sync(panelOpen: boolean): void } {
   const messages: ChatMessage[] = [];
   let loading = false;
 
@@ -111,7 +112,7 @@ export function buildChatOverlay(actions: ViewActions): { el: HTMLElement; sync(
     }
   }
 
-  // ── external message injection (project-analysis results, etc.) ───────────
+  // ── external message injection (site analysis results, etc.) ───────────
   registerChatChannel((msgs, openChat) => {
     if (openChat) actions.setView("chat");
     for (const msg of msgs) upsertMsg(msg);
@@ -145,13 +146,13 @@ export function buildChatOverlay(actions: ViewActions): { el: HTMLElement; sync(
   // ── root element (positioned outside #island-clip in island.ts) ───────────
   const el = h("div", { id: "chat-overlay" }, noKey, chatBody);
 
-  let lastHasKey = false;
+  let lastHasKey: boolean | null = null;
   let lastShow = false;
 
   return {
     el,
-    sync() {
-      const show = State.view === "chat";
+    sync(panelOpen: boolean) {
+      const show = State.view === "chat" && State.mode === "expanded" && !panelOpen;
       el.classList.toggle("chat-visible", show);
 
       const hasKey = !!State.settings.companion.openaiKey;

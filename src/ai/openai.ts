@@ -1,10 +1,13 @@
 import { Bridge, IS_TAURI } from "../core/bridge";
-import { t } from "../core/i18n";
+import { currentLang, t, type Lang } from "../core/i18n";
+import { blobToBase64, extFor } from "../voice/recorder";
 import { buildAnalyzeMessages, buildSummarizeMessages, buildSystemMessage, buildVoiceSystemMessage } from "./prompts";
 import type { RdapInfo } from "./rdap";
 import { AiError, type AiProvider, type ChatMessage } from "./types";
 
 const MODEL = "gpt-4o-mini";
+/** The model that writes a voice recording down (OpenAI's transcription endpoint). */
+export const TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe";
 
 function mapRustError(err: unknown): AiError {
   const s = String(err);
@@ -15,6 +18,7 @@ function mapRustError(err: unknown): AiError {
     return new AiError("generic", t("OpenAI returned an error ({status})", { status: code }));
   }
   if (s.includes("network:")) return new AiError("network", t("Could not reach OpenAI"));
+  if (s.includes("bad-audio")) return new AiError("generic", t("Could not transcribe speech"));
   console.warn("[AI] unmapped Rust error:", s);
   return new AiError("network", t("Could not reach OpenAI"));
 }
@@ -60,20 +64,51 @@ export class OpenAiProvider implements AiProvider {
   constructor(private readonly apiKey: string) {}
 
   sendMessage(messages: ChatMessage[]): Promise<string> {
-    return callCompletions(this.apiKey, [buildSystemMessage(), ...messages]);
+    return callCompletions(this.apiKey, [buildSystemMessage(currentLang()), ...messages]);
   }
 
   summarize(text: string): Promise<string> {
-    return callCompletions(this.apiKey, buildSummarizeMessages(text));
+    return callCompletions(this.apiKey, buildSummarizeMessages(text, currentLang()));
   }
 
   analyze(url: string, content: string, rdap: RdapInfo | undefined, mx: string[]): Promise<string> {
-    return callCompletions(this.apiKey, buildAnalyzeMessages(url, content, rdap, mx));
+    return callCompletions(this.apiKey, buildAnalyzeMessages(url, content, rdap, mx, currentLang()));
   }
 
   /** Short general-purpose reply for voice chat; history keeps multi-turn context. */
   voiceChat(text: string, history: ChatMessage[] = []): Promise<string> {
-    return callCompletions(this.apiKey, [buildVoiceSystemMessage(), ...history, { role: "user", content: text }]);
+    return callCompletions(this.apiKey, [buildVoiceSystemMessage(currentLang()), ...history, { role: "user", content: text }]);
+  }
+
+  /** What a voice recording (src/voice/recorder.ts) says, in `lang`. */
+  async transcribe(audio: Blob, mime: string, lang: Lang): Promise<string> {
+    // In the Tauri app the upload goes through Rust, like the chat.
+    if (IS_TAURI) {
+      const b64 = await blobToBase64(audio);
+      try {
+        return (await Bridge.openaiTranscribe(this.apiKey, b64, mime, lang)).trim();
+      } catch (err) {
+        throw mapRustError(String(err));
+      }
+    }
+
+    // Browser dev mode: the Vite proxy.
+    const form = new FormData();
+    form.append("model", TRANSCRIBE_MODEL);
+    form.append("language", lang);
+    form.append("file", audio, `speech.${extFor(mime)}`);
+    let res: Response;
+    try {
+      res = await fetch("/api/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${this.apiKey}` }, body: form });
+    } catch {
+      throw new AiError("network", t("Could not reach OpenAI"));
+    }
+    if (res.status === 401) throw new AiError("invalid-key", t("Invalid API key"));
+    if (res.status === 429) throw new AiError("rate-limit", t("Rate limit — wait a moment"));
+    if (!res.ok) throw new AiError("generic", t("OpenAI returned an error ({status})", { status: res.status }));
+    const json = (await res.json().catch(() => null)) as { text?: string } | null;
+    if (typeof json?.text !== "string") throw new AiError("generic", t("Could not transcribe speech"));
+    return json.text.trim();
   }
 }
 

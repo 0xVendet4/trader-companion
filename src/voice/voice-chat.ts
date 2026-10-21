@@ -1,8 +1,9 @@
-import { t } from "../core/i18n";
+import { currentLang, t } from "../core/i18n";
 import { State } from "../core/state";
 import { OpenAiProvider } from "../ai/openai";
 import { AiError, type ChatMessage } from "../ai/types";
 import { pushChatMessages, registerClearHandler } from "../ai/chat-channel";
+import type { Recording } from "./recorder";
 import type { VoiceState } from "./types";
 
 export interface VoiceChatHost {
@@ -15,6 +16,11 @@ export interface VoiceChatHost {
 /** Keep at most this many user+assistant pairs in voice context. */
 const MAX_HISTORY_PAIRS = 8;
 
+/**
+ * The voice chat: the shortcut starts a recording (src/voice/recorder.ts), the
+ * pause at the end of the sentence stops it, OpenAI writes it down and answers,
+ * and the answer comes as Candy's speech bubble and in the Chat tab.
+ */
 export class VoiceChat {
   private _state: VoiceState = "idle";
   private history: ChatMessage[] = [];
@@ -57,6 +63,39 @@ export class VoiceChat {
       this.bubble(this.startErrMsg(err), 5000);
       this.host.react("worried", 3000);
     }
+  }
+
+  /** The recording is over: OpenAI writes it down, then answers as for a typed question. */
+  async onAudio(rec: Recording) {
+    if (!rec.spoke || rec.ms < 400) {
+      this.onError("no-speech");
+      return;
+    }
+    const key = State.settings.companion.openaiKey;
+    if (!key) {
+      this._state = "idle";
+      this.bubble(t("Set up your OpenAI key in Settings to use voice chat"), 5000);
+      return;
+    }
+    this._state = "processing";
+    this.host.react("focused", 30_000);
+    this.bubble(t("Thinking…"), 30_000);
+
+    let text: string;
+    try {
+      text = await new OpenAiProvider(key).transcribe(rec.blob, rec.mime, currentLang());
+    } catch (err) {
+      this._state = "idle";
+      const msg = err instanceof AiError ? err.message : t("Could not transcribe speech");
+      this.host.react("worried", 2500);
+      this.bubble(msg, 4000);
+      return;
+    }
+    if (!text.trim()) {
+      this.onError("no-speech");
+      return;
+    }
+    await this.onTranscript(text.trim());
   }
 
   async onTranscript(text: string) {
@@ -104,11 +143,14 @@ export class VoiceChat {
     this.host.react("worried", 2500);
   }
 
+  /** Why the recording could not start (src/voice/recorder.ts RecordingError), in words. */
   private startErrMsg(err: string): string {
-    if (err.includes("permission") || err.includes("denied") || err.includes("restricted")) {
-      return t("Microphone permission denied — allow it in System Settings → Privacy");
+    if (err === "permission-denied" || err.includes("permission") || err.includes("denied")) {
+      return t("Microphone permission denied — allow it in your system's privacy settings");
     }
-    if (err.includes("unavailable") || err.includes("not-available")) {
+    if (err === "no-microphone") return t("No microphone found");
+    if (err === "busy") return t("The microphone is in use by another app");
+    if (err === "unsupported" || err.includes("not-available")) {
       return t("Voice chat is not available on this platform");
     }
     return t("Could not start the microphone");
@@ -117,7 +159,7 @@ export class VoiceChat {
   private transcriptErrMsg(err: string): string {
     if (err.includes("no-speech") || err.includes("empty")) return t("I didn't catch that — try again");
     if (err.includes("permission") || err.includes("denied")) {
-      return t("Microphone permission denied — allow it in System Settings → Privacy");
+      return t("Microphone permission denied — allow it in your system's privacy settings");
     }
     return t("Could not transcribe speech");
   }

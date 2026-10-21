@@ -1,94 +1,92 @@
+// The prompts behind the Chat tab, the voice chat and the site analysis: pure
+// functions of their inputs, written in English and each asking for the answer
+// in Candy's language, so a trader in Tokyo and one in São Paulo get their own.
+
+import { LANGS, type Lang } from "../core/i18n";
 import type { RdapInfo } from "./rdap";
 import { countryName } from "./rdap";
 import type { ChatMessage } from "./types";
 
+/** Page text past this is cut: enough to read a site, cheap enough to send. */
 const MAX_CONTENT = 6_000;
 
-export function buildSystemMessage(): ChatMessage {
+const NEVER_ADVISE = "Never recommend buying or selling anything.";
+
+/** A language's own name, as the trader picked it ("Português (Brasil)"). */
+export function languageName(lang: Lang): string {
+  return LANGS.find(([id]) => id === lang)?.[1] ?? "English";
+}
+
+/** The Chat tab: a trading companion, neutral and brief. */
+export function buildSystemMessage(lang: Lang): ChatMessage {
   return {
     role: "system",
-    content:
-      "Você é Candy, uma assistente de trading especializada em cripto. Responda sempre em português do Brasil. Seja direta, objetiva e neutra — nunca dê recomendações de compra ou venda.",
+    content: `You are Candy, a desktop companion for crypto traders. Reply in ${languageName(lang)}. Be direct, concise and neutral. ${NEVER_ADVISE}`,
   };
 }
 
-/** System message for voice replies: general assistant, very short answers. */
-export function buildVoiceSystemMessage(): ChatMessage {
+/** The voice: a general assistant whose answers fit a speech bubble. */
+export function buildVoiceSystemMessage(lang: Lang): ChatMessage {
   return {
     role: "system",
-    content:
-      "Você é Candy, uma assistente inteligente e simpática. Responda em português do Brasil. Seja extremamente concisa — máximo 2 frases. Responda qualquer pergunta diretamente, sem introduções ou explicações longas.",
+    content: `You are Candy, a friendly desktop companion. Reply in ${languageName(lang)}, in at most two sentences and with no preamble. Answer any question directly.`,
   };
 }
 
-export function buildSummarizeMessages(content: string): ChatMessage[] {
-  const truncated = content.length > MAX_CONTENT ? content.slice(0, MAX_CONTENT) + "…" : content;
+function cut(content: string): string {
+  return content.length > MAX_CONTENT ? content.slice(0, MAX_CONTENT) + "…" : content;
+}
+
+export function buildSummarizeMessages(content: string, lang: Lang): ChatMessage[] {
   return [
     {
       role: "system",
-      content:
-        "Você é Candy, uma assistente de análise de projetos cripto. Responda sempre em português do Brasil. Seja objetiva e neutra — nunca dê recomendações de compra ou venda.",
+      content: `You are Candy, an assistant that reads crypto projects' websites. Reply in ${languageName(lang)}. Be objective and neutral. ${NEVER_ADVISE}`,
     },
-    {
-      role: "user",
-      content: `Resuma este site de projeto cripto em 2–3 frases diretas:\n\n${truncated}`,
-    },
+    { role: "user", content: `Sum up this crypto project's website in two or three direct sentences:\n\n${cut(content)}` },
   ];
 }
 
-/**
- * Messages for the full project analysis: website content + RDAP + DNS data.
- * The AI returns a structured response in Portuguese with a fixed format.
- */
-export function buildAnalyzeMessages(
-  url: string,
-  content: string,
-  rdap: RdapInfo | undefined,
-  mx: string[],
-): ChatMessage[] {
-  const truncated = content.length > MAX_CONTENT ? content.slice(0, MAX_CONTENT) + "…" : content;
-  const domain = new URL(url).hostname.replace(/^www\./, "");
+/** A date for the model: the day alone, unambiguous in any language. */
+const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-  // Build the RDAP/DNS context block for the prompt
-  const lines: string[] = [`URL: ${url}`, `Domínio: ${domain}`];
+/**
+ * The full look at a project: its site's text, the domain's RDAP record and
+ * its mail records, for an answer in a fixed five-line format.
+ */
+export function buildAnalyzeMessages(url: string, content: string, rdap: RdapInfo | undefined, mx: string[], lang: Lang): ChatMessage[] {
+  const domain = new URL(url).hostname.replace(/^www\./, "");
+  const lines: string[] = [`URL: ${url}`, `Domain: ${domain}`];
 
   if (rdap) {
-    const country = rdap.country ? countryName(rdap.country) : null;
-    const registrar = rdap.registrar ?? "desconhecido";
+    const country = rdap.country ? countryName(rdap.country, lang) : null;
+    const registrar = rdap.registrar ?? "unknown";
     if (rdap.createdAt) {
       const days = Math.floor((Date.now() - rdap.createdAt) / 86_400_000);
-      const dateStr = new Date(rdap.createdAt).toLocaleDateString("pt-BR");
-      lines.push(`Registro: ${days} dias atrás (${dateStr})${country ? ` · ${country}` : ""} · via ${registrar}`);
+      lines.push(`Registered: ${day(rdap.createdAt)} (${days} days ago)${country ? ` · ${country}` : ""} · via ${registrar}`);
     } else {
-      lines.push(`Registrador: ${registrar}${country ? ` · ${country}` : ""}`);
+      lines.push(`Registrar: ${registrar}${country ? ` · ${country}` : ""}`);
     }
-    if (rdap.expiresAt) {
-      lines.push(`Expira: ${new Date(rdap.expiresAt).toLocaleDateString("pt-BR")}`);
-    }
-    if (rdap.nameservers.length) {
-      lines.push(`Nameservers: ${rdap.nameservers.join(", ")}`);
-    }
+    if (rdap.expiresAt) lines.push(`Expires: ${day(rdap.expiresAt)}`);
+    if (rdap.nameservers.length) lines.push(`Nameservers: ${rdap.nameservers.join(", ")}`);
   }
 
-  lines.push(`E-mail (MX): ${mx.length ? mx[0] : "não configurado"}`);
-  lines.push(`\nConteúdo do site:\n${truncated}`);
+  lines.push(`Mail (MX): ${mx.length ? mx[0] : "none"}`);
+  lines.push(`\nSite content:\n${cut(content)}`);
 
   return [
     {
       role: "system",
-      content: `Você é Candy, assistente de análise de projetos cripto. Analise os dados abaixo e responda EXATAMENTE neste formato em português do Brasil — sem texto fora do formato:
+      content: `You are Candy, an assistant that looks into crypto projects. Read the facts below and reply in ${languageName(lang)}, in EXACTLY this format and nothing else, with the labels translated into that language:
 
-📌 **Resumo:** [1–2 frases sobre o que o projeto faz]
-🏷️ **Categoria:** [DeFi | NFT | Layer 1/2 | Exchange | Memecoin | GameFi | Infraestrutura | Outro]
-🌐 **Domínio:** [país · registrador · data de registro · validade]
-🔧 **Infraestrutura:** [nameservers / provedor de hospedagem · e-mail: sim ou não]
-⚠️ **Alertas:** [lista de red flags, ou "Nenhum"]
+📌 **Summary:** [one or two sentences on what the project does]
+🏷️ **Category:** [DeFi | NFT | Layer 1/2 | Exchange | Memecoin | GameFi | Infrastructure | Other]
+🌐 **Domain:** [country · registrar · registered on · expires]
+🔧 **Infrastructure:** [nameservers or hosting provider · mail: yes or no]
+⚠️ **Flags:** [the red flags, or "None"]
 
-Seja direto. Não dê recomendações de compra ou venda.`,
+Be direct. ${NEVER_ADVISE}`,
     },
-    {
-      role: "user",
-      content: lines.join("\n"),
-    },
+    { role: "user", content: lines.join("\n") },
   ];
 }

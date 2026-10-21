@@ -12,6 +12,7 @@ import type { PanelHost, PanelPage, SettingsSection } from "../core/panel";
 import { SOUND_NAMES, Sound, soundFile, type SoundName } from "../core/sound";
 import { shortAddress } from "../core/format";
 import { SHORTCUTS, keysLabel, recordPress, shortcutKeys, statusLabel, twice, type ShortcutId, type ShortcutStatus } from "../core/shortcuts";
+import { allowMicrophone, listMicrophones, type Microphone } from "../voice/recorder";
 import { lookNameKey } from "../core/looks";
 import { ISLAND_THEMES, themeSwatch } from "../core/themes";
 import { COMPACT_SCREEN_H } from "../core/layout";
@@ -631,6 +632,42 @@ function aiSection(): HTMLElement {
     validateTimer = window.setTimeout(() => void runValidate(key), 800);
   });
 
+  // ── microphone ───────────────────────────────────────────────────────────
+  // The webview names the microphones only once one was allowed: that happens
+  // when the list is opened, not each time Settings is.
+  const mic = h("select", { class: "field" }) as HTMLSelectElement;
+  let mics: Microphone[] = [];
+  const paintMics = () => {
+    mic.replaceChildren(
+      h("option", { value: "", text: t("System default") }),
+      ...mics.map((m, i) => h("option", { value: m.id, text: m.label || `${t("Microphone")} ${i + 1}` })),
+    );
+    const chosen = settings.companion.micId;
+    mic.value = mics.some((m) => m.id === chosen) ? chosen : "";
+  };
+  const loadMics = async (allow: boolean) => {
+    if (allow) await allowMicrophone();
+    mics = await listMicrophones();
+    paintMics();
+  };
+  void loadMics(false);
+  refreshers.push(paintMics);
+  mic.addEventListener("pointerdown", (e) => {
+    if (mics.length && mics.every((m) => m.label)) return;
+    e.preventDefault();
+    void loadMics(true).then(() => {
+      try {
+        mic.showPicker();
+      } catch {
+        mic.focus();
+      }
+    });
+  });
+  mic.addEventListener("change", () => {
+    settings.companion.micId = mic.value;
+    save();
+  });
+
   return section(
     t("AI"),
     null,
@@ -639,6 +676,7 @@ function aiSection(): HTMLElement {
       h("span", { class: "with-unit" }, input, eye, status),
       t("Stored locally. Used only when you chat or drop a project URL."),
     ),
+    row(t("Microphone"), mic, t("The voice chat records with it.")),
   );
 }
 
@@ -1265,7 +1303,7 @@ function shortcutRows(): HTMLElement[] {
   listen(window, "blur", stopRecording);
   cleanups.push(stopRecording);
 
-  const rows = SHORTCUTS.map((def) => {
+  const rows = SHORTCUTS.filter((def) => !def.macOnly || mac).map((def) => {
     const keys = h("button", { class: "keys", type: "button" }) as HTMLButtonElement;
     keys.addEventListener("click", () => startRecording(def.id));
     const off = h("button", { class: "chip-btn", type: "button", text: t("Off"), title: t("No shortcut for this") });

@@ -571,6 +571,8 @@ export interface Companion {
   dayEndShown: string;
   /** OpenAI API key; "" = feature off. Stored in settings.json as-is. */
   openaiKey: string;
+  /** The microphone the voice chat records with (a webview device id); "" = the system's. */
+  micId: string;
 }
 
 /** A column the watchlist can be sorted by (src/market/watchsort.ts). */
@@ -696,6 +698,7 @@ export const DEFAULT_COMPANION: Companion = {
   dayEndAt: DAY_END_DEFAULT,
   dayEndShown: "",
   openaiKey: "",
+  micId: "",
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -820,6 +823,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   else if (s.companion.dayEndAt !== "" && dayEndMinutes(s.companion.dayEndAt) == null) s.companion.dayEndAt = DAY_END_DEFAULT;
   if (typeof s.companion.dayEndShown !== "string") s.companion.dayEndShown = "";
   if (typeof s.companion.openaiKey !== "string") s.companion.openaiKey = "";
+  if (typeof s.companion.micId !== "string") s.companion.micId = "";
   // Shades and laser eyes were outfits before the face slot: move them over.
   const oldOutfit = c.outfit as string | undefined;
   if ((oldOutfit === "shades" || oldOutfit === "laser") && c.face == null) s.companion.face = oldOutfit;
@@ -932,20 +936,7 @@ export type CompanionEvent =
   | { kind: "update"; id: string; version: string }
   /** A US release the whole market watches is near (src/market/calendar.ts): its label, when, and its lines. */
   | { kind: "macro"; id: string; label: string; at: number; lines: string[] }
-  /** A project URL dropped on Candy: AI summary + RDAP/DNS data. */
-  | {
-      kind: "project-analysis";
-      id: string;
-      url: string;
-      domain: string;
-      status: "loading" | "done" | "error";
-      summary?: string;
-      rdap?: import("../ai/rdap").RdapInfo;
-      dns?: import("../ai/dns").DnsInfo;
-      error?: string;
-      tone: "warn" | "calm";
-    }
-  /** Cmd+Shift+R while a GMGN/Axiom tab is open: rug-check + socials research. */
+  /** The research shortcut (a Mac) with a GMGN or Axiom tab open: RugCheck + socials, line by line. */
   | {
       kind: "research-checklist";
       id: string;

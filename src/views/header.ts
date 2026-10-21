@@ -18,11 +18,11 @@ import { currentLog, dayPill, summarize } from "../discipline/discipline";
 
 const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music", "chat"];
 
-/** The tabs the header shows right now, in order: Following is an option, Music needs a player on the PC. */
+/** The tabs the header shows right now, in order: Following is an option, Music needs a player on the PC, Chat an OpenAI key. */
 export function shownTabs(): IslandViewName[] {
   const c = State.companion;
   return TAB_VIEWS.filter(
-    (v) => (v !== "wallets" || c.following) && (v !== "music" || (c.musicCard && !!State.nowPlaying)) && (v !== "discipline" || c.disciplineOn),
+    (v) => (v !== "wallets" || c.following) && (v !== "music" || (c.musicCard && !!State.nowPlaying)) && (v !== "discipline" || c.disciplineOn) && (v !== "chat" || !!c.openaiKey),
   );
 }
 

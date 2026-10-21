@@ -17,7 +17,6 @@ mod platform;
 mod settings;
 mod shortcuts;
 mod sounds;
-mod speech;
 mod tray;
 mod update;
 
@@ -1223,19 +1222,6 @@ async fn dns_lookup(domain: String, record_type: String) -> Result<serde_json::V
     res.json().await.map_err(|e| e.to_string())
 }
 
-/// Opens any public https URL in the system browser.
-/// Unlike open_url, this is not restricted to a fixed whitelist — the user
-/// explicitly dropped or pasted this URL.
-#[tauri::command]
-fn open_project_url(url: String) -> bool {
-    if !is_safe_project_url(&url) {
-        log::line(format!("refused to open project url {url}"));
-        return false;
-    }
-    platform::open_url(&url);
-    true
-}
-
 /// Forward a Chat Completions request to OpenAI from Rust, bypassing CSP.
 /// `api_key` is never logged. Returns the assistant's text content on success.
 #[tauri::command]
@@ -1265,6 +1251,110 @@ async fn openai_chat(api_key: String, body: String) -> Result<String, String> {
     res.text().await.map_err(|e| e.to_string())
 }
 
+/// Sends a voice recording to OpenAI's transcription endpoint and returns what
+/// was said. `audio` is the page's recording in base64 (webm, mp4, ogg or wav),
+/// `mime` its media type and `lang` the two-letter language Candy speaks.
+/// `api_key` is never logged.
+#[tauri::command]
+async fn openai_transcribe(api_key: String, audio: String, mime: String, lang: String) -> Result<String, String> {
+    use base64::Engine;
+    if api_key.is_empty() {
+        return Err("No API key".to_string());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(audio.as_bytes())
+        .map_err(|_| "bad-audio".to_string())?;
+    if bytes.is_empty() {
+        return Err("bad-audio".to_string());
+    }
+    let (body, content_type) = transcription_form(&bytes, &mime, &lang);
+    let res = web_client()
+        .post("https://api.openai.com/v1/audio/transcriptions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", content_type)
+        // A minute of speech takes a while to upload and to write down.
+        .timeout(std::time::Duration::from_secs(60))
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("network:{e}"))?;
+    let status = res.status().as_u16();
+    if status == 401 {
+        return Err("invalid-key".to_string());
+    }
+    if status == 429 || status == 402 {
+        return Err("rate-limit".to_string());
+    }
+    if !res.status().is_success() {
+        return Err(format!("status:{status}"));
+    }
+    let text = res.text().await.map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&text).map_err(|_| "status:?".to_string())?;
+    Ok(json.get("text").and_then(|v| v.as_str()).unwrap_or("").trim().to_string())
+}
+
+/// The multipart form the transcription endpoint takes: the model, the language
+/// when it is one, and the recording under a name that tells its format.
+fn transcription_form(audio: &[u8], mime: &str, lang: &str) -> (Vec<u8>, String) {
+    const BOUNDARY: &str = "----CandyVoice7f3a9c2e51";
+    let container = mime.split(';').next().unwrap_or("").trim();
+    let container = if !container.is_empty() && container.chars().all(|c| c.is_ascii_alphanumeric() || "/.+-".contains(c)) {
+        container
+    } else {
+        "application/octet-stream"
+    };
+    let ext = match container {
+        "audio/mp4" => "mp4",
+        "audio/ogg" => "ogg",
+        "audio/wav" | "audio/wave" | "audio/x-wav" => "wav",
+        _ => "webm",
+    };
+    let mut body = Vec::with_capacity(audio.len() + 512);
+    let mut field = |name: &str, value: &str| {
+        body.extend_from_slice(format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes());
+    };
+    field("model", "gpt-4o-mini-transcribe");
+    if (2..=3).contains(&lang.len()) && lang.bytes().all(|b| b.is_ascii_lowercase()) {
+        field("language", lang);
+    }
+    body.extend_from_slice(
+        format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"speech.{ext}\"\r\nContent-Type: {container}\r\n\r\n").as_bytes(),
+    );
+    body.extend_from_slice(audio);
+    body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
+    (body, format!("multipart/form-data; boundary={BOUNDARY}"))
+}
+
+#[cfg(test)]
+mod transcription_tests {
+    use super::transcription_form;
+
+    #[test]
+    fn the_form_carries_the_model_the_language_and_the_file() {
+        let (body, content_type) = transcription_form(b"RIFFdata", "audio/wav", "pt");
+        let text = String::from_utf8_lossy(&body);
+        assert!(content_type.starts_with("multipart/form-data; boundary=----CandyVoice"));
+        assert!(text.contains("name=\"model\"\r\n\r\ngpt-4o-mini-transcribe\r\n"));
+        assert!(text.contains("name=\"language\"\r\n\r\npt\r\n"));
+        assert!(text.contains("name=\"file\"; filename=\"speech.wav\"\r\nContent-Type: audio/wav\r\n\r\nRIFFdata\r\n"));
+        assert!(text.ends_with("--\r\n"));
+        assert_eq!(text.matches("------CandyVoice").count(), 4);
+    }
+
+    #[test]
+    fn the_file_is_named_by_its_container_and_a_bad_language_is_left_out() {
+        let (body, _) = transcription_form(b"x", "audio/webm;codecs=opus", "pt-BR");
+        let text = String::from_utf8_lossy(&body);
+        assert!(text.contains("filename=\"speech.webm\"\r\nContent-Type: audio/webm\r\n"));
+        assert!(!text.contains("name=\"language\""));
+        let (body, _) = transcription_form(b"x", "audio/mp4", "ja");
+        assert!(String::from_utf8_lossy(&body).contains("filename=\"speech.mp4\""));
+        let (body, _) = transcription_form(b"x", "evil\r\nX: y", "en");
+        let text = String::from_utf8_lossy(&body);
+        assert!(text.contains("filename=\"speech.webm\"\r\nContent-Type: application/octet-stream\r\n"));
+    }
+}
+
 // ── Settings window ───────────────────────────────────────────────────────────
 
 /// WebView2 allows exactly one browser environment per app, and its options are
@@ -1284,6 +1374,12 @@ pub fn run() {
             let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        // The voice chat records in the page (src/voice/recorder.ts): the webview
+        // may use the microphone. The system itself still asks the first time.
+        .on_permission_request(|_, kind| match kind {
+            tauri::webview::PermissionKind::Microphone => tauri::webview::PermissionResponse::Allow,
+            _ => tauri::webview::PermissionResponse::Default,
+        })
         // The global shortcuts, registered from the page (src/core/hotkey.ts).
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         // Windows notifications for alerts (src/core/notify.ts).
@@ -1343,11 +1439,8 @@ pub fn run() {
             panel_closing,
             rdap_lookup,
             dns_lookup,
-            open_project_url,
             openai_chat,
-            speech::start_voice_listening,
-            speech::stop_voice_listening,
-            open_settings_window,
+            openai_transcribe,
             browser::get_active_tab_url,
         ])
         .setup(move |app| {

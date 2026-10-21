@@ -22,6 +22,8 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+# The voice chat's recording, base64 over the IPC, decoded before it goes to OpenAI.
+base64 = "0.22"
 # Read-only Solana RPC calls for the wallets tab (see solana_rpc in lib.rs).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 

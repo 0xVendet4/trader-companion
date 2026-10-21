@@ -89,17 +89,19 @@ describe("parseRdap", () => {
 });
 
 describe("countryName", () => {
-  it("returns full name for known codes", () => {
-    expect(countryName("US")).toBe("EUA");
-    expect(countryName("BR")).toBe("Brasil");
-    expect(countryName("DE")).toBe("Alemanha");
+  it("names the country in Candy's language", () => {
+    expect(countryName("US", "pt")).toBe("Estados Unidos");
+    expect(countryName("BR", "pt")).toBe("Brasil");
+    expect(countryName("DE", "en")).toBe("Germany");
+    expect(countryName("JP", "ja")).toBe("日本");
   });
 
-  it("returns code for unknown countries", () => {
-    expect(countryName("XX")).toBe("XX");
+  it("gives the code back when it knows no name", () => {
+    expect(countryName("XX", "en")).toBe("XX");
+    expect(countryName("ZZ", "??")).toBe("ZZ");
   });
 
-  it("is case-insensitive", () => {
-    expect(countryName("us")).toBe("EUA");
+  it("takes a lowercase code", () => {
+    expect(countryName("us", "en")).toBe("United States");
   });
 });

@@ -3,7 +3,7 @@
 // Coucou for Windows (MIT, © Louis Raillé); the content is Trader Companion's.
 
 import { Tracked, Spring } from "../core/anim";
-import { Bridge, IS_TAURI, copyImage, emitToWindow, onEvent, type ShowOff } from "../core/bridge";
+import { Bridge, IS_TAURI, copyImage, emitToWindow, type ShowOff } from "../core/bridge";
 import { FULL_NAME } from "../core/brand";
 import { t, tn } from "../core/i18n";
 import { applyTheme, wideFace } from "../core/themes";
@@ -75,6 +75,7 @@ import { playArrivalFx } from "./greet-fx";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
 import { buildChatOverlay } from "../views/chat";
 import { VoiceChat } from "../voice/voice-chat";
+import { createRecorder } from "../voice/recorder";
 import { DRAG_THRESHOLD } from "../mascot/desktop-logic";
 import { DesktopLink } from "./desktop";
 import { islandDances } from "../core/music";
@@ -189,8 +190,6 @@ function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: SoundName
       return { mascot: "excited", sound: "greet" };
     case "macro":
       return { mascot: "focused", sound: "reminder" };
-    case "project-analysis":
-      return { mascot: "focused", sound: "hmm" };
     case "research-checklist":
       return { mascot: "focused", sound: "hmm" };
   }
@@ -216,8 +215,9 @@ export class Island {
 
   private header!: ViewHost;
   private views!: Map<IslandViewName, ViewHost>;
-  private chatOverlay!: { el: HTMLElement; sync(): void };
+  private chatOverlay!: { el: HTMLElement; sync(panelOpen: boolean): void };
   private voiceChat!: VoiceChat;
+  private recorder = createRecorder();
 
   private width = new Tracked(HIDDEN_W);
   private height = new Tracked(0);
@@ -562,10 +562,6 @@ export class Island {
         if (State.mascotAway) void emitToWindow("desktop", "desktop-say", { text, ms });
       },
     });
-    void onEvent<{ text?: string; error?: string }>("voice-transcript", (p) => {
-      if (p.text) void this.voiceChat.onTranscript(p.text);
-      else this.voiceChat.onError(p.error ?? "unknown");
-    });
     this.wakeStrip = h("div", { id: "wake-strip" });
     this.header = buildHeader(actions);
     this.views = buildViews(actions);
@@ -608,7 +604,8 @@ export class Island {
     this.emoteMenu = h("div", { class: "emote-menu", role: "menu" });
     this.emoteMenu.hidden = true;
     this.emoteMenu.tabIndex = -1;
-    this.islandEl = h("div", { id: "island" }, clip, this.captionEl, this.wardrobeBtn, this.mascot.el, this.emoteMenu);
+    // The chat sits over the clip (beside Candy, never cut by it) and under him.
+    this.islandEl = h("div", { id: "island" }, clip, this.chatOverlay.el, this.captionEl, this.wardrobeBtn, this.mascot.el, this.emoteMenu);
     this.root.append(this.wakeStrip, this.islandEl);
     this.labelChrome();
     this.applyGeometry();
@@ -1536,8 +1533,8 @@ export class Island {
         return this.toggleChat();
       case "voice-chat":
         return this.voiceChat.toggle(
-          () => Bridge.startVoiceListening(),
-          () => Bridge.stopVoiceListening(),
+          () => this.recorder.start(State.companion.micId, (rec) => void this.voiceChat.onAudio(rec)),
+          () => this.recorder.stop(),
         );
       case "research-checklist":
         void Companion.runResearchChecklist().then((err) => { if (err) this.mascot.say(err, 3200); });
@@ -3194,7 +3191,7 @@ export class Island {
     if (this.panel) this.syncPanel();
 
     this.header.sync();
-    this.chatOverlay.sync();
+    this.chatOverlay.sync(!!this.panel);
     for (const [name, view] of this.views) {
       const on = name === State.view;
       view.el.classList.toggle("on", on);

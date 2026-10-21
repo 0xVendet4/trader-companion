@@ -8,7 +8,5 @@
   <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>Candy uses the microphone for voice chat.</string>
-  <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Candy uses speech recognition to transcribe your voice questions.</string>
 </dict>
 </plist>

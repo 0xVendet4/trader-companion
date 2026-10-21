@@ -440,19 +440,6 @@ export const Bridge = {
     return call<unknown>("dns_lookup", { domain, recordType });
   },
 
-  /**
-   * Opens any public https URL in the system browser.
-   * Unlike openUrl, not restricted to a fixed whitelist — accepts any https URL
-   * that is not a private IP, since the user explicitly dragged it.
-   */
-  async openProjectUrl(url: string): Promise<void> {
-    if (IS_TAURI) {
-      await call<boolean>("open_project_url", { url });
-      return;
-    }
-    window.open(url, "_blank", "noopener");
-  },
-
   /** Forward a Chat Completions request via Rust, bypassing the webview's CSP.
    *  Uses invoke() directly so the Rust Err string propagates (call() swallows errors). */
   async openaiChat(apiKey: string, body: string): Promise<string> {
@@ -461,21 +448,13 @@ export const Bridge = {
   },
 
   /**
-   * Starts native speech recognition (macOS only). Returns null on success,
-   * or an error string (e.g. "permission-denied", "not-available").
+   * Sends a voice recording (base64, `mime` its media type) to OpenAI through
+   * Rust and returns what it says, in `lang` (Candy's two-letter language).
+   * Uses invoke() directly so the Rust Err string propagates.
    */
-  async startVoiceListening(): Promise<string | null> {
-    if (!IS_TAURI) return "not-available";
-    try {
-      return await invoke<string | null>("start_voice_listening");
-    } catch (err) {
-      return String(err);
-    }
-  },
-
-  /** Stops recording and triggers final transcription. No-op if not listening. */
-  stopVoiceListening(): void {
-    if (IS_TAURI) void call<void>("stop_voice_listening");
+  async openaiTranscribe(apiKey: string, audio: string, mime: string, lang: string): Promise<string> {
+    if (!IS_TAURI) throw new Error("not-tauri");
+    return invoke<string>("openai_transcribe", { apiKey, audio, mime, lang });
   },
 
   /** URL of the active tab in the frontmost browser (macOS only via AppleScript). */

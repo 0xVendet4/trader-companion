@@ -213,28 +213,6 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
         tone: warns > 0 ? "warn" : "calm",
       };
     }
-    case "project-analysis":
-      return {
-        eyebrow: e.status === "loading" ? t("Analyzing {domain}…", { domain: e.domain }) : e.domain,
-        title:
-          e.status === "loading"
-            ? ""
-            : e.status === "error"
-              ? (e.error ?? t("Could not analyze site"))
-              : (e.summary?.slice(0, 120) ?? e.domain),
-        detail: (() => {
-          if (e.status !== "done" || !e.rdap) return "";
-          const parts: string[] = [];
-          if (e.rdap.registrar) parts.push(t("Registrar: {name}", { name: e.rdap.registrar }));
-          if (e.rdap.createdAt) {
-            const days = Math.floor((Date.now() - e.rdap.createdAt) / 86_400_000);
-            parts.push(days < 60 ? t("Registered {n} days ago", { n: days }) : t("Registered {date}", { date: new Date(e.rdap.createdAt).toLocaleDateString() }));
-          }
-          if (e.rdap.expiresAt) parts.push(t("Expires {date}", { date: new Date(e.rdap.expiresAt).toLocaleDateString() }));
-          return parts.join(" · ");
-        })(),
-        tone: e.tone,
-      };
   }
 }
 
@@ -260,7 +238,6 @@ export function buildEvent(actions: ViewActions): ViewHost {
   const extra = h("div", { class: "event-extra" });
   const el = h("div", { class: "view event" }, fold, eyebrow, title, detail, extra, h("div", { class: "event-foot" }, buttons, more));
   let shown = "";
-  let shownStatus = "";
 
   // ── The checklist, gone over by Candy ──
   // He reads the lines out one at a time: his eyes go to the line, then its
@@ -516,8 +493,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
       if (!e) return;
       const pending = State.events.length - 1;
       more.textContent = pending > 0 ? tn(pending, "+{n} more", "+{n} more") : "";
-      const eStatus = e.kind === "project-analysis" ? e.status : "";
-      if (shown === e.id && shownStatus === eStatus) {
+      if (shown === e.id) {
         const p = pass;
         if (e.kind === "checklist" && p?.id === e.id) {
           // Back in sight: he picks up where he was. RugCheck answered while he
@@ -532,7 +508,6 @@ export function buildEvent(actions: ViewActions): ViewHost {
         return;
       }
       shown = e.id;
-      shownStatus = eStatus;
       if (e.kind !== "checklist") stopPass();
       if (e.kind !== "dayEnd") stopBoard();
       const copy = eventCopy(e);
@@ -688,19 +663,6 @@ export function buildEvent(actions: ViewActions): ViewHost {
           }
           break;
         }
-        case "project-analysis":
-          if (e.status === "loading") {
-            actions.candy({ react: "focused", ms: 30_000 });
-          } else if (e.status === "done") {
-            if (e.summary && e.summary.length > 120) detail.textContent = e.summary.slice(0, 300) + (e.summary.length > 300 ? "…" : "");
-            buttons.append(
-              btn(t("Open site"), "primary", () => { void Bridge.openProjectUrl(e.url); }),
-              btn(t("Dismiss"), "secondary", () => actions.dismissEvent()),
-            );
-          } else {
-            buttons.append(btn(t("Dismiss"), "secondary", () => actions.dismissEvent()));
-          }
-          break;
         case "research-checklist":
           renderResearchChecks(extra, e.checks);
           buttons.append(
