@@ -674,7 +674,7 @@ function aiSection(): HTMLElement {
     row(
       t("OpenAI API key"),
       h("span", { class: "with-unit" }, input, eye, status),
-      t("Stored locally. Used only when you chat or drop a project URL."),
+      t("Stored locally. What you type or say in the chat, and a site you drop on Candy, go to OpenAI with it. Clear it to stop."),
     ),
     row(t("Microphone"), mic, t("The voice chat records with it.")),
   );

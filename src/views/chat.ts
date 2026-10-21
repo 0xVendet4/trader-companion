@@ -5,6 +5,7 @@ import { State } from "../core/state";
 import type { ChatMessage } from "../ai/types";
 import { OpenAiProvider } from "../ai/openai";
 import { clearChat, registerChatChannel, registerClearHandler, type ChannelMsg } from "../ai/chat-channel";
+import { reportUrl } from "../ai/report";
 
 /**
  * Invisible height-spacer: keeps the island expanding to viewHeight("chat")
@@ -34,7 +35,14 @@ export function buildChatOverlay(actions: ViewActions): { el: HTMLElement; sync(
   clearBtn.style.display = "none";
 
   function appendMsg(msg: { role: string; content: string; id?: string }) {
-    const el = h("div", { class: `chat-msg ${msg.role}`, text: msg.content });
+    const text = h("span", { class: "chat-text", text: msg.content });
+    const el = h("div", { class: `chat-msg ${msg.role}` }, text);
+    // Each of Candy's answers can be reported to the developer (a new GitHub issue, see reportUrl).
+    if (msg.role === "assistant") {
+      const report = h("button", { class: "chat-report", type: "button", title: t("Report this answer to the developer"), text: t("Report") });
+      report.addEventListener("click", () => actions.openUrl(reportUrl(text.textContent ?? "")));
+      el.append(report);
+    }
     if (msg.id) el.dataset.id = msg.id;
     list.append(el);
     list.scrollTop = list.scrollHeight;
@@ -43,7 +51,7 @@ export function buildChatOverlay(actions: ViewActions): { el: HTMLElement; sync(
 
   function upsertMsg(msg: ChannelMsg) {
     if (msg.id) {
-      const existing = list.querySelector(`[data-id="${msg.id}"]`);
+      const existing = list.querySelector(`[data-id="${msg.id}"] .chat-text`);
       if (existing) {
         existing.textContent = msg.content;
         list.scrollTop = list.scrollHeight;

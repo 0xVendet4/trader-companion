@@ -51,5 +51,8 @@
   <Capabilities>
     <Capability Name="internetClient" />
     <rescap:Capability Name="runFullTrust" />
+    <!-- The voice chat (src/voice/recorder.ts): Windows asks before Candy hears anything,
+         and lists it under Settings → Privacy → Microphone. -->
+    <DeviceCapability Name="microphone" />
   </Capabilities>
 </Package>

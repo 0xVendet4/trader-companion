@@ -464,6 +464,24 @@ body.passing #island {
   border-bottom-left-radius: 4px;
 }
 
+/* Under each of Candy's answers: report it to the developer (reportUrl). */
+.chat-report {
+  display: block;
+  margin: 3px 0 -1px auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim-2);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.chat-report:hover {
+  color: var(--dim);
+  text-decoration: underline;
+}
+
 .chat-ol-error {
   font-size: 11px;
   color: var(--down);
