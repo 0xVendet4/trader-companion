@@ -51,7 +51,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     wallets: tab("wallets", ICONS.eye, t("Following"), 2),
     discipline: tab("discipline", ICONS.shield, t("Discipline")),
     music: tab("music", ICONS.note, t("Music")),
-    chat: tab("chat", ICONS.chat, t("Chat")),
+    chat: tab("chat", ICONS.bubble, t("Chat")),
   };
 
   // The day against the trader's own limits; a click opens Discipline.

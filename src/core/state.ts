@@ -359,8 +359,8 @@ export const SKIN_IDS: readonly Skin[] = [
  * costumes). Hats and faces still go on top; the colour does not apply.
  * "edition" is a friend's exclusive costume: only their build has it.
  */
-export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "ghost" | "penguin" | "bee" | "pug" | "edition";
-export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee", "pug", "edition"];
+export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "max-headroom" | "ghost" | "penguin" | "bee" | "pug" | "edition";
+export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "max-headroom", "ghost", "penguin", "bee", "pug", "edition"];
 /**
  * Costumes named by a common noun, shown in the trader's language (Robô,
  * Roboter); the others are characters and keep their names everywhere (Gengar).
@@ -407,6 +407,7 @@ export const COSTUME_NAMES: Record<Costume, string> = {
   bee: N_("Bee"),
   // Gutin is a real pug, so he goes by his name everywhere.
   pug: "Gutin",
+  "max-headroom": "Max Headroom",
   edition: EDITION_NAME,
 };
 

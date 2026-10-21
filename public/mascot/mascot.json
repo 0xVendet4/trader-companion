@@ -2407,6 +2407,35 @@
       },
       "mouthDrop": 9
     },
+    "max-headroom": {
+      "name": "Max Headroom",
+      "states": {
+        "idle":      { "motion": "breathe", "frames": ["costumes/max-headroom/idle.svg"] },
+        "happy":     { "motion": "breathe", "frames": ["costumes/max-headroom/happy.svg"] },
+        "celebrate": { "fps": 4, "motion": "bounce", "fx": "sparkles", "frames": ["costumes/max-headroom/celebrate-1.svg", "costumes/max-headroom/celebrate-2.svg"] },
+        "worried":   { "motion": "sway", "tint": false, "frames": ["costumes/max-headroom/worried.svg"] },
+        "shocked":   { "motion": "shake", "tint": false, "frames": ["costumes/max-headroom/shocked.svg"] },
+        "sleepy":    { "motion": "droop", "fx": "zzz", "frames": ["costumes/max-headroom/sleepy.svg"] },
+        "alert":     { "motion": "jump", "fx": "bang", "frames": ["costumes/max-headroom/shocked.svg"] },
+        "tired":     { "motion": "droop", "frames": ["costumes/max-headroom/tired.svg"] },
+        "stop":      { "motion": "breathe", "tint": false, "frames": ["costumes/max-headroom/stop.svg"] },
+        "confused":  { "motion": "sway", "fx": "question", "frames": ["costumes/max-headroom/confused.svg"] },
+        "love":      { "motion": "breathe", "fx": "hearts", "frames": ["costumes/max-headroom/love.svg"] },
+        "wave":      { "fps": 3, "motion": "breathe", "frames": ["costumes/max-headroom/wave-1.svg", "costumes/max-headroom/wave-2.svg"] },
+        "proud":     { "motion": "bounce", "fx": "sparkles", "frames": ["costumes/max-headroom/proud.svg"] },
+        "sad":       { "motion": "droop", "tint": false, "frames": ["costumes/max-headroom/sad.svg"] },
+        "bored":     { "motion": "sway", "fx": "dots", "frames": ["costumes/max-headroom/bored.svg"] },
+        "focused":   { "motion": "none", "frames": ["costumes/max-headroom/focused.svg"] },
+        "nervous":   { "motion": "jitter", "frames": ["costumes/max-headroom/worried.svg"] },
+        "curious":   { "motion": "tilt", "fx": "question", "frames": ["costumes/max-headroom/curious.svg"] },
+        "angry":     { "motion": "jitter", "frames": ["costumes/max-headroom/angry.svg"] },
+        "excited":   { "motion": "bounce", "fx": "sparkles", "frames": ["costumes/max-headroom/celebrate-1.svg", "costumes/max-headroom/celebrate-2.svg"] },
+        "relieved":  { "motion": "breathe", "frames": ["costumes/max-headroom/relieved.svg"] },
+        "dizzy":     { "motion": "woozy", "frames": ["costumes/max-headroom/dizzy.svg"] },
+        "cool":      { "motion": "sway", "frames": ["costumes/max-headroom/cool.svg"] },
+        "sick":      { "motion": "droop", "frames": ["costumes/max-headroom/sick.svg"] }
+      }
+    },
     "ghost": {
       "name": "Ghost",
       "states": {
