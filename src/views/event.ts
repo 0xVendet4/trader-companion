@@ -10,7 +10,7 @@ import { APP_NAME, MASCOT_NAME } from "../core/brand";
 import { formatDuration, formatPct, formatPnl, pctClass } from "../core/format";
 import { Bridge, IS_TAURI } from "../core/bridge";
 import { t, tn } from "../core/i18n";
-import { EDITION_ID, State, type CompanionEvent, type TradePlan } from "../core/state";
+import { EDITION_ID, State, type CompanionEvent, type ResearchCheckItem, type TradePlan } from "../core/state";
 import { WHATS_NEW_URL } from "../core/update";
 import { TERMINALS } from "../market/links";
 import { headsUpTitle } from "../market/calendar";
@@ -204,6 +204,37 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
             : t("Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay."),
         tone: "calm",
       };
+    case "research-checklist": {
+      const warns = e.checks.filter((c) => c.state === "warn").length;
+      return {
+        eyebrow: t("Research"),
+        title: e.symbol ? t("Research: {symbol}", { symbol: e.symbol }) : t("Research token"),
+        detail: warns > 0 ? tn(warns, "{n} flag worth a look", "{n} flags worth a look") : t("Checks complete"),
+        tone: warns > 0 ? "warn" : "calm",
+      };
+    }
+    case "project-analysis":
+      return {
+        eyebrow: e.status === "loading" ? t("Analyzing {domain}…", { domain: e.domain }) : e.domain,
+        title:
+          e.status === "loading"
+            ? ""
+            : e.status === "error"
+              ? (e.error ?? t("Could not analyze site"))
+              : (e.summary?.slice(0, 120) ?? e.domain),
+        detail: (() => {
+          if (e.status !== "done" || !e.rdap) return "";
+          const parts: string[] = [];
+          if (e.rdap.registrar) parts.push(t("Registrar: {name}", { name: e.rdap.registrar }));
+          if (e.rdap.createdAt) {
+            const days = Math.floor((Date.now() - e.rdap.createdAt) / 86_400_000);
+            parts.push(days < 60 ? t("Registered {n} days ago", { n: days }) : t("Registered {date}", { date: new Date(e.rdap.createdAt).toLocaleDateString() }));
+          }
+          if (e.rdap.expiresAt) parts.push(t("Expires {date}", { date: new Date(e.rdap.expiresAt).toLocaleDateString() }));
+          return parts.join(" · ");
+        })(),
+        tone: e.tone,
+      };
   }
 }
 
@@ -229,6 +260,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
   const extra = h("div", { class: "event-extra" });
   const el = h("div", { class: "view event" }, fold, eyebrow, title, detail, extra, h("div", { class: "event-foot" }, buttons, more));
   let shown = "";
+  let shownStatus = "";
 
   // ── The checklist, gone over by Candy ──
   // He reads the lines out one at a time: his eyes go to the line, then its
@@ -442,6 +474,19 @@ export function buildEvent(actions: ViewActions): ViewHost {
     buttons.classList.remove("later");
   }
 
+  function renderResearchChecks(container: HTMLElement, checks: ResearchCheckItem[]) {
+    clear(container);
+    container.className = "event-extra checklist";
+    const CHECK_MARK: Record<ResearchCheckItem["state"], string> = { ok: "✓", warn: "!", unknown: "?" };
+    for (const c of checks) {
+      container.append(h("div", { class: `check-line ${c.state}`, title: c.detail },
+        h("span", { class: "check-label", text: c.label }),
+        h("span", { class: "check-state", text: CHECK_MARK[c.state] }),
+        h("span", { class: "check-detail", text: c.detail }),
+      ));
+    }
+  }
+
   function renderMoves(moves: AwayMove[]) {
     clear(extra);
     extra.className = "event-extra moves";
@@ -471,7 +516,8 @@ export function buildEvent(actions: ViewActions): ViewHost {
       if (!e) return;
       const pending = State.events.length - 1;
       more.textContent = pending > 0 ? tn(pending, "+{n} more", "+{n} more") : "";
-      if (shown === e.id) {
+      const eStatus = e.kind === "project-analysis" ? e.status : "";
+      if (shown === e.id && shownStatus === eStatus) {
         const p = pass;
         if (e.kind === "checklist" && p?.id === e.id) {
           // Back in sight: he picks up where he was. RugCheck answered while he
@@ -486,6 +532,7 @@ export function buildEvent(actions: ViewActions): ViewHost {
         return;
       }
       shown = e.id;
+      shownStatus = eStatus;
       if (e.kind !== "checklist") stopPass();
       if (e.kind !== "dayEnd") stopBoard();
       const copy = eventCopy(e);
@@ -641,6 +688,29 @@ export function buildEvent(actions: ViewActions): ViewHost {
           }
           break;
         }
+        case "project-analysis":
+          if (e.status === "loading") {
+            actions.candy({ react: "focused", ms: 30_000 });
+          } else if (e.status === "done") {
+            if (e.summary && e.summary.length > 120) detail.textContent = e.summary.slice(0, 300) + (e.summary.length > 300 ? "…" : "");
+            buttons.append(
+              btn(t("Open site"), "primary", () => { void Bridge.openProjectUrl(e.url); }),
+              btn(t("Dismiss"), "secondary", () => actions.dismissEvent()),
+            );
+          } else {
+            buttons.append(btn(t("Dismiss"), "secondary", () => actions.dismissEvent()));
+          }
+          break;
+        case "research-checklist":
+          renderResearchChecks(extra, e.checks);
+          buttons.append(
+            btn(t("Open on {terminal}", { terminal }), "primary", () => {
+              actions.openToken(e.mint, { key: `solana:${e.mint}`, chainId: "solana", address: e.mint, symbol: e.symbol ?? e.mint.slice(0, 6), name: e.symbol ?? "", pairAddress: "", dexId: "", imageUrl: null });
+              actions.dismissEvent();
+            }),
+            btn(t("Done"), "secondary", () => actions.dismissEvent()),
+          );
+          break;
         default:
           buttons.append(btn(t("Got it"), "primary", () => actions.dismissEvent()));
       }

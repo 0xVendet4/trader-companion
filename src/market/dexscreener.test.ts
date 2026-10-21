@@ -56,8 +56,9 @@ describe("parsePasted (the paste shortcut)", () => {
     // An 88-character base58 string is a Solana secret key, not an address.
     expect(parsePasted("5".repeat(88))).toBeNull();
     expect(parsePasted("word ".repeat(12).trim())).toBeNull();
-    // A link anywhere else may carry a token-looking string of its own (a session, a reset link).
-    expect(parsePasted(`https://example.com/reset?token=${BONK}`)).toBeNull();
+    // An unknown https URL is treated as a project URL (user explicitly pasted it for analysis).
+    expect(parsePasted(`https://example.com/reset?token=${BONK}`)).toMatchObject({ kind: "project-url" });
+    // Non-https protocols are still rejected.
     expect(parsePasted(`ftp://dexscreener.com/solana/${BONK}`)).toBeNull();
     expect(parsePasted("")).toBeNull();
   });
@@ -131,7 +132,8 @@ describe("tokenUrl", () => {
     expect(terminalLabel("basedbot", hood)).toBe("Based Bot");
     expect(parseInput(tokenUrl("basedbot", sol))).toEqual({ kind: "address", address: BONK, chainId: "solana", isPool: false });
     expect(parseInput(`https://basedbot.app/token/eth/${EVM}`)).toEqual({ kind: "address", address: EVM, chainId: "ethereum", isPool: false });
-    expect(parsePasted(`https://basedbot.app/token/sol/${BONK}`)?.address).toBe(BONK);
+    const bp = parsePasted(`https://basedbot.app/token/sol/${BONK}`);
+    expect(bp?.kind === "address" ? bp.address : null).toBe(BONK);
   });
 });
 

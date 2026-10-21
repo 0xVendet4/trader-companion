@@ -23,6 +23,7 @@ import {
   type AlertRule,
   type CompanionEvent,
   type Quote,
+  type ResearchCheckItem,
   type Settings,
   type TradePlan,
   type TrendingItem,
@@ -47,6 +48,7 @@ import {
   WBTC,
   fetchPairs,
   fetchQuotes,
+  fetchSolanaPair,
   parseInput,
   resolveAddress,
   searchPairs,
@@ -73,6 +75,7 @@ import {
   type Major,
 } from "./market/majors";
 import { SAFETY_TTL_MS, fetchSafety } from "./market/safety";
+import { extractTokenFromUrl } from "./research/extract-url";
 import { FNG_TTL_MS, fetchFearGreed } from "./market/sentiment";
 import { fetchTrending } from "./market/trending";
 import type { SeenEvent } from "./away/away";
@@ -102,6 +105,12 @@ import { BLOCK_SECONDS, fetchTransfers, lastTransfer, latestBlock, priceNear, re
 import { learn, mintsToPrice, type PricingMemory, type Verdict } from "./wallets/pricing";
 import { junkReason } from "./market/spam";
 import { fetchNewSwaps, fetchSwaps, gapTrades, mergeActivity, tradesFromSwaps, type Swap } from "./positions/trades";
+import { extractPageContent } from "./ai/extract";
+import { parseRdap } from "./ai/rdap";
+import { parseDoh } from "./ai/dns";
+import { OpenAiProvider } from "./ai/openai";
+import { pushChatMessages } from "./ai/chat-channel";
+import { emitToWindow } from "./core/bridge";
 
 /** The checklist comes up this long after a token is added: after Candy has swallowed it. */
 const CHECKLIST_DELAY_MS = 1_400;
@@ -132,6 +141,68 @@ function sameAmounts(a: Record<string, number>, b: Record<string, number>): bool
 }
 /** RugCheck lookups in flight at once — it is a free service, be gentle. */
 const SAFETY_CONCURRENCY = 2;
+
+function buildResearchChecks(mint: string, safety: import("./core/state").SafetyReport | null, pair: DexPair | null): ResearchCheckItem[] {
+  const risk = (re: RegExp) => safety?.risks.find((r) => re.test(r.name) && r.level !== "info");
+  const fromSafety = (label: string, re: RegExp, okText: string): ResearchCheckItem => {
+    if (!safety) return { label, state: "unknown", detail: t("RugCheck data unavailable") };
+    const r = risk(re);
+    return r ? { label, state: "warn", detail: r.value ? `${r.name} (${r.value})` : r.name } : { label, state: "ok", detail: okText };
+  };
+
+  const checks: ResearchCheckItem[] = [
+    fromSafety(t("Mint authority"), /mint authority/i, t("Revoked: no new tokens can be made")),
+    fromSafety(t("Freeze authority"), /freeze authority/i, t("Revoked: holders can't be frozen")),
+  ];
+
+  // Liquidity locked
+  if (!safety) {
+    checks.push({ label: t("Liquidity locked"), state: "unknown", detail: t("RugCheck data unavailable") });
+  } else {
+    const unlocked = risk(/lp unlocked|liquidity.*unlocked|unlocked.*liquidity/i);
+    const pct = safety.lpLockedPct;
+    const locked = pct != null ? t("{pct}% locked", { pct: Math.round(pct) }) : null;
+    if (unlocked || (pct != null && pct < 50)) checks.push({ label: t("Liquidity locked"), state: "warn", detail: locked ?? unlocked!.name });
+    else checks.push({ label: t("Liquidity locked"), state: pct != null ? "ok" : "unknown", detail: locked ?? t("RugCheck doesn't say") });
+  }
+
+  checks.push(fromSafety(t("Top holders"), /holder/i, t("No holder concentration flagged")));
+
+  // Dev wallet: look for creator / insider risks
+  if (!safety) {
+    checks.push({ label: t("Dev wallet"), state: "unknown", detail: t("RugCheck data unavailable") });
+  } else {
+    const devRisk = risk(/creator|insider|team|dev/i);
+    checks.push(devRisk
+      ? { label: t("Dev wallet"), state: "warn", detail: devRisk.value ? `${devRisk.name} (${devRisk.value})` : devRisk.name }
+      : { label: t("Dev wallet"), state: "ok", detail: t("No creator/insider risks flagged") });
+  }
+
+  // Clone detection: any watchlisted token with the same symbol?
+  const sym = pair?.baseToken.symbol?.toLowerCase();
+  const clone = sym ? State.companion.watchlist.find((w) => w.symbol.toLowerCase() === sym && w.address !== mint) : undefined;
+  checks.push(clone
+    ? { label: t("Clone check"), state: "warn", detail: t("Same symbol as watched {symbol}", { symbol: clone.symbol }) }
+    : { label: t("Clone check"), state: "ok", detail: t("No matching symbol in watchlist") });
+
+  // Website
+  const website = pair?.info?.websites?.[0];
+  checks.push(website
+    ? { label: t("Website"), state: "ok", detail: website.url }
+    : { label: t("Website"), state: "unknown", detail: t("No website in DexScreener") });
+
+  // Twitter / Telegram
+  const twitter = pair?.info?.socials?.find((s) => /twitter|x\.com/i.test(s.type) || /twitter|x\.com/i.test(s.url));
+  const telegram = pair?.info?.socials?.find((s) => /telegram/i.test(s.type) || /t\.me\//i.test(s.url));
+  if (twitter || telegram) {
+    const found = [twitter && "Twitter/X", telegram && "Telegram"].filter(Boolean).join(" + ");
+    checks.push({ label: t("Socials"), state: "ok", detail: found });
+  } else {
+    checks.push({ label: t("Socials"), state: "unknown", detail: t("No Twitter/Telegram on DexScreener") });
+  }
+
+  return checks;
+}
 
 class CompanionController {
   /** Shows a fired alert or a reminder; set by the island. */
@@ -800,6 +871,7 @@ class CompanionController {
       await this.search(parsed.query);
       return { ok: true, message: "", searched: true };
     }
+    if (parsed.kind === "project-url") return { ok: false, message: t("hm? drop a token's link or address") };
     let token;
     try {
       token = await resolveAddress(parsed, State.companion.chains);
@@ -1892,6 +1964,88 @@ class CompanionController {
     }
     // The face it settled from, for a peek now and then.
     State.moodFace = State.mood.state !== raw.state ? raw.state : null;
+  }
+
+  /** Fetches a project URL, summarizes it with OpenAI, parses RDAP/DNS, and shows the result in the chat panel. */
+  async analyzeProjectUrl(url: string): Promise<void> {
+    const domain = new URL(url).hostname.replace(/^www\./, "");
+    // Unique id so the "thinking" placeholder can be replaced in-place when done.
+    const thinkingId = `analysis-${uid()}`;
+
+    // Open chat and show the dropped URL + a thinking placeholder immediately.
+    pushChatMessages(
+      [
+        { role: "user", content: url },
+        { role: "assistant", content: t("Analyzing {domain}…", { domain }), id: thinkingId },
+      ],
+      true /* openChat */,
+    );
+
+    const [htmlRes, rdapRes, , dnsMxRes] = await Promise.allSettled([
+      Bridge.fetchPage(url),
+      Bridge.rdapLookup(domain),
+      Bridge.dnsLookup(domain, "A"),
+      Bridge.dnsLookup(domain, "MX"),
+      Bridge.dnsLookup(domain, "TXT"),
+    ]);
+
+    const rdap = rdapRes.status === "fulfilled" ? parseRdap(rdapRes.value) : undefined;
+    const mx = dnsMxRes.status === "fulfilled" ? parseDoh(dnsMxRes.value, "MX") : [];
+
+    let resultText: string | undefined;
+    const key = State.settings.companion.openaiKey;
+    if (key && htmlRes.status === "fulfilled" && htmlRes.value) {
+      try {
+        const content = extractPageContent(htmlRes.value);
+        resultText = await new OpenAiProvider(key).analyze(url, content, rdap, mx);
+      } catch (err) {
+        console.warn("[AI] OpenAI error", err);
+      }
+    }
+
+    // Fallback when no key or OpenAI failed: assemble from RDAP/DNS data only.
+    if (!resultText) {
+      const meta: string[] = [];
+      if (rdap?.registrar) meta.push(t("Registrar: {name}", { name: rdap.registrar }));
+      if (rdap?.createdAt) {
+        const days = Math.floor((Date.now() - rdap.createdAt) / 86_400_000);
+        meta.push(days < 60 ? t("Registered {n} days ago", { n: days }) : t("Registered {date}", { date: new Date(rdap.createdAt).toLocaleDateString() }));
+      }
+      if (rdap?.expiresAt) meta.push(t("Expires {date}", { date: new Date(rdap.expiresAt).toLocaleDateString() }));
+      if (mx.length) meta.push("MX: " + mx[0]);
+      resultText = meta.length ? meta.join(" · ") : t("Could not analyze site");
+    }
+
+    // Replace the thinking placeholder with the real result.
+    pushChatMessages([{ role: "assistant", content: resultText, id: thinkingId }], false);
+
+    // If the desktop mascot is visible, show a brief teaser in his speech bubble.
+    const teaser = (resultText ?? domain).slice(0, 90);
+    void emitToWindow("desktop", "desktop-say", { text: teaser, ms: 7000 });
+  }
+
+  /** Cmd+Shift+M: read the active browser tab URL, extract a Solana token, run checks, show the card.
+   *  Returns an error string to show in the mascot's speech bubble, or null on success. */
+  async runResearchChecklist(): Promise<string | null> {
+    const tabUrl = await Bridge.getActiveBrowserTabUrl();
+    if (!tabUrl) return t("No active browser tab found — open a token on GMGN or Axiom first");
+
+    const mint = extractTokenFromUrl(tabUrl);
+    if (!mint) return t("No token found in the active tab — open a token on GMGN or Axiom and try again");
+
+    const [safetyRes, pairRes] = await Promise.allSettled([
+      fetchSafety(mint),
+      fetchSolanaPair(mint),
+    ]);
+
+    const safety = safetyRes.status === "fulfilled" ? safetyRes.value : null;
+    const pair = pairRes.status === "fulfilled" ? pairRes.value : null;
+    const symbol = pair?.baseToken.symbol;
+
+    const checks: ResearchCheckItem[] = buildResearchChecks(mint, safety, pair);
+
+    this.raise({ kind: "research-checklist", id: uid(), mint, url: tabUrl, symbol, checks });
+    return null;
   }
 
   /** Queues an event and shows it on the island (and as a system notification). */

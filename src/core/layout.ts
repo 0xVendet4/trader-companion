@@ -225,6 +225,8 @@ export function viewHeight(view: IslandViewName, rows: number, maxRows = MAX_ROW
       return 168 + Math.max(0, rows - 2) * 19;
     case "greeting":
       return 150;
+    case "chat":
+      return HEADER_H + 280;
   }
 }
 

@@ -57,6 +57,7 @@ import { nightKey } from "../mascot/night";
 import { seasonKey } from "../mascot/seasons";
 import { clear, h, svg } from "../views/dom";
 import { ICONS } from "../views/icons";
+import { validateOpenAiKey } from "../ai/openai";
 
 let settings: Settings = normalizeSettings(null);
 /** The island around the panel (set by mountSettings). */
@@ -219,6 +220,7 @@ function watchlistSection(): HTMLElement {
       const parsed = parseInput(text);
       // Searching by name lives in the island, where results can be compared.
       if (parsed.kind === "query") throw new Error(t("Paste an address or link here. To search by name, use the field in the island's Watchlist."));
+      if (parsed.kind === "project-url") throw new Error(t("Paste an address or link here. To search by name, use the field in the island's Watchlist."));
       const token = await resolveAddress(parsed, settings.companion.chains);
       if (!token) throw new Error(t("Couldn't find that token on DexScreener."));
       if (settings.companion.watchlist.some((tok) => tok.key === token.key)) {
@@ -591,6 +593,52 @@ function ownSoundsRow(): HTMLElement {
     t("A file named after a sound ({files}, …) as .wav, .mp3, .ogg, .m4a, .flac or .aiff plays instead of Candy's own. The names are in the README.", {
       files: [...SOUND_NAMES.slice(0, 3).map(soundFile), "alert-up"].join(", "),
     }),
+  );
+}
+
+function aiSection(): HTMLElement {
+  const status = h("span", { class: "note" });
+  const eye = h("button", { class: "btn btn-icon", type: "button", title: t("Show/hide") }, svg(ICONS.eye, 14, { stroke: 2 }));
+  const input = h("input", { type: "password", class: "text-input", placeholder: "sk-…" }) as HTMLInputElement;
+
+  let validateTimer: number | null = null;
+  const setStatus = (text: string, cls: string) => {
+    status.textContent = text;
+    status.className = `note ${cls}`;
+  };
+
+  const paint = () => { input.value = settings.companion.openaiKey ?? ""; };
+  paint();
+  refreshers.push(paint);
+
+  eye.addEventListener("click", () => {
+    input.type = input.type === "password" ? "text" : "password";
+  });
+
+  const runValidate = async (key: string) => {
+    if (!key) { setStatus("", ""); return; }
+    setStatus(t("Checking…"), "dim");
+    const err = await validateOpenAiKey(key);
+    if (err === null) setStatus("✓ " + t("API key valid"), "up");
+    else setStatus(t("Invalid API key"), "down");
+  };
+
+  input.addEventListener("input", () => {
+    const key = input.value.trim();
+    settings.companion.openaiKey = key;
+    save();
+    if (validateTimer != null) window.clearTimeout(validateTimer);
+    validateTimer = window.setTimeout(() => void runValidate(key), 800);
+  });
+
+  return section(
+    t("AI"),
+    null,
+    row(
+      t("OpenAI API key"),
+      h("span", { class: "with-unit" }, input, eye, status),
+      t("Stored locally. Used only when you chat or drop a project URL."),
+    ),
   );
 }
 
@@ -1380,6 +1428,7 @@ export function mountSettings(container: HTMLElement, panelHost: PanelHost, sect
     ["following", followingSection()],
     ["discipline", disciplineSection()],
     [null, terminalSection()],
+    [null, aiSection()],
     [null, chainsSection()],
     [null, notificationsSection()],
     ["appearance", appearanceSection(host.manifest)],

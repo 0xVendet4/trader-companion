@@ -86,14 +86,14 @@ describe("desktop helpers", () => {
     expect(shouldSleep(130, 300)).toBe(true);
     expect(shouldSleep(130, 20)).toBe(false);
     expect(shouldSleep(60, 300)).toBe(false);
-    expect(pointerDistance(true, { x: 84, y: 84 }, 0)).toBe(0);
+    expect(pointerDistance(true, { x: 140, y: 140 }, 0)).toBe(0);
     expect(pointerDistance(true, null, 0)).toBe(Infinity);
     expect(pointerDistance(false, null, 1000)).toBe(0);
     expect(pointerDistance(false, null, 9000)).toBe(Infinity);
   });
 
   it("hits the body, not the corners, and moves the window with the pointer", () => {
-    expect(isOverBody({ x: 84, y: 84 })).toBe(true);
+    expect(isOverBody({ x: 140, y: 140 })).toBe(true);
     expect(isOverBody({ x: 5, y: 5 })).toBe(false);
     expect(windowDragTopLeft({ x: 100, y: 200 }, { x: 60, y: 30 }, { x: 50, y: 20 }, 2)).toEqual({ x: 120, y: 220 });
   });

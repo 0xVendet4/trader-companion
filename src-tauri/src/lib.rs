@@ -5,6 +5,7 @@
 // computed in the page from public market data; Rust only places windows,
 // stores preferences and opens links.
 
+mod browser;
 mod calendar;
 mod chart;
 mod desktop;
@@ -16,6 +17,7 @@ mod platform;
 mod settings;
 mod shortcuts;
 mod sounds;
+mod speech;
 mod tray;
 mod update;
 
@@ -1107,7 +1109,163 @@ mod rpc_tests {
     }
 }
 
-// ── Windows ───────────────────────────────────────────────────────────────────
+// ── Project URL analysis ──────────────────────────────────────────────────────
+
+/// HTTP client for page fetches, RDAP and DoH: kept alive and reused.
+fn web_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .user_agent("Mozilla/5.0 (compatible; Candy/1.0)")
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+/// True when the host is a loopback, private or link-local address that must
+/// never be fetched from a user-supplied URL (SSRF guard).
+fn is_private_host(host: &str) -> bool {
+    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
+        let o = addr.octets();
+        return o[0] == 127
+            || o[0] == 10
+            || (o[0] == 172 && (16..=31).contains(&o[1]))
+            || (o[0] == 192 && o[1] == 168)
+            || (o[0] == 169 && o[1] == 254)
+            || o[0] == 0;
+    }
+    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
+        let s = addr.segments();
+        return addr == std::net::Ipv6Addr::LOCALHOST || s[0] == 0 || s[0] == 0xfe80;
+    }
+    matches!(host, "localhost" | "localhost." | "broadcasthost")
+        || host.ends_with(".local")
+        || host.ends_with(".localhost")
+        || host.ends_with(".internal")
+}
+
+fn is_safe_project_url(raw: &str) -> bool {
+    let Ok(url) = Url::parse(raw) else { return false };
+    if url.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = url.host_str() else { return false };
+    !is_private_host(host)
+}
+
+/// Fetches the HTML of an https URL for project analysis.
+/// Rejects private/loopback hosts. Capped at 1 MB; 10 s timeout.
+#[tauri::command]
+async fn fetch_page(url: String) -> Result<String, String> {
+    if !is_safe_project_url(&url) {
+        return Err("URL not allowed".to_string());
+    }
+    const MAX_BYTES: usize = 1_048_576;
+    let res = web_client()
+        .get(&url)
+        .header("Accept", "text/html,application/xhtml+xml,*/*")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("HTTP {}", res.status().as_u16()));
+    }
+    let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+    let body = if bytes.len() > MAX_BYTES { &bytes[..MAX_BYTES] } else { &bytes[..] };
+    Ok(String::from_utf8_lossy(body).into_owned())
+}
+
+/// RDAP lookup for a domain via rdap.iana.org (no API key).
+#[tauri::command]
+async fn rdap_lookup(domain: String) -> Result<serde_json::Value, String> {
+    if domain.is_empty()
+        || domain.len() > 253
+        || !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        return Err("Invalid domain".to_string());
+    }
+    let url = format!("https://rdap.iana.org/domain/{domain}");
+    let res = web_client()
+        .get(&url)
+        .header("Accept", "application/rdap+json, application/json")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("RDAP returned {}", res.status().as_u16()));
+    }
+    res.json().await.map_err(|e| e.to_string())
+}
+
+/// DNS-over-HTTPS lookup via Cloudflare for one record type (A, AAAA, MX or TXT).
+#[tauri::command]
+async fn dns_lookup(domain: String, record_type: String) -> Result<serde_json::Value, String> {
+    if !matches!(record_type.as_str(), "A" | "AAAA" | "MX" | "TXT") {
+        return Err(format!("record type {record_type} not allowed"));
+    }
+    if domain.is_empty()
+        || domain.len() > 253
+        || !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        return Err("Invalid domain".to_string());
+    }
+    let url = format!("https://cloudflare-dns.com/dns-query?name={domain}&type={record_type}");
+    let res = web_client()
+        .get(&url)
+        .header("Accept", "application/dns-json")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("DoH returned {}", res.status().as_u16()));
+    }
+    res.json().await.map_err(|e| e.to_string())
+}
+
+/// Opens any public https URL in the system browser.
+/// Unlike open_url, this is not restricted to a fixed whitelist — the user
+/// explicitly dropped or pasted this URL.
+#[tauri::command]
+fn open_project_url(url: String) -> bool {
+    if !is_safe_project_url(&url) {
+        log::line(format!("refused to open project url {url}"));
+        return false;
+    }
+    platform::open_url(&url);
+    true
+}
+
+/// Forward a Chat Completions request to OpenAI from Rust, bypassing CSP.
+/// `api_key` is never logged. Returns the assistant's text content on success.
+#[tauri::command]
+async fn openai_chat(api_key: String, body: String) -> Result<String, String> {
+    if api_key.is_empty() {
+        return Err("No API key".to_string());
+    }
+    let res = web_client()
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("network:{e}"))?;
+    let status = res.status().as_u16();
+    if status == 401 {
+        return Err("invalid-key".to_string());
+    }
+    // 429 = rate limit; 402 = no credits / billing issue — both surface as quota errors.
+    if status == 429 || status == 402 {
+        return Err("rate-limit".to_string());
+    }
+    if !res.status().is_success() {
+        return Err(format!("status:{status}"));
+    }
+    res.text().await.map_err(|e| e.to_string())
+}
+
+// ── Settings window ───────────────────────────────────────────────────────────
 
 /// WebView2 allows exactly one browser environment per app, and its options are
 /// fixed by whichever webview is created first. Every window (Candy's desktop
@@ -1178,10 +1336,19 @@ pub fn run() {
             ohlcv,
             start_update,
             solana_rpc,
+            fetch_page,
             evm_rpc,
             set_panel,
             panel_place,
             panel_closing,
+            rdap_lookup,
+            dns_lookup,
+            open_project_url,
+            openai_chat,
+            speech::start_voice_listening,
+            speech::stop_voice_listening,
+            open_settings_window,
+            browser::get_active_tab_url,
         ])
         .setup(move |app| {
             // A menu bar app on a Mac: no Dock icon, no menu bar of its own (Info.plist says so too).

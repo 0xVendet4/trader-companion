@@ -16,7 +16,7 @@ import { fngTone } from "../market/sentiment";
 import { chipWord, nextRelease, releases, untilShort, weekLines } from "../market/calendar";
 import { currentLog, dayPill, summarize } from "../discipline/discipline";
 
-const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music"];
+const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music", "chat"];
 
 /** The tabs the header shows right now, in order: Following is an option, Music needs a player on the PC. */
 export function shownTabs(): IslandViewName[] {
@@ -51,6 +51,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     wallets: tab("wallets", ICONS.eye, t("Following"), 2),
     discipline: tab("discipline", ICONS.shield, t("Discipline")),
     music: tab("music", ICONS.note, t("Music")),
+    chat: tab("chat", ICONS.chat, t("Chat")),
   };
 
   // The day against the trader's own limits; a click opens Discipline.

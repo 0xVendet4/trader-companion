@@ -320,7 +320,9 @@ It talks only to public services, for public data:
 
 And GitHub, for updates: every half hour Candy reads the version in this repository (`raw.githubusercontent.com`), and only when you say *Update now* does it download the code (`codeload.github.com`).
 
-Each of these services sees your IP address, as with any website. Links you click open in your browser (GMGN, Axiom, Based Bot, DexScreener, RugCheck, Solscan, Etherscan, BscScan, BaseScan, GitHub, and Helius or Alchemy for a free RPC key).
+**OpenAI (optional, off by default):** If you add an OpenAI API key in *Settings → AI*, two things are sent to OpenAI's API: (a) messages you type in the Chat tab, and (b) the text extracted from any website you drop on Candy for analysis. Your key is stored in the same local settings file as the rest of your preferences and is never logged or sent anywhere else. Without a key, nothing changes — the app makes no calls to OpenAI.
+
+Each of these services sees your IP address, as with any website. Links you click open in your browser (GMGN, Axiom, Based Bot, DexScreener, RugCheck, Solscan, GitHub, and Helius or Alchemy for a free RPC key).
 
 ## How it works
 

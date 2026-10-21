@@ -7,7 +7,7 @@
 
 import { N_, t } from "./i18n";
 
-export type ShortcutId = "toggle" | "paste" | "alert" | "nextTab" | "prevTab" | "mute" | "wardrobe" | "desktop";
+export type ShortcutId = "toggle" | "paste" | "alert" | "nextTab" | "prevTab" | "mute" | "wardrobe" | "desktop" | "chat" | "voice-chat" | "research-checklist";
 
 export interface ShortcutDef {
   id: ShortcutId;
@@ -26,6 +26,9 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "mute", label: N_("Mute / unmute"), dflt: "CommandOrControl+Alt+S" },
   { id: "wardrobe", label: N_("Wardrobe"), dflt: "CommandOrControl+Alt+G" },
   { id: "desktop", label: N_("Candy to the desktop, or home"), dflt: "CommandOrControl+Alt+D" },
+  { id: "chat", label: N_("Open / close Chat"), dflt: "CommandOrControl+Alt+C" },
+  { id: "voice-chat", label: N_("Voice chat"), dflt: "CommandOrControl+Shift+V" },
+  { id: "research-checklist", label: N_("Research token from browser"), dflt: "CommandOrControl+Shift+M" },
 ];
 
 /** What a shortcut's registration came to, for Settings. */

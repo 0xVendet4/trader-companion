@@ -44,6 +44,8 @@ export const DESKTOP_EVENTS = {
   emote: "desktop-emote",
   /** A reaction for him to play, `{ state, ms }` (the cool look of a 2x's shades). */
   react: "desktop-react",
+  /** island → desktop window: show a line in the speech bubble. Payload: { text, ms }. */
+  say: "desktop-say",
   /** desktop window → island */
   ready: "desktop-ready",
   home: "desktop-home",
@@ -62,7 +64,7 @@ export const DESKTOP_EVENTS = {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /** Side of the desktop window, logical pixels (desktop.rs SIZE). */
-export const PANEL_SIZE = 168;
+export const PANEL_SIZE = 280;
 /** The mascot's box inside it: the canvases' overhang fills the rest. */
 export const MASCOT_SIZE = 112;
 /** Seconds with nothing going on before he may doze off. */
@@ -70,7 +72,7 @@ export const SLEEP_TIMEOUT = 120;
 /** He only dozes off once the pointer is at least this far from him, px. */
 export const SLEEP_MOUSE_DISTANCE = 150;
 /** Clickable body radius, as a fraction of the window side (desktop.rs too). */
-export const BODY_RADIUS_FRACTION = 0.22;
+export const BODY_RADIUS_FRACTION = 0.132;
 
 /** Surprised, then off to the island (0.45 s). */
 export const RETRACT_DELAY_MS = 450;

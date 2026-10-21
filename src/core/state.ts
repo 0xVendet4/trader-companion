@@ -367,7 +367,7 @@ export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "
  */
 export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee"];
 /** Costumes that changed id, by their old one. */
-const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow" };
+const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow", max: "max-headroom", silvio: "max-headroom" };
 
 /**
  * A friend's build (`npm run pack:edition -- <id>` sets VITE_EXCLUSIVE_COSTUME):
@@ -568,6 +568,8 @@ export interface Companion {
   dayEndAt: string;
   /** The day (YYYY-MM-DD) the end-of-day recap last played for; "" = never. */
   dayEndShown: string;
+  /** OpenAI API key; "" = feature off. Stored in settings.json as-is. */
+  openaiKey: string;
 }
 
 /** A column the watchlist can be sorted by (src/market/watchsort.ts). */
@@ -692,6 +694,7 @@ export const DEFAULT_COMPANION: Companion = {
   chartInterval: DEFAULT_CHART_INTERVAL,
   dayEndAt: DAY_END_DEFAULT,
   dayEndShown: "",
+  openaiKey: "",
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -815,6 +818,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (typeof s.companion.dayEndAt !== "string") s.companion.dayEndAt = DAY_END_DEFAULT;
   else if (s.companion.dayEndAt !== "" && dayEndMinutes(s.companion.dayEndAt) == null) s.companion.dayEndAt = DAY_END_DEFAULT;
   if (typeof s.companion.dayEndShown !== "string") s.companion.dayEndShown = "";
+  if (typeof s.companion.openaiKey !== "string") s.companion.openaiKey = "";
   // Shades and laser eyes were outfits before the face slot: move them over.
   const oldOutfit = c.outfit as string | undefined;
   if ((oldOutfit === "shades" || oldOutfit === "laser") && c.face == null) s.companion.face = oldOutfit;
@@ -926,7 +930,35 @@ export type CompanionEvent =
   /** A newer Candy on GitHub: update now, with the user's go-ahead (see src/core/update.ts). */
   | { kind: "update"; id: string; version: string }
   /** A US release the whole market watches is near (src/market/calendar.ts): its label, when, and its lines. */
-  | { kind: "macro"; id: string; label: string; at: number; lines: string[] };
+  | { kind: "macro"; id: string; label: string; at: number; lines: string[] }
+  /** A project URL dropped on Candy: AI summary + RDAP/DNS data. */
+  | {
+      kind: "project-analysis";
+      id: string;
+      url: string;
+      domain: string;
+      status: "loading" | "done" | "error";
+      summary?: string;
+      rdap?: import("../ai/rdap").RdapInfo;
+      dns?: import("../ai/dns").DnsInfo;
+      error?: string;
+      tone: "warn" | "calm";
+    }
+  /** Cmd+Shift+R while a GMGN/Axiom tab is open: rug-check + socials research. */
+  | {
+      kind: "research-checklist";
+      id: string;
+      mint: string;
+      url: string;
+      symbol?: string;
+      checks: ResearchCheckItem[];
+    };
+
+export interface ResearchCheckItem {
+  label: string;
+  state: "ok" | "warn" | "unknown";
+  detail: string;
+}
 
 export type MarketStatus = "idle" | "loading" | "ok" | "error";
 
@@ -940,7 +972,8 @@ export type IslandViewName =
   | "wardrobe"
   | "music"
   | "event"
-  | "greeting";
+  | "greeting"
+  | "chat";
 
 /** RugCheck's read of a token. `level` is ours, derived from its risks. */
 export interface SafetyReport {

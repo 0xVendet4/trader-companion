@@ -1245,13 +1245,25 @@ export class Mascot {
     this.bubbleTimer = null;
     if (!text) {
       this.bubble.classList.remove("on");
+      this.bubble.style.transform = "";
       return;
     }
     this.bubble.textContent = text;
     // Replay the pop-in even when a line replaces another.
     this.bubble.classList.remove("on");
+    this.bubble.style.transform = "";
     void this.bubble.offsetWidth;
     this.bubble.classList.add("on");
+    // Clamp so the bubble never clips the viewport edge.
+    requestAnimationFrame(() => {
+      const r = this.bubble.getBoundingClientRect();
+      const pad = 6;
+      if (r.left < pad) {
+        this.bubble.style.transform = `translateX(calc(-50% + ${pad - r.left}px))`;
+      } else if (r.right > window.innerWidth - pad) {
+        this.bubble.style.transform = `translateX(calc(-50% + ${window.innerWidth - pad - r.right}px))`;
+      }
+    });
     this.bubbleTimer = window.setTimeout(() => {
       this.bubbleTimer = null;
       this.bubble.classList.remove("on");
