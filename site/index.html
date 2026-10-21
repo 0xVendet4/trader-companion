@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Candy: a tiny friend that watches your memecoins</title>
+    <meta name="description" content="Candy is a little mascot that lives at the top of your screen and watches your memecoins: watchlist, alerts, wallet PnL, trading limits and an AI chat. Free and open source for Windows, macOS and Linux." />
+    <meta name="theme-color" content="#05070d" />
+    <link rel="icon" type="image/svg+xml" href="/mascot/still/idle.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Meet Candy" />
+    <meta property="og:description" content="A little mascot that lives at the top of your screen and watches your memecoins. Free and open source." />
+    <meta property="og:url" content="__SITE__/" />
+    <meta property="og:image" content="__SITE__/assets/og.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="__SITE__/assets/og.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap" />
+    <link rel="stylesheet" href="/site.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#top"><img src="/assets/candy.svg" alt="" width="28" height="32" />Candy</a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#try">Try it</a>
+        <a href="#token">$CANDY</a>
+        <a href="https://github.com/0xVendet4/trader-companion">GitHub</a>
+      </nav>
+      <a class="btn small" href="#download">Download</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <a class="pill" href="https://apps.microsoft.com/detail/9N2W6TPSTBLQ?mode=direct"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" /><path d="M6.5 12.5l3.6 3.4 7.4-7.6" /></svg>Verified on the Microsoft Store</a>
+        <h1>Meet <span>Candy</span></h1>
+        <p class="lead">A little mascot that lives at the top of your screen and watches your memecoins, so you don't have to stare at charts all day.</p>
+        <div class="ctas">
+          <a class="btn primary" href="https://apps.microsoft.com/detail/9N2W6TPSTBLQ?mode=direct"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zM11.5 4.3 21 3v8.5h-9.5zM3 12.5h7.5v7.1L3 18.5zM11.5 12.5H21V21l-9.5-1.3z" /></svg>Get it for Windows</a>
+          <a class="btn" href="https://github.com/0xVendet4/trader-companion/releases/latest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.5 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9s-2-.9-3.3-.9C6.1 7 4.5 8 3.6 9.5c-1.8 3.2-.5 7.9 1.3 10.5.9 1.3 1.9 2.7 3.2 2.6 1.3 0 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.3 3.1-2.6 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.8-4.5zM14 5.1c.7-.9 1.2-2 1.1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.8-1.4z" /></svg>Download for Mac</a>
+          <a class="btn ghost" href="https://github.com/0xVendet4/trader-companion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0C17.3 4.3 18.3 4.6 18.3 4.6c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z" /></svg>View on GitHub</a>
+        </div>
+        <p class="fine">Free and open source · Windows, macOS and Linux</p>
+      </section>
+
+      <section class="try" id="try">
+        <div class="screen">
+          <div class="screen-bar"><i></i><i></i><i></i><span>Try it: this is the real Candy, on demo data. Click around.</span></div>
+          <iframe src="/demo.html?play&amp;format=horizontal" title="Candy, live demo" loading="lazy"></iframe>
+          <div class="screen-phone">
+            <img src="/assets/hero.webp" alt="Candy's watchlist" width="660" height="260" />
+            <p>Open this page on a computer to try Candy live.</p>
+          </div>
+        </div>
+        <a class="tour" href="/demo.html" target="_blank" rel="noopener"><span>▶</span>Watch the 1-minute tour, with sound</a>
+      </section>
+
+      <section class="features" id="features">
+        <article>
+          <div class="text">
+            <h2>Every coin you follow, at a glance</h2>
+            <p>Add a token by name, address or DexScreener link and Candy follows it: price, market cap, liquidity, volume, buys and sells, with a tiny chart.</p>
+            <ul class="chips"><li>Solana</li><li>BSC</li><li>Ethereum</li><li>Base</li><li>Robinhood Chain</li></ul>
+          </div>
+          <figure><img src="/assets/hero.webp" alt="Candy's watchlist with four tokens" width="660" height="260" loading="lazy" /></figure>
+        </article>
+        <article>
+          <div class="text">
+            <h2>It tells you when it matters</h2>
+            <p>Set alerts on price, market cap or sell pressure. When one hits, Candy jumps, sparkles or sulks right on your screen, with a notification you can act on.</p>
+          </div>
+          <figure><img src="/assets/alert.webp" alt="An alert: CANDLE up 34.2% in 5 minutes" width="690" height="176" loading="lazy" /></figure>
+        </article>
+        <article>
+          <div class="text">
+            <h2>Your wallet, read-only</h2>
+            <p>Paste a wallet address and see what you hold, where you got in and your PnL, including today's profit. Solana and EVM wallets. Candy only reads: no keys, no connect button.</p>
+          </div>
+          <figure><img src="/assets/wallet.webp" alt="The wallet view with holdings and PnL" width="690" height="334" loading="lazy" /></figure>
+        </article>
+        <article>
+          <div class="text">
+            <h2>It keeps you honest</h2>
+            <p>A daily loss limit, a trade cap, a cooldown after a loss and a nudge before you chase a pump. Your rules, kept by a friend who never gets tired.</p>
+          </div>
+          <figure><img src="/assets/discipline.webp" alt="Today's trades, the loss limit and the session timer" width="690" height="247" loading="lazy" /></figure>
+        </article>
+        <article>
+          <div class="text">
+            <h2>Ask Candy</h2>
+            <p>An optional AI chat on your own OpenAI key. Drop a project's site on it for a quick check of the domain, the hosting and any red flags. Or just talk to it: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd>, <kbd>⌘</kbd><kbd>⌥</kbd><kbd>M</kbd> on a Mac.</p>
+          </div>
+          <figure><img src="/assets/chat.webp" alt="Candy's chat checking a project's site" width="660" height="320" loading="lazy" /></figure>
+        </article>
+        <article>
+          <div class="text">
+            <h2>Dress it up</h2>
+            <p>37 hats, 36 faces, 24 colours and 15 costumes, Floki the viking shiba and Max Headroom included. Candy speaks 10 languages, too.</p>
+          </div>
+          <figure class="tall"><img src="/assets/closet.webp" alt="The closet, with Candy dressed as Floki" width="880" height="640" loading="lazy" /></figure>
+        </article>
+      </section>
+
+      <section class="parade" aria-hidden="true">
+        <div class="track">
+          <img src="/mascot/still/happy.svg" alt="" /><img src="/mascot/costumes/floki/happy.svg" alt="" /><img src="/mascot/costumes/pug/happy.svg" alt="" /><img src="/mascot/costumes/max-headroom/happy.svg" alt="" /><img src="/mascot/costumes/astronaut/happy.svg" alt="" /><img src="/mascot/costumes/ninja/happy.svg" alt="" /><img src="/mascot/costumes/robot/happy.svg" alt="" /><img src="/mascot/costumes/dino/happy.svg" alt="" /><img src="/mascot/costumes/bull/happy.svg" alt="" /><img src="/mascot/costumes/bear/happy.svg" alt="" /><img src="/mascot/costumes/ghost/happy.svg" alt="" /><img src="/mascot/costumes/bee/happy.svg" alt="" />
+        </div>
+      </section>
+
+      <section class="safe">
+        <h2>Read-only by design</h2>
+        <div class="cards">
+          <div><b>No keys, ever</b><p>Candy never asks for a seed phrase or a private key, and it never trades.</p></div>
+          <div><b>No account, no tracking</b><p>Your settings stay on your computer. No ads, no analytics.</p></div>
+          <div><b>Built in the open</b><p>Every download is built by GitHub from code you can read, and the Windows app is certified by Microsoft.</p></div>
+        </div>
+      </section>
+
+      <section class="token" id="token">
+        <div class="token-card">
+          <img class="token-candy" src="/assets/candy.svg" alt="" />
+          <div class="token-body">
+            <span class="kicker">On Solana</span>
+            <h2>$CANDY</h2>
+            <p class="label">Contract address (CA)</p>
+            <div class="ca">
+              <code id="ca">HCNU8p6zbaTpTSVMx7D3j4c9dJySmsgMw6oKmDxSpump</code>
+              <button type="button" id="copy">Copy</button>
+            </div>
+            <div class="token-links">
+              <a class="btn small" href="https://dexscreener.com/solana/HCNU8p6zbaTpTSVMx7D3j4c9dJySmsgMw6oKmDxSpump">DexScreener</a>
+              <a class="btn small ghost" href="https://pump.fun/coin/HCNU8p6zbaTpTSVMx7D3j4c9dJySmsgMw6oKmDxSpump">pump.fun</a>
+            </div>
+            <p class="note">A community memecoin, with no promise of value. The app stays free and never needs it. Always check the CA.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="download" id="download">
+        <h2>Get Candy</h2>
+        <div class="cards">
+          <div>
+            <b>Windows</b>
+            <p>From the Microsoft Store, updates included.</p>
+            <a class="btn primary small" href="https://apps.microsoft.com/detail/9N2W6TPSTBLQ?mode=direct">Microsoft Store</a>
+            <a class="alt" href="https://github.com/0xVendet4/trader-companion/releases/latest">or the installer on GitHub</a>
+          </div>
+          <div>
+            <b>macOS</b>
+            <p>One app for Apple Silicon and Intel Macs.</p>
+            <a class="btn primary small" href="https://github.com/0xVendet4/trader-companion/releases/latest">Download the zip</a>
+            <a class="alt" href="https://github.com/0xVendet4/trader-companion#macos">How to install</a>
+          </div>
+          <div>
+            <b>Linux</b>
+            <p>Builds on your computer from the source, in one command.</p>
+            <a class="btn primary small" href="https://github.com/0xVendet4/trader-companion#linux">Install guide</a>
+            <a class="alt" href="https://github.com/0xVendet4/trader-companion">Source code</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="#top"><img src="/assets/candy.svg" alt="" width="22" height="25" />Candy</a>
+      <span>© 2026 0xVendetta · MIT license</span>
+      <nav>
+        <a href="https://github.com/0xVendet4/trader-companion">GitHub</a>
+        <a href="https://apps.microsoft.com/detail/9N2W6TPSTBLQ">Microsoft Store</a>
+        <a href="https://github.com/0xVendet4/trader-companion/blob/main/docs/PRIVACY.md">Privacy</a>
+      </nav>
+    </footer>
+    <script src="/site.js" defer></script>
+  </body>
+</html>

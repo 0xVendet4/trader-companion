@@ -20,7 +20,8 @@
     "record-demo": "node scripts/record-demo.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "gifs": "node scripts/record-gifs.mjs",
-    "panel-check": "node scripts/panel-check.mjs"
+    "panel-check": "node scripts/panel-check.mjs",
+    "site": "node scripts/build-site.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

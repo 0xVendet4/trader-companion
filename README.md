@@ -354,6 +354,7 @@ npm run setup         # build and install (README → Install); --build-only to 
 npm run pack          # Windows: the installer → release/
 npm run bump -- 0.1.2 # a new version, everywhere it is written; push it and installs offer the update
 npm run i18n          # what each language is missing (src/i18n/); -- --keys lists every English line
+npm run site          # the website (site/, with the demo to try) → site-dist/, as Vercel builds it
 ```
 
 Every visible line goes through `t("…")` (`src/core/i18n.ts`), with English as the key; `src/i18n/<language>.ts` holds the other nine, and a test fails when one of them misses a line the code uses.

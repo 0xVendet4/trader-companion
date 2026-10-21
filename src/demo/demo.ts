@@ -1856,13 +1856,23 @@ async function main() {
   placeCursor();
 
   // ?still freezes the page (the recorder encodes on it); ?record waits for
-  // the recorder to start filming; ?autoplay starts at once, silently;
-  // otherwise a visitor presses play, which also unlocks sound.
+  // the recorder to start filming; ?autoplay starts at once, silently; ?play
+  // leaves the desk to a visitor (the website's "try it"); otherwise a
+  // visitor presses play, which also unlocks sound.
   if (params.has("still")) return;
-  if (params.has("stills")) {
+  if (params.has("stills") || params.has("play")) {
     // A day with a win and a loss behind it, for the discipline still.
     Companion.recordTrade(-0.4, "", { quiet: true, symbol: FROGE.symbol });
     Companion.recordTrade(1.3, "", { quiet: true, symbol: CANDLE.symbol });
+    if (!params.has("stills")) {
+      // The whole desk, held still: the slow push-in would crop the island at the top.
+      camera(SHOTS.wide, 0, { drift: false, free: true });
+      // Open, so a visitor sees what Candy holds before touching it, and slow to close.
+      State.settings.autoCloseInterval = 60;
+      island.applySettings();
+      window.setTimeout(() => island.fsm.click(), 900);
+      return;
+    }
     // The compact island on or off, for stills of both (Settings → Compact island).
     const compact = (on: boolean) => {
       State.companion.compactIsland = on ? "on" : "off";
