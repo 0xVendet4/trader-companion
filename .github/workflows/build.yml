@@ -125,9 +125,11 @@ jobs:
         run: npm run setup -- --build-only
 
   # The same tests and build on a Mac, then the app itself is started. Rust and
-  # Apple's Command Line Tools come with the runner.
+  # Apple's Command Line Tools come with the runner. An Intel Mac: GitHub's
+  # Apple Silicon ones were often too busy to take the job at all, and the
+  # universal app below is built for both kinds of Mac either way.
   macos:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
 
     steps:
       - uses: actions/checkout@v7
@@ -144,8 +146,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: macos-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: macos-cargo-
+          key: macos-intel-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: macos-intel-cargo-
 
       - name: Install dependencies
         run: npm ci
