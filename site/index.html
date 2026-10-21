@@ -45,15 +45,18 @@
       </section>
 
       <section class="try" id="try">
-        <div class="screen">
-          <div class="screen-bar"><i></i><i></i><i></i><span>Try it: this is the real Candy, on demo data. Click around.</span></div>
-          <iframe src="/demo.html?play&amp;format=horizontal" title="Candy, live demo" loading="lazy"></iframe>
+        <div class="modes" role="tablist">
+          <button type="button" role="tab" aria-selected="true" data-mode="play">Try it yourself</button>
+          <button type="button" role="tab" aria-selected="false" data-mode="tour"><span>▶</span>Watch the tour</button>
+        </div>
+        <div class="screen" data-mode="play">
+          <div class="screen-bar"><i></i><i></i><i></i><span id="screen-note">This is the real Candy, on demo data. Click around.</span></div>
+          <iframe src="/demo.html?play&amp;format=horizontal" title="Candy, live demo" loading="lazy" allow="autoplay"></iframe>
           <div class="screen-phone">
             <img src="/assets/hero.webp" alt="Candy's watchlist" width="660" height="260" />
-            <p>Open this page on a computer to try Candy live.</p>
+            <p>Open this page on a computer to try Candy live, or watch the tour.</p>
           </div>
         </div>
-        <a class="tour" href="/demo.html" target="_blank" rel="noopener"><span>▶</span>Watch the 1-minute tour, with sound</a>
       </section>
 
       <section class="features" id="features">
@@ -70,21 +73,21 @@
             <h2>It tells you when it matters</h2>
             <p>Set alerts on price, market cap or sell pressure. When one hits, Candy jumps, sparkles or sulks right on your screen, with a notification you can act on.</p>
           </div>
-          <figure><img src="/assets/alert.webp" alt="An alert: CANDLE up 34.2% in 5 minutes" width="690" height="176" loading="lazy" /></figure>
+          <figure><img src="/assets/alert.webp" alt="An alert: CANDLE up 34.2% in 5 minutes" width="660" height="168" loading="lazy" /></figure>
         </article>
         <article>
           <div class="text">
             <h2>Your wallet, read-only</h2>
             <p>Paste a wallet address and see what you hold, where you got in and your PnL, including today's profit. Solana and EVM wallets. Candy only reads: no keys, no connect button.</p>
           </div>
-          <figure><img src="/assets/wallet.webp" alt="The wallet view with holdings and PnL" width="690" height="334" loading="lazy" /></figure>
+          <figure><img src="/assets/wallet.webp" alt="The wallet view with holdings and PnL" width="660" height="320" loading="lazy" /></figure>
         </article>
         <article>
           <div class="text">
             <h2>It keeps you honest</h2>
             <p>A daily loss limit, a trade cap, a cooldown after a loss and a nudge before you chase a pump. Your rules, kept by a friend who never gets tired.</p>
           </div>
-          <figure><img src="/assets/discipline.webp" alt="Today's trades, the loss limit and the session timer" width="690" height="247" loading="lazy" /></figure>
+          <figure><img src="/assets/discipline.webp" alt="Today's trades, the loss limit and the session timer" width="660" height="236" loading="lazy" /></figure>
         </article>
         <article>
           <div class="text">
@@ -98,14 +101,8 @@
             <h2>Dress it up</h2>
             <p>37 hats, 36 faces, 24 colours and 15 costumes, Floki the viking shiba and Max Headroom included. Candy speaks 10 languages, too.</p>
           </div>
-          <figure class="tall"><img src="/assets/closet.webp" alt="The closet, with Candy dressed as Floki" width="880" height="640" loading="lazy" /></figure>
+          <figure class="tall"><img src="/assets/closet.webp" alt="The closet, with Candy wearing a crown" width="880" height="640" loading="lazy" /></figure>
         </article>
-      </section>
-
-      <section class="parade" aria-hidden="true">
-        <div class="track">
-          <img src="/mascot/still/happy.svg" alt="" /><img src="/mascot/costumes/floki/happy.svg" alt="" /><img src="/mascot/costumes/pug/happy.svg" alt="" /><img src="/mascot/costumes/max-headroom/happy.svg" alt="" /><img src="/mascot/costumes/astronaut/happy.svg" alt="" /><img src="/mascot/costumes/ninja/happy.svg" alt="" /><img src="/mascot/costumes/robot/happy.svg" alt="" /><img src="/mascot/costumes/dino/happy.svg" alt="" /><img src="/mascot/costumes/bull/happy.svg" alt="" /><img src="/mascot/costumes/bear/happy.svg" alt="" /><img src="/mascot/costumes/ghost/happy.svg" alt="" /><img src="/mascot/costumes/bee/happy.svg" alt="" />
-        </div>
       </section>
 
       <section class="safe">
