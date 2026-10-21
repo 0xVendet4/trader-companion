@@ -154,7 +154,7 @@ Windows warns that the file came from the internet: click *More info → Run any
 
 ### macOS
 
-Download **`Candy-macOS-<version>.zip`** from the [latest release](https://github.com/0xVendet4/trader-companion/releases/latest), double-click it to unzip, and drag **`Candy.app`** to your Applications folder. The first time you open it, macOS says it can't check the app, because it isn't signed with an Apple developer certificate: open *System Settings → Privacy & Security*, scroll down and click *Open Anyway* (on macOS 14 or older: right-click Candy → *Open* → *Open*). Candy lives in the menu bar, with no Dock icon; one app runs on Apple Silicon and Intel Macs, macOS 11 or newer. To remove it, drag `Candy.app` to the Trash.
+Download **`Candy-macOS-<version>.dmg`** from the [latest release](https://github.com/0xVendet4/trader-companion/releases/latest), open it and drag **Candy** onto the Applications folder next to it (the `.zip` there holds the same app: double-click it to unzip and drag `Candy.app` to Applications). The first time you open it, macOS says it can't check the app, because it isn't signed with an Apple developer certificate: open *System Settings → Privacy & Security*, scroll down and click *Open Anyway* (on macOS 14 or older: right-click Candy → *Open* → *Open*). Candy lives in the menu bar, with no Dock icon; one app runs on Apple Silicon and Intel Macs, macOS 11 or newer. To remove it, drag `Candy.app` to the Trash.
 
 <details>
 <summary><b>Or build it yourself</b></summary>
