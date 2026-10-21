@@ -1032,7 +1032,6 @@ const words: Dict = {
   "Bow tie": "나비넥타이",
   "Gold chain": "금목걸이",
   "Blueprint": "청사진",
-  "Penguin": "펭귄",
   "Bee": "꿀벌",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "지금 업데이트: GitHub에서 새 버전을 받아 설치하고 다시 시작해요. 설정은 그대로예요.",
   "Downloading the new version…": "새 버전 다운로드 중…",

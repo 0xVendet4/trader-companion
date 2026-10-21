@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { beakOf, drawRig, meltSeat, type Look } from "./paint";
+import { drawRig, meltSeat, type Look } from "./paint";
 import { parseRig, type Box, type Op, type Rig } from "./rig";
 
 const art = (f: string) => readFileSync(join(__dirname, "..", "..", "public", "mascot", f), "utf8");
@@ -93,14 +93,14 @@ describe("melting, on bodies rounder than Candy's", () => {
   it("reads the corners from the body's own rect", () => {
     expect(meltSeat(parseRig(art("idle.svg"))!)).toMatchObject({ rx: 22, ry: 22, foot: 106 });
     expect(meltSeat(parseRig(art("costumes/ghost/idle.svg"))!)).toMatchObject({ rx: 30, ry: 30 });
-    expect(meltSeat(parseRig(art("costumes/penguin/idle.svg"))!)).toMatchObject({ rx: 28, ry: 30, foot: 106 });
+    expect(meltSeat(parseRig(art("costumes/floki/idle.svg"))!)).toMatchObject({ rx: 27, ry: 29, foot: 106 });
     expect(meltSeat(parseRig(art("costumes/robot/idle.svg"))!)).toMatchObject({ rx: 12, ry: 12 });
   });
 
   for (const [name, f] of [
     ["Candy", "worried.svg"],
     ["the ghost (rx 30)", "costumes/ghost/worried.svg"],
-    ["the penguin (rx 28, ry 30)", "costumes/penguin/worried.svg"],
+    ["Floki (rx 27, ry 29)", "costumes/floki/worried.svg"],
   ] as const) {
     it(`${name}: at the last stage nothing of the wax sticks out past the round of his top`, () => {
       const rig = parseRig(art(f))!;
@@ -147,9 +147,9 @@ describe("melting, on bodies rounder than Candy's", () => {
     }
   });
 
-  it("the penguin: the wax runs over his white face too", () => {
-    const rig = parseRig(art("costumes/penguin/sad.svg"))!;
-    const white = rig.ops.find((o) => o.part === "skin" && o.fill && "color" in o.fill && o.fill.color === "#fbfcff")!;
+  it("Floki: the wax runs over his white muzzle too", () => {
+    const rig = parseRig(art("costumes/floki/sad.svg"))!;
+    const white = rig.ops.find((o) => o.part === "skin" && o.fill && "color" in o.fill && o.fill.color === "#fff8ee")!;
     expect(white.meltOver).toBe(true);
     const marks = draw(rig, look({ melt: 0.67 }));
     expect(marks.findIndex((m) => m.kind === "fill" && m.style === WAX)).toBeGreaterThan(filled(marks, white));
@@ -168,60 +168,5 @@ describe("melting, on bodies rounder than Candy's", () => {
     const { c, marks } = recorder();
     drawRig(c, rig, (op) => op.part === "back" || op.part === "body" || op.part === "front", look({ melt: 1 }), rig.body);
     expect(marks.filter((m) => m.kind === "fill" && m.style === WAX).length).toBe(7);
-  });
-});
-
-describe("a beak opens instead of vanishing under a round mouth", () => {
-  /** The penguin's colours: the upper beak's gradient, the dark of his outline. */
-  const upper = (rig: Rig) => rig.ops.find((o) => o.part === "face" && o.fill && "gradient" in o.fill && o.fill.gradient.stops[0].color === "#fdba74")!;
-
-  it("finds the penguin's upper beak, and no beak on Candy or any other costume", () => {
-    for (const s of ["idle", "happy", "proud", "sad", "angry", "nervous", "sleepy", "cool"]) {
-      const rig = parseRig(art(`costumes/penguin/${s}.svg`))!;
-      expect(beakOf(rig), s).toBe(upper(rig));
-    }
-    for (const f of ["idle.svg", "happy.svg", "costumes/ghost/idle.svg", "costumes/dino/idle.svg", "costumes/robot/idle.svg", "costumes/gengar/idle.svg", "costumes/astronaut/idle.svg", "costumes/ninja/idle.svg", "costumes/shadow/idle.svg", "costumes/spiderman/idle.svg"]) {
-      expect(beakOf(parseRig(art(f))!), f).toBeNull();
-    }
-  });
-
-  for (const [what, mouth] of [
-    ["wide open (a link held over him)", { open: 1, chew: 0 }],
-    ["laughing", { open: 0.8, chew: 0, grin: true }],
-    ["chewing", { open: 0, chew: 0.6 }],
-  ] as const) {
-    it(`${what}: the upper beak is painted over the opening, the art's lower beak gives way to an open one`, () => {
-      for (const s of ["idle", "happy", "worried", "focused", "proud"]) {
-        const rig = parseRig(art(`costumes/penguin/${s}.svg`))!;
-        const marks = draw(rig, look({ mouth }));
-        const beak = filled(marks, upper(rig));
-        // The gape: a dark oval, filled in the art's outline colour, before the beak.
-        const gape = marks.findIndex((m) => m.kind === "fill" && m.style === "#0b0f1a" && m.path?.calls.some((c) => c[0] === "ellipse"));
-        expect(gape, s).toBeGreaterThan(-1);
-        expect(beak, s).toBeGreaterThan(gape);
-        // Painted once, and nothing round and dark over it afterwards.
-        expect(marks.filter((m) => m.kind === "fill" && m.path?.d === (upper(rig).shape as { d: string }).d), s).toHaveLength(1);
-        expect(marks.slice(beak + 1).some((m) => m.kind === "fill" && m.style === "#0b0f1a"), s).toBe(false);
-        // The art's own mouth (the lower beak, the fish) is not drawn: the open one is, in orange.
-        for (const o of rig.ops.filter((o) => o.part === "mouth")) expect(filled(marks, o), `${s}: a mouth shape`).toBe(-1);
-        expect(marks.slice(gape, beak).some((m) => m.kind === "fill" && typeof m.style === "string" && /^rgb\(2[0-9]{2},/.test(m.style)), s).toBe(true);
-      }
-    });
-  }
-
-  it("the proud fish is all mouth: an open beak drops it whole, tail and all", () => {
-    const rig = parseRig(art("costumes/penguin/proud.svg"))!;
-    const fish = rig.ops.filter((o) => o.fill && "color" in o.fill && ["#60a5fa", "#93c5fd"].includes(o.fill.color));
-    expect(fish).toHaveLength(2);
-    for (const o of fish) expect(o.part).toBe("mouth");
-  });
-
-  it("Candy's own mouth still opens over everything", () => {
-    const rig = parseRig(art("idle.svg"))!;
-    const marks = draw(rig, look({ mouth: { open: 1, chew: 0 } }));
-    const last = marks.filter((m) => m.kind === "fill").at(-2)!;
-    // The dark oval, then the tongue: the last two fills.
-    expect(last.path).toBeNull();
-    expect(marks.filter((m) => m.kind === "fill").at(-1)!.style).toBe("#fb7185");
   });
 });

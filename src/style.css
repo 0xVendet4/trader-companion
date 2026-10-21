@@ -3330,10 +3330,10 @@ body[data-placement="top"] .panel-icon {
   aspect-ratio: 6 / 5;
 }
 
-/* Fifteen costumes (the pug made it fifteen): eight to a row on the island,
-   open or compact, so two rows show them all with nothing to scroll to; the
-   sidebar keeps its five, three full rows. The names are a little smaller
-   on the narrower cards (Astronaut, Dinosaur, Spiderman fit at 9 px). */
+/* Sixteen costumes (Floki and Max Headroom made it sixteen): eight to a row
+   on the island, open or compact, so two full rows show them all with nothing
+   to scroll to. The names are a little smaller on the narrower cards
+   (Astronaut, Dinosaur, Spiderman fit at 9 px). */
 body:not(.sidebar) .wardrobe-grid.costumes:has(> .look:nth-child(15)) {
   grid-template-columns: repeat(8, minmax(0, 1fr));
 }
@@ -3675,24 +3675,34 @@ body[data-placement="right"] #content {
   grid-template-columns: repeat(5, 1fr);
 }
 
-/* Eleven to fourteen costumes (all of them, no friend's edition): seven to a
-   row, two full rows rather than three with the last one part empty. The
-   cards are narrower, so the pictures are a little taller than wide and the
-   name takes the card's whole width (Dinossauro, Космонавт fit at 9 px). */
+/* Eleven to fourteen costumes: seven to a row; sixteen or more (all of them,
+   Floki and Max Headroom included): eight, as on the island. Two full rows
+   rather than three with the last one part empty; fifteen keeps the five,
+   three full rows. The cards are narrower, so the pictures are a little
+   taller than wide and the name takes the card's whole width (Dinossauro,
+   Космонавт fit at 9 px). */
 .sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 2px;
 }
 
-.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look {
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look,
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) .look {
   padding: 3px 3px 2px;
 }
 
-.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .mini-candy {
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .mini-candy,
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) .mini-candy {
   aspect-ratio: 1;
 }
 
-.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look-name {
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look-name,
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) .look-name {
   margin: 2px -3px 0;
   font-size: 9px;
   letter-spacing: -0.03em;

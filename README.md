@@ -283,7 +283,7 @@ A new version is a commit on `main` with the version bumped: GitHub builds it, p
 
 | Version | Date | Highlights |
 | --- | --- | --- |
-| 0.1.18 | Oct 21, 2026 | Ask Candy: a Chat tab and a look at any project's site through your own OpenAI key; a voice chat with the microphone of your choice; a browser research shortcut on a Mac; Max Headroom, a new costume |
+| 0.1.18 | Oct 21, 2026 | Ask Candy: a Chat tab and a look at any project's site through your own OpenAI key; a voice chat with the microphone of your choice; a browser research shortcut on a Mac; two new costumes, Max Headroom and Floki the viking shiba |
 | 0.1.17 | Oct 20, 2026 | Gutin, a new costume: a black pug in a rainbow propeller beanie with a rainbow lollipop |
 | 0.1.16 | Oct 19, 2026 | Installers for Windows and macOS on the Releases page, built by GitHub; Update now installs them |
 | 0.1.15 | Oct 14, 2026 | Island themes, a compact island, the hover chart, 0x wallets on Ethereum, BSC and Base, the Closet, night looks, emotes, Settings and the Closet inside the island, Update now on macOS and Linux |

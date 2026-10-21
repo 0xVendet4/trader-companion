@@ -359,13 +359,13 @@ export const SKIN_IDS: readonly Skin[] = [
  * costumes). Hats and faces still go on top; the colour does not apply.
  * "edition" is a friend's exclusive costume: only their build has it.
  */
-export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "max-headroom" | "ghost" | "penguin" | "bee" | "pug" | "edition";
-export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "max-headroom", "ghost", "penguin", "bee", "pug", "edition"];
+export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "max-headroom" | "ghost" | "bee" | "pug" | "floki" | "edition";
+export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "max-headroom", "ghost", "bee", "pug", "floki", "edition"];
 /**
  * Costumes named by a common noun, shown in the trader's language (Robô,
  * Roboter); the others are characters and keep their names everywhere (Gengar).
  */
-export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee"];
+export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "bee"];
 /** Costumes that changed id, by their old one. */
 const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow", max: "max-headroom", silvio: "max-headroom" };
 
@@ -403,11 +403,12 @@ export const COSTUME_NAMES: Record<Costume, string> = {
   bull: N_("Bull"),
   bear: N_("Bear"),
   ghost: N_("Ghost"),
-  penguin: N_("Penguin"),
   bee: N_("Bee"),
   // Gutin is a real pug, so he goes by his name everywhere.
   pug: "Gutin",
   "max-headroom": "Max Headroom",
+  // The viking shiba: a character, his name everywhere.
+  floki: "Floki",
   edition: EDITION_NAME,
 };
 

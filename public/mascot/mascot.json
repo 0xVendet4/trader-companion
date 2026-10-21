@@ -2410,30 +2410,168 @@
     "max-headroom": {
       "name": "Max Headroom",
       "states": {
-        "idle":      { "motion": "breathe", "frames": ["costumes/max-headroom/idle.svg"] },
-        "happy":     { "motion": "breathe", "frames": ["costumes/max-headroom/happy.svg"] },
-        "celebrate": { "fps": 4, "motion": "bounce", "fx": "sparkles", "frames": ["costumes/max-headroom/celebrate-1.svg", "costumes/max-headroom/celebrate-2.svg"] },
-        "worried":   { "motion": "sway", "tint": false, "frames": ["costumes/max-headroom/worried.svg"] },
-        "shocked":   { "motion": "shake", "tint": false, "frames": ["costumes/max-headroom/shocked.svg"] },
-        "sleepy":    { "motion": "droop", "fx": "zzz", "frames": ["costumes/max-headroom/sleepy.svg"] },
-        "alert":     { "motion": "jump", "fx": "bang", "frames": ["costumes/max-headroom/shocked.svg"] },
-        "tired":     { "motion": "droop", "frames": ["costumes/max-headroom/tired.svg"] },
-        "stop":      { "motion": "breathe", "tint": false, "frames": ["costumes/max-headroom/stop.svg"] },
-        "confused":  { "motion": "sway", "fx": "question", "frames": ["costumes/max-headroom/confused.svg"] },
-        "love":      { "motion": "breathe", "fx": "hearts", "frames": ["costumes/max-headroom/love.svg"] },
-        "wave":      { "fps": 3, "motion": "breathe", "frames": ["costumes/max-headroom/wave-1.svg", "costumes/max-headroom/wave-2.svg"] },
-        "proud":     { "motion": "bounce", "fx": "sparkles", "frames": ["costumes/max-headroom/proud.svg"] },
-        "sad":       { "motion": "droop", "tint": false, "frames": ["costumes/max-headroom/sad.svg"] },
-        "bored":     { "motion": "sway", "fx": "dots", "frames": ["costumes/max-headroom/bored.svg"] },
-        "focused":   { "motion": "none", "frames": ["costumes/max-headroom/focused.svg"] },
-        "nervous":   { "motion": "jitter", "frames": ["costumes/max-headroom/worried.svg"] },
-        "curious":   { "motion": "tilt", "fx": "question", "frames": ["costumes/max-headroom/curious.svg"] },
-        "angry":     { "motion": "jitter", "frames": ["costumes/max-headroom/angry.svg"] },
-        "excited":   { "motion": "bounce", "fx": "sparkles", "frames": ["costumes/max-headroom/celebrate-1.svg", "costumes/max-headroom/celebrate-2.svg"] },
-        "relieved":  { "motion": "breathe", "frames": ["costumes/max-headroom/relieved.svg"] },
-        "dizzy":     { "motion": "woozy", "frames": ["costumes/max-headroom/dizzy.svg"] },
-        "cool":      { "motion": "sway", "frames": ["costumes/max-headroom/cool.svg"] },
-        "sick":      { "motion": "droop", "frames": ["costumes/max-headroom/sick.svg"] }
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/max-headroom/idle.svg"
+          ]
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/max-headroom/happy.svg"
+          ]
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/max-headroom/celebrate-1.svg",
+            "costumes/max-headroom/celebrate-2.svg"
+          ]
+        },
+        "worried": {
+          "motion": "sway",
+          "tint": false,
+          "frames": [
+            "costumes/max-headroom/worried.svg"
+          ]
+        },
+        "shocked": {
+          "motion": "shake",
+          "tint": false,
+          "frames": [
+            "costumes/max-headroom/shocked.svg"
+          ]
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/max-headroom/sleepy.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/max-headroom/shocked.svg"
+          ]
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/max-headroom/tired.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "tint": false,
+          "frames": [
+            "costumes/max-headroom/stop.svg"
+          ]
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/max-headroom/confused.svg"
+          ]
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/max-headroom/love.svg"
+          ]
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/max-headroom/wave-1.svg",
+            "costumes/max-headroom/wave-2.svg"
+          ]
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/max-headroom/proud.svg"
+          ]
+        },
+        "sad": {
+          "motion": "droop",
+          "tint": false,
+          "frames": [
+            "costumes/max-headroom/sad.svg"
+          ]
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/max-headroom/bored.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/max-headroom/focused.svg"
+          ]
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/max-headroom/worried.svg"
+          ]
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/max-headroom/curious.svg"
+          ]
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/max-headroom/angry.svg"
+          ]
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/max-headroom/celebrate-1.svg",
+            "costumes/max-headroom/celebrate-2.svg"
+          ]
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/max-headroom/relieved.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/max-headroom/dizzy.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/max-headroom/cool.svg"
+          ]
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/max-headroom/sick.svg"
+          ]
+        }
       }
     },
     "ghost": {
@@ -2625,199 +2763,6 @@
           "motion": "droop",
           "frames": [
             "costumes/ghost/sick.svg"
-          ]
-        }
-      }
-    },
-    "penguin": {
-      "name": "Penguin",
-      "states": {
-        "idle": {
-          "motion": "breathe",
-          "frames": [
-            "costumes/penguin/idle.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-open.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "happy": {
-          "motion": "breathe",
-          "frames": [
-            "costumes/penguin/happy.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-happy.svg"
-        },
-        "celebrate": {
-          "fps": 4,
-          "motion": "bounce",
-          "fx": "sparkles",
-          "frames": [
-            "costumes/penguin/celebrate-1.svg",
-            "costumes/penguin/celebrate-2.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-stars.svg"
-        },
-        "worried": {
-          "motion": "sway",
-          "tint": false,
-          "frames": [
-            "costumes/penguin/worried.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-open.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "shocked": {
-          "motion": "shake",
-          "tint": false,
-          "frames": [
-            "costumes/penguin/shocked.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-wide.svg"
-        },
-        "sleepy": {
-          "motion": "droop",
-          "fx": "zzz",
-          "frames": [
-            "costumes/penguin/sleepy.svg"
-          ]
-        },
-        "alert": {
-          "motion": "jump",
-          "fx": "bang",
-          "frames": [
-            "costumes/penguin/alert.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-wide.svg"
-        },
-        "tired": {
-          "motion": "droop",
-          "frames": [
-            "costumes/penguin/tired.svg"
-          ]
-        },
-        "stop": {
-          "motion": "breathe",
-          "tint": false,
-          "frames": [
-            "costumes/penguin/stop.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-open.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "confused": {
-          "motion": "sway",
-          "fx": "question",
-          "frames": [
-            "costumes/penguin/confused.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-dots.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "love": {
-          "motion": "breathe",
-          "fx": "hearts",
-          "frames": [
-            "costumes/penguin/love.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-hearts.svg"
-        },
-        "wave": {
-          "fps": 3,
-          "motion": "breathe",
-          "frames": [
-            "costumes/penguin/wave-1.svg",
-            "costumes/penguin/wave-2.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-happy.svg"
-        },
-        "proud": {
-          "motion": "bounce",
-          "fx": "sparkles",
-          "frames": [
-            "costumes/penguin/proud.svg"
-          ]
-        },
-        "sad": {
-          "motion": "droop",
-          "tint": false,
-          "frames": [
-            "costumes/penguin/sad.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-open.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "bored": {
-          "motion": "sway",
-          "fx": "dots",
-          "frames": [
-            "costumes/penguin/bored.svg"
-          ]
-        },
-        "focused": {
-          "motion": "none",
-          "frames": [
-            "costumes/penguin/focused.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-narrow.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "nervous": {
-          "motion": "jitter",
-          "frames": [
-            "costumes/penguin/nervous.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-wide.svg"
-        },
-        "curious": {
-          "motion": "tilt",
-          "fx": "question",
-          "frames": [
-            "costumes/penguin/curious.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-open.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "angry": {
-          "motion": "jitter",
-          "frames": [
-            "costumes/penguin/angry.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-narrow.svg"
-        },
-        "excited": {
-          "motion": "bounce",
-          "fx": "sparkles",
-          "frames": [
-            "costumes/penguin/excited-1.svg",
-            "costumes/penguin/excited-2.svg"
-          ],
-          "fps": 4,
-          "eyes": "costumes/penguin/eyes-sparkle.svg"
-        },
-        "relieved": {
-          "motion": "breathe",
-          "frames": [
-            "costumes/penguin/relieved.svg"
-          ]
-        },
-        "dizzy": {
-          "motion": "woozy",
-          "frames": [
-            "costumes/penguin/dizzy.svg"
-          ]
-        },
-        "cool": {
-          "motion": "sway",
-          "frames": [
-            "costumes/penguin/cool.svg"
-          ],
-          "eyes": "costumes/penguin/eyes-wink.svg",
-          "eyesBlink": "costumes/penguin/eyes-blink.svg"
-        },
-        "sick": {
-          "motion": "droop",
-          "frames": [
-            "costumes/penguin/sick.svg"
           ]
         }
       }
@@ -3204,6 +3149,200 @@
           "motion": "droop",
           "frames": [
             "costumes/pug/sick.svg"
+          ]
+        }
+      },
+      "mouthDrop": 7
+    },
+    "floki": {
+      "name": "Floki",
+      "states": {
+        "idle": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/floki/idle.svg"
+          ],
+          "eyes": "costumes/floki/eyes-open.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "happy": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/floki/happy.svg"
+          ],
+          "eyes": "costumes/floki/eyes-happy.svg"
+        },
+        "celebrate": {
+          "fps": 4,
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/floki/celebrate-1.svg",
+            "costumes/floki/celebrate-2.svg"
+          ],
+          "eyes": "costumes/floki/eyes-stars.svg"
+        },
+        "worried": {
+          "motion": "sway",
+          "tint": false,
+          "frames": [
+            "costumes/floki/worried.svg"
+          ],
+          "eyes": "costumes/floki/eyes-open.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "shocked": {
+          "motion": "shake",
+          "tint": false,
+          "frames": [
+            "costumes/floki/shocked.svg"
+          ],
+          "eyes": "costumes/floki/eyes-wide.svg"
+        },
+        "sleepy": {
+          "motion": "droop",
+          "fx": "zzz",
+          "frames": [
+            "costumes/floki/sleepy.svg"
+          ]
+        },
+        "alert": {
+          "motion": "jump",
+          "fx": "bang",
+          "frames": [
+            "costumes/floki/alert.svg"
+          ],
+          "eyes": "costumes/floki/eyes-wide.svg"
+        },
+        "tired": {
+          "motion": "droop",
+          "frames": [
+            "costumes/floki/tired.svg"
+          ]
+        },
+        "stop": {
+          "motion": "breathe",
+          "tint": false,
+          "frames": [
+            "costumes/floki/stop.svg"
+          ],
+          "eyes": "costumes/floki/eyes-open.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "confused": {
+          "motion": "sway",
+          "fx": "question",
+          "frames": [
+            "costumes/floki/confused.svg"
+          ],
+          "eyes": "costumes/floki/eyes-dots.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "love": {
+          "motion": "breathe",
+          "fx": "hearts",
+          "frames": [
+            "costumes/floki/love.svg"
+          ],
+          "eyes": "costumes/floki/eyes-hearts.svg"
+        },
+        "wave": {
+          "fps": 3,
+          "motion": "breathe",
+          "frames": [
+            "costumes/floki/wave-1.svg",
+            "costumes/floki/wave-2.svg"
+          ],
+          "eyes": "costumes/floki/eyes-happy.svg"
+        },
+        "proud": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/floki/proud.svg"
+          ]
+        },
+        "sad": {
+          "motion": "droop",
+          "tint": false,
+          "frames": [
+            "costumes/floki/sad.svg"
+          ],
+          "eyes": "costumes/floki/eyes-open.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "bored": {
+          "motion": "sway",
+          "fx": "dots",
+          "frames": [
+            "costumes/floki/bored.svg"
+          ]
+        },
+        "focused": {
+          "motion": "none",
+          "frames": [
+            "costumes/floki/focused.svg"
+          ],
+          "eyes": "costumes/floki/eyes-narrow.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "nervous": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/floki/nervous.svg"
+          ],
+          "eyes": "costumes/floki/eyes-wide.svg"
+        },
+        "curious": {
+          "motion": "tilt",
+          "fx": "question",
+          "frames": [
+            "costumes/floki/curious.svg"
+          ],
+          "eyes": "costumes/floki/eyes-open.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "angry": {
+          "motion": "jitter",
+          "frames": [
+            "costumes/floki/angry.svg"
+          ],
+          "eyes": "costumes/floki/eyes-narrow.svg"
+        },
+        "excited": {
+          "motion": "bounce",
+          "fx": "sparkles",
+          "frames": [
+            "costumes/floki/excited-1.svg",
+            "costumes/floki/excited-2.svg"
+          ],
+          "fps": 4,
+          "eyes": "costumes/floki/eyes-sparkle.svg"
+        },
+        "relieved": {
+          "motion": "breathe",
+          "frames": [
+            "costumes/floki/relieved.svg"
+          ]
+        },
+        "dizzy": {
+          "motion": "woozy",
+          "frames": [
+            "costumes/floki/dizzy.svg"
+          ]
+        },
+        "cool": {
+          "motion": "sway",
+          "frames": [
+            "costumes/floki/cool.svg"
+          ],
+          "eyes": "costumes/floki/eyes-wink.svg",
+          "eyesBlink": "costumes/floki/eyes-blink.svg"
+        },
+        "sick": {
+          "motion": "droop",
+          "frames": [
+            "costumes/floki/sick.svg"
           ]
         }
       },

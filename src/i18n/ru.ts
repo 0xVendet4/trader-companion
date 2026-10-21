@@ -1032,7 +1032,6 @@ const words: Dict = {
   "Bow tie": "Галстук-бабочка",
   "Gold chain": "Золотая цепь",
   "Blueprint": "Чертёж",
-  "Penguin": "Пингвин",
   "Bee": "Пчела",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "«Обновить сейчас»: скачивает новую версию с GitHub, устанавливает её и перезапускается. Настройки сохранятся.",
   "Downloading the new version…": "Скачиваю новую версию…",

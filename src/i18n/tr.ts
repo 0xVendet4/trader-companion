@@ -1032,7 +1032,6 @@ const words: Dict = {
   "Bow tie": "Papyon",
   "Gold chain": "Altın zincir",
   "Blueprint": "Ozalit",
-  "Penguin": "Penguen",
   "Bee": "Arı",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Şimdi güncelle: yeni sürümü GitHub'dan indirir, kurar ve yeniden başlar. Ayarların korunur.",
   "Downloading the new version…": "Yeni sürüm indiriliyor…",

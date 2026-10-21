@@ -1032,7 +1032,6 @@ const words: Dict = {
   "Bow tie": "Corbata de moño",
   "Gold chain": "Cadena de oro",
   "Blueprint": "Plano",
-  "Penguin": "Pingüino",
   "Bee": "Abeja",
   "Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay.": "Actualizar ahora: descarga la versión nueva de GitHub, la instala y vuelve a iniciar. Tu configuración se mantiene.",
   "Downloading the new version…": "Descargando la versión nueva…",

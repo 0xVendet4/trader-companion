@@ -20,8 +20,8 @@ describe("arms of its own", () => {
       "astronaut/idle", "astronaut/happy", "ninja/idle", "ninja/happy",
       "robot/idle", "robot/happy", "robot/wave-1", "robot/wave-2", "dino/idle", "dino/happy", "dino/wave-1", "dino/wave-2",
       "bull/idle", "bull/happy", "bull/wave-1", "bull/wave-2", "bear/idle", "bear/happy", "bear/wave-1", "bear/wave-2",
-      "ghost/idle", "ghost/happy", "ghost/wave-1", "ghost/wave-2", "penguin/idle", "penguin/happy", "penguin/wave-1", "penguin/wave-2",
-      "pug/idle", "pug/happy", "pug/wave-1", "pug/wave-2",
+      "ghost/idle", "ghost/happy", "ghost/wave-1", "ghost/wave-2",
+      "pug/idle", "pug/happy", "pug/wave-1", "pug/wave-2", "floki/idle", "floki/happy", "floki/wave-1", "floki/wave-2",
     ]) {
       const rig = parseRig(art(`costumes/${f}.svg`));
       expect(rig, f).not.toBeNull();
@@ -389,27 +389,24 @@ describe("the astronaut and the ninja, taken apart", () => {
   });
 });
 
-describe("the ghost and the penguin, taken apart", () => {
+describe("the ghost, taken apart", () => {
   const manifest = JSON.parse(art("mascot.json")) as {
     costumes: Record<string, { states: Record<string, { frames: string[]; eyes?: string; eyesBlink?: string }> }>;
   };
   const frames = (id: string) => Object.values(manifest.costumes[id].states).flatMap((d) => d.frames);
-  const contains = (b: { x: number; y: number; w: number; h: number }, x: number, y: number) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
 
-  it("reads them like Candy: body in Candy's place, cheeks and a mouth that turn, the rest stays put", () => {
-    for (const id of ["ghost", "penguin"]) {
-      for (const f of [...new Set(frames(id))]) {
-        const rig = parseRig(art(f))!;
-        // Where Candy's is: hats and face accessories land where they do on him.
-        expect(rig.body, f).toEqual({ x: 28, y: 24, w: 72, h: 82 });
-        expect(paletteOf(rig), f).not.toBeNull();
-        expect(wickOf(rig), f).toBeNull();
-        expect(cheeksOf(rig), f).toHaveLength(2);
-        expect(rig.ops.some((o) => o.part === "mouth"), f).toBe(true);
-        expect(rig.ops.some((o) => o.part === "skin"), f).toBe(true);
-        // The arms (sheet corners, flippers), the glow, the tuft and the feet behind.
-        expect(rig.ops.filter((o) => o.part === "back").length, f).toBeGreaterThanOrEqual(4);
-      }
+  it("reads it like Candy: body in Candy's place, cheeks and a mouth that turn, the rest stays put", () => {
+    for (const f of [...new Set(frames("ghost"))]) {
+      const rig = parseRig(art(f))!;
+      // Where Candy's is: hats and face accessories land where they do on him.
+      expect(rig.body, f).toEqual({ x: 28, y: 24, w: 72, h: 82 });
+      expect(paletteOf(rig), f).not.toBeNull();
+      expect(wickOf(rig), f).toBeNull();
+      expect(cheeksOf(rig), f).toHaveLength(2);
+      expect(rig.ops.some((o) => o.part === "mouth"), f).toBe(true);
+      expect(rig.ops.some((o) => o.part === "skin"), f).toBe(true);
+      // The arms (the sheet's corners) and the glow behind.
+      expect(rig.ops.filter((o) => o.part === "back").length, f).toBeGreaterThanOrEqual(4);
     }
   });
 
@@ -433,29 +430,13 @@ describe("the ghost and the penguin, taken apart", () => {
     expect(hem("costumes/ghost/wave-1.svg").shape).not.toEqual(hem("costumes/ghost/wave-2.svg").shape);
   });
 
-  it("the penguin's white face stays put under eyes that move, the beak turns with the face and opens as its mouth", () => {
-    for (const f of [...new Set(frames("penguin"))]) {
-      const rig = parseRig(art(f))!;
-      const white = rig.ops.find((o) => o.part === "skin" && o.shape.kind === "path" && o.fill && "color" in o.fill && o.box.w > 60);
-      expect(white, f).toBeTruthy();
-      // Room for the eyes where Candy's are, and for them to look aside.
-      for (const [x, y] of [[44, 60], [50, 60], [78, 60], [92, 60]]) expect(contains(white!.box, x, y), `${f}: ${x}`).toBe(true);
-      // The upper beak, orange, turns with the face; the lower beak is the mouth.
-      const orange = rig.ops.filter((o) => o.fill && "gradient" in o.fill && o.fill.gradient.stops[0].color === "#fdba74" && o.part !== "back");
-      expect(orange.map((o) => o.part), f).toEqual(["face"]);
-      expect(rig.ops.some((o) => o.part === "mouth" && o.fill && "color" in o.fill && o.fill.color === "#ea580c"), f).toBe(true);
-    }
-  });
-
   it("holds the stop sign out in front", () => {
-    for (const id of ["ghost", "penguin"]) {
-      const stop = parseRig(art(`costumes/${id}/stop.svg`))!;
-      expect(stop.ops.some((o) => o.part === "front" && o.shape.kind === "text"), id).toBe(true);
-    }
+    const stop = parseRig(art("costumes/ghost/stop.svg"))!;
+    expect(stop.ops.some((o) => o.part === "front" && o.shape.kind === "text")).toBe(true);
   });
 
   it("keeps its drops of sweat clear of the body and its outline: in front, nothing covers them", () => {
-    for (const id of ["ghost", "penguin"]) {
+    for (const id of ["ghost"]) {
       let drops = 0;
       for (const f of frames(id)) {
         const rig = parseRig(art(f))!;
@@ -477,7 +458,7 @@ describe("the ghost and the penguin, taken apart", () => {
   });
 
   it("puts the eyes where Candy's are, so glasses fit and the gaze reads", () => {
-    for (const id of ["ghost", "penguin"]) {
+    for (const id of ["ghost"]) {
       for (const n of ["open", "blink", "happy", "wide", "narrow", "sparkle", "hearts", "stars", "dots", "wink"]) {
         const f = `costumes/${id}/eyes-${n}.svg`;
         const eyes = parseRig(art(f), true)!;
@@ -658,6 +639,92 @@ describe("the bee, taken apart", () => {
       expect(Math.max(...xs), e).toBeLessThan(90);
       expect(xs.some((x) => x < 60) && xs.some((x) => x > 68), e).toBe(true);
       for (const o of eyes.ops) expect(Math.abs(centre(o.box).y - 60), e).toBeLessThan(8);
+    }
+  });
+});
+
+describe("Floki, taken apart", () => {
+  const states = (JSON.parse(art("mascot.json")) as { costumes: Record<string, { states: Record<string, { frames: string[]; eyes?: string; eyesBlink?: string }> }> })
+    .costumes.floki.states;
+  const frames = [...new Set(Object.values(states).flatMap((d) => d.frames))];
+  const colour = (o: Op) => (o.fill && "color" in o.fill ? o.fill.color : null);
+
+  it("reads like Candy: his body box, a face that turns, a white muzzle that stays put, horns, arms and a tail of his own", () => {
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      expect(rig, f).not.toBeNull();
+      // Where Candy's is: hats and face accessories land where they do on him.
+      expect(rig.body, f).toEqual({ x: 28, y: 24, w: 72, h: 82 });
+      expect(paletteOf(rig), f).not.toBeNull();
+      expect(wickOf(rig), f).toBeNull();
+      expect(hasArms(rig), f).toBe(true);
+      expect(cheeksOf(rig), f).toHaveLength(2);
+      expect(rig.ops.some((o) => o.part === "mouth"), f).toBe(true);
+      // The white of the muzzle is skin, clipped to the body.
+      const white = rig.ops.find((o) => colour(o) === "#fff8ee" && o.shape.kind === "path")!;
+      expect(white, f).toBeTruthy();
+      expect(white.part, f).toBe("skin");
+      expect(white.clips.length, f).toBe(1);
+      // Horns, arms, feet and the tail behind him.
+      expect(rig.ops.filter((o) => o.part === "back").length, f).toBeGreaterThanOrEqual(12);
+      // No face part as wide as the body: everything on the face turns with it.
+      for (const o of rig.ops.filter((o) => o.part === "face" || o.part === "mouth")) expect(o.pivot.w, f).toBeLessThan(rig.body!.w * 0.8);
+    }
+  });
+
+  it("the helmet turns with the face, band and all; the nose is on the face, the mouth under it", () => {
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      // The band, grey, and the ridge, lighter: on the face, clipped to the helmet's own box.
+      const band = rig.ops.find((o) => colour(o) === "#8b929e")!;
+      const ridge = rig.ops.find((o) => colour(o) === "#cfd5dd")!;
+      for (const o of [band, ridge]) {
+        expect(o, f).toBeTruthy();
+        expect(o.part, f).toBe("face");
+        expect(o.clips.length, f).toBe(1);
+      }
+      // The horns, orange, behind the body.
+      expect(rig.ops.filter((o) => colour(o) === "#e4780c").map((o) => o.part), f).toEqual(["back", "back"]);
+      // The nose, black, on the face; the mouth below it, drawn in a dark line.
+      const nose = rig.ops.find((o) => colour(o) === "#1c1512" && o.shape.kind === "path")!;
+      expect(nose.part, f).toBe("face");
+      const lips = rig.ops.filter((o) => o.part === "mouth" && o.stroke === "#1a1410");
+      expect(lips.length, f).toBeGreaterThan(0);
+      expect(Math.min(...lips.map((o) => o.box.y)), f).toBeGreaterThan(nose.box.y + nose.box.h);
+    }
+  });
+
+  it("keeps its drops of sweat clear of the body and its outline: in front, nothing covers them", () => {
+    let drops = 0;
+    for (const f of frames) {
+      const rig = parseRig(art(f))!;
+      const b = rig.body!;
+      const edge = rig.ops.find((o) => o.part === "body")!.strokeWidth / 2;
+      for (const o of rig.ops) {
+        if (colour(o) !== "#7dd3fc" || o.part === "face") continue;
+        drops++;
+        expect(o.part, `${f}: a drop`).toBe("front");
+        const r = o.strokeWidth / 2;
+        const apart =
+          o.box.x - r >= b.x + b.w + edge || o.box.x + o.box.w + r <= b.x - edge || o.box.y - r >= b.y + b.h + edge || o.box.y + o.box.h + r <= b.y - edge;
+        expect(apart, `${f}: a drop at ${JSON.stringify(o.box)} touches the body`).toBe(true);
+      }
+    }
+    // Worried, tired, nervous (two), relieved, sick.
+    expect(drops).toBeGreaterThanOrEqual(6);
+  });
+
+  it("puts the eyes where Candy's are, so glasses fit and the gaze reads", () => {
+    for (const n of ["open", "blink", "happy", "wide", "narrow", "sparkle", "hearts", "stars", "dots", "wink"]) {
+      const f = `costumes/floki/eyes-${n}.svg`;
+      const eyes = parseRig(art(f), true)!;
+      expect(eyes, f).not.toBeNull();
+      const xs = eyes.ops.map((o) => centre(o.box).x);
+      const ys = eyes.ops.map((o) => centre(o.box).y);
+      expect(Math.min(...xs), f).toBeGreaterThan(38);
+      expect(Math.max(...xs), f).toBeLessThan(90);
+      expect(xs.some((x) => x < 60) && xs.some((x) => x > 68), f).toBe(true);
+      for (const y of ys) expect(Math.abs(y - 60), f).toBeLessThan(12);
     }
   });
 });
