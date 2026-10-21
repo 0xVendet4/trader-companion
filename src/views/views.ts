@@ -3,6 +3,7 @@
 //   discipline.ts · event.ts (event card + greeting) · music.ts · shared.ts
 
 import { buildAlerts } from "./alerts";
+import { buildChat } from "./chat";
 import { buildDiscipline } from "./discipline";
 import { buildEvent, buildGreeting } from "./event";
 import { buildMusic } from "./music";
@@ -27,6 +28,7 @@ export function buildViews(actions: ViewActions): Map<IslandViewName, ViewHost> 
     ["discipline", buildDiscipline(actions)],
     ["wardrobe", buildWardrobe(actions)],
     ["music", buildMusic(actions)],
+    ["chat", buildChat(actions)],
     ["event", buildEvent(actions)],
     ["greeting", buildGreeting()],
   ]);

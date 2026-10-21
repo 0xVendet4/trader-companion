@@ -28,8 +28,8 @@ use crate::settings::{self, DesktopSpot};
 pub const LABEL: &str = "candy";
 
 /// Side of the square window, logical pixels: the mascot's box (112 px) with
-/// its canvases' overhang (150 %) around it, so a hop or a hat is never cut.
-pub const SIZE: f64 = 168.0;
+/// its canvases' overhang (150 %) around it, plus room below for the speech bubble.
+pub const SIZE: f64 = 280.0;
 /// Kept between him and the edges of the work area.
 const MARGIN: f64 = 24.0;
 /// To and from the island (0.45 s, ease in-out).
@@ -85,7 +85,7 @@ pub mod logic {
 
     /// Radius of the clickable body, as a fraction of the window side: the
     /// candle's body with a little room around it.
-    pub const BODY_RADIUS_FRACTION: f64 = 0.22;
+    pub const BODY_RADIUS_FRACTION: f64 = 0.132;
 
     /// Hit test of the body inside the square window (window-local).
     pub fn is_over_body(local: (f64, f64), size: f64) -> bool {
@@ -902,9 +902,9 @@ mod tests {
 
     #[test]
     fn only_the_body_takes_the_mouse() {
-        assert!(is_over_body((84.0, 84.0), 168.0));
-        assert!(is_over_body((84.0 + 30.0, 84.0), 168.0));
-        assert!(!is_over_body((10.0, 10.0), 168.0));
-        assert!(!is_over_body((84.0, 84.0 + 60.0), 168.0));
+        assert!(is_over_body((140.0, 140.0), 280.0));
+        assert!(is_over_body((140.0 + 30.0, 140.0), 280.0));
+        assert!(!is_over_body((10.0, 10.0), 280.0));
+        assert!(!is_over_body((140.0, 140.0 + 60.0), 280.0));
     }
 }

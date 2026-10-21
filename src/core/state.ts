@@ -359,15 +359,15 @@ export const SKIN_IDS: readonly Skin[] = [
  * costumes). Hats and faces still go on top; the colour does not apply.
  * "edition" is a friend's exclusive costume: only their build has it.
  */
-export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "ghost" | "penguin" | "bee" | "pug" | "edition";
-export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee", "pug", "edition"];
+export type Costume = "none" | "gengar" | "spiderman" | "shadow" | "v" | "astronaut" | "ninja" | "robot" | "dino" | "bull" | "bear" | "max-headroom" | "ghost" | "bee" | "pug" | "floki" | "edition";
+export const COSTUME_IDS: readonly Costume[] = ["none", "gengar", "spiderman", "shadow", "v", "astronaut", "ninja", "robot", "dino", "bull", "bear", "max-headroom", "ghost", "bee", "pug", "floki", "edition"];
 /**
  * Costumes named by a common noun, shown in the trader's language (Robô,
  * Roboter); the others are characters and keep their names everywhere (Gengar).
  */
-export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "penguin", "bee"];
+export const NOUN_COSTUMES: readonly Costume[] = ["astronaut", "ninja", "robot", "dino", "bull", "bear", "ghost", "bee"];
 /** Costumes that changed id, by their old one. */
-const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow" };
+const RENAMED_COSTUMES: Record<string, Costume> = { yovich: "gengar", spidermax: "spiderman", mrshadow: "shadow", max: "max-headroom", silvio: "max-headroom" };
 
 /**
  * A friend's build (`npm run pack:edition -- <id>` sets VITE_EXCLUSIVE_COSTUME):
@@ -403,10 +403,12 @@ export const COSTUME_NAMES: Record<Costume, string> = {
   bull: N_("Bull"),
   bear: N_("Bear"),
   ghost: N_("Ghost"),
-  penguin: N_("Penguin"),
   bee: N_("Bee"),
   // Gutin is a real pug, so he goes by his name everywhere.
   pug: "Gutin",
+  "max-headroom": "Max Headroom",
+  // The viking shiba: a character, his name everywhere.
+  floki: "Floki",
   edition: EDITION_NAME,
 };
 
@@ -568,6 +570,10 @@ export interface Companion {
   dayEndAt: string;
   /** The day (YYYY-MM-DD) the end-of-day recap last played for; "" = never. */
   dayEndShown: string;
+  /** OpenAI API key; "" = feature off. Stored in settings.json as-is. */
+  openaiKey: string;
+  /** The microphone the voice chat records with (a webview device id); "" = the system's. */
+  micId: string;
 }
 
 /** A column the watchlist can be sorted by (src/market/watchsort.ts). */
@@ -692,6 +698,8 @@ export const DEFAULT_COMPANION: Companion = {
   chartInterval: DEFAULT_CHART_INTERVAL,
   dayEndAt: DAY_END_DEFAULT,
   dayEndShown: "",
+  openaiKey: "",
+  micId: "",
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -815,6 +823,8 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (typeof s.companion.dayEndAt !== "string") s.companion.dayEndAt = DAY_END_DEFAULT;
   else if (s.companion.dayEndAt !== "" && dayEndMinutes(s.companion.dayEndAt) == null) s.companion.dayEndAt = DAY_END_DEFAULT;
   if (typeof s.companion.dayEndShown !== "string") s.companion.dayEndShown = "";
+  if (typeof s.companion.openaiKey !== "string") s.companion.openaiKey = "";
+  if (typeof s.companion.micId !== "string") s.companion.micId = "";
   // Shades and laser eyes were outfits before the face slot: move them over.
   const oldOutfit = c.outfit as string | undefined;
   if ((oldOutfit === "shades" || oldOutfit === "laser") && c.face == null) s.companion.face = oldOutfit;
@@ -926,7 +936,22 @@ export type CompanionEvent =
   /** A newer Candy on GitHub: update now, with the user's go-ahead (see src/core/update.ts). */
   | { kind: "update"; id: string; version: string }
   /** A US release the whole market watches is near (src/market/calendar.ts): its label, when, and its lines. */
-  | { kind: "macro"; id: string; label: string; at: number; lines: string[] };
+  | { kind: "macro"; id: string; label: string; at: number; lines: string[] }
+  /** The research shortcut (a Mac) with a GMGN or Axiom tab open: RugCheck + socials, line by line. */
+  | {
+      kind: "research-checklist";
+      id: string;
+      mint: string;
+      url: string;
+      symbol?: string;
+      checks: ResearchCheckItem[];
+    };
+
+export interface ResearchCheckItem {
+  label: string;
+  state: "ok" | "warn" | "unknown";
+  detail: string;
+}
 
 export type MarketStatus = "idle" | "loading" | "ok" | "error";
 
@@ -940,7 +965,8 @@ export type IslandViewName =
   | "wardrobe"
   | "music"
   | "event"
-  | "greeting";
+  | "greeting"
+  | "chat";
 
 /** RugCheck's read of a token. `level` is ours, derived from its risks. */
 export interface SafetyReport {

@@ -72,6 +72,7 @@ Drag Candy out of the ticker and it sits on your desktop, next to your chart, un
 - 📍 **Anywhere**: floating (the default), the top edge, or the left or right edge as a slim tab that opens into a sidebar. On a MacBook with a notch the top island grows out of the notch.
 - ⌨️ **Shortcuts** from any app: show and hide, add the copied token, open the waiting alert, switch tabs, mute, the wardrobe, Candy to the desktop.
 - 🎨 **Make it yours**: 18 island looks, five of them full themes that restyle every word, card and highlight (Terminal, Vaporwave, Matrix, Paper, Blueprint), as see-through as you like, costumes that redraw the whole mascot, seasonal looks, your own sounds.
+- 💬 **Ask Candy** (with an OpenAI key of yours): a Chat tab, a site dropped on him read and summed up with its domain's age and registrar, a voice chat, and on a Mac a check of the token open in your browser. See [Ask Candy](#ask-candy).
 - 🌍 **Ten languages**: English, Português, Español, Français, Deutsch, Русский, Türkçe, 简体中文, 日本語 and 한국어, your system's by default and switched live.
 - 🔒 **Private by design**: no account, no telemetry, only public market data. See [Privacy](#privacy).
 
@@ -241,6 +242,10 @@ What a build compiled is kept in `%LOCALAPPDATA%\Candy-build` (Linux: `~/.cache/
 
 Copy a token's address (CA) or its DexScreener, GMGN, Axiom, Based Bot or explorer link anywhere, press **Ctrl + Alt + V**, and Candy swallows it onto the watchlist. Only a whole address or a whole token link counts: anything else on the clipboard is ignored and never sent anywhere. Settings → Watchlist → Pasted or dropped: open it too also opens it on your terminal.
 
+### Ask Candy
+
+Paste an OpenAI API key of yours in Settings → AI and a Chat tab appears on the island: ask Candy about the market, a token or anything else, in your language, and he answers through OpenAI (`gpt-4o-mini`, billed to your key). Drop a project's website on him, or copy its link and press the paste shortcut, and he reads the page, looks up the domain's registration and mail records, and sums it up in the chat: what the project does, its category, the domain's age and registrar, and the flags worth a look. A shortcut lets you talk to him instead of typing: Candy records with the microphone picked in Settings → AI, stops when you pause, and OpenAI writes it down before answering. On a Mac, another shortcut checks the token open in your browser (GMGN or Axiom) against RugCheck and DexScreener: mint and freeze authority, locked liquidity, top holders, the dev's wallet, clones of the symbol, a site and socials. Without a key none of this shows, and nothing is sent to OpenAI.
+
 ### Shortcuts
 
 They work from any app, and each can be changed or turned off in Settings → Notifications and shortcuts (click the keys, press new ones):
@@ -254,8 +259,11 @@ They work from any app, and each can be changed or turned off in Settings → No
 | Ctrl + Alt + S | Mute or unmute |
 | Ctrl + Alt + G | Wardrobe |
 | Ctrl + Alt + D | Candy to the desktop, or home |
+| Ctrl + Alt + C | Open or close the Chat tab |
+| Ctrl + Alt + M | Voice chat |
+| ⌘ + ⌥ + P (Mac) | Research the token open in the browser |
 
-On a Mac, ⌘ takes Ctrl's place. Ctrl + Alt is AltGr on many keyboards: the defaults avoid the keys that type a character with AltGr on the usual European and Brazilian layouts, and on Windows Candy asks what each Ctrl + Alt combination types on your layouts, so one that types something is left alone and flagged in Settings. While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.
+On a Mac, ⌘ takes Ctrl's place; the browser research uses the Mac's own browser scripting, so its row is a Mac's. Ctrl + Alt is AltGr on many keyboards: the defaults avoid the keys that type a character with AltGr on the usual European and Brazilian layouts, and on Windows Candy asks what each Ctrl + Alt combination types on your layouts, so one that types something is left alone and flagged in Settings. While you type in the island, Ctrl + 1–9 picks a tab and Ctrl + , opens Settings.
 
 ### Candy on your desktop
 
@@ -275,6 +283,7 @@ A new version is a commit on `main` with the version bumped: GitHub builds it, p
 
 | Version | Date | Highlights |
 | --- | --- | --- |
+| 0.1.18 | Oct 21, 2026 | Ask Candy: a Chat tab and a look at any project's site through your own OpenAI key; a voice chat with the microphone of your choice; a browser research shortcut on a Mac; two new costumes, Max Headroom and Floki the viking shiba |
 | 0.1.17 | Oct 20, 2026 | Gutin, a new costume: a black pug in a rainbow propeller beanie with a rainbow lollipop |
 | 0.1.16 | Oct 19, 2026 | Installers for Windows and macOS on the Releases page, built by GitHub; Update now installs them |
 | 0.1.15 | Oct 14, 2026 | Island themes, a compact island, the hover chart, 0x wallets on Ethereum, BSC and Base, the Closet, night looks, emotes, Settings and the Closet inside the island, Update now on macOS and Linux |
@@ -298,7 +307,7 @@ A new version is a commit on `main` with the version bumped: GitHub builds it, p
 - Reads **public data only**: DexScreener, RugCheck, CoinGecko (for major coins), alternative.me's Fear & Greed index and Forex Factory's calendar (public, no key), and public RPCs for your wallet: Solana's (with two keyless spares for when it is busy), four read-only calls (balances, token accounts, and the transactions a position's entry comes from), whitelisted in Rust (`solana_rpc`); for a 0x wallet, Ethereum's, BSC's and Base's (PublicNode, with a spare each), four read-only calls too (the balance, a token's `balanceOf`, the latest block and a watched token's Transfer logs), whitelisted in Rust (`evm_rpc`). Sending a transaction is refused in code, and a test checks it.
 - **Never** asks for, stores or touches a wallet, a seed phrase, a private key or an exchange account. It cannot trade.
 - Tokens are added by **address or link**, never by a ticker alone: every popular memecoin has copycats with the same symbol, so a search shows the candidates with their real liquidity and you pick one.
-- The paste shortcut reads the clipboard only when you press it, and a private key or a seed phrase there is refused, never kept or sent.
+- The paste shortcut reads the clipboard only when you press it, and a private key or a seed phrase there is refused, never kept or sent. A link that is not a token's is taken as a project's site for Candy to look into (see [Ask Candy](#ask-candy)).
 - Links open only on a fixed list of sites (`ALLOWED_HOSTS` in `src-tauri/src/lib.rs`), never from token metadata.
 - Not financial advice. The app shows numbers and the alerts you set up.
 
@@ -318,7 +327,10 @@ It talks only to public services, for public data:
 - **Spare public RPCs**, only when Solana's is busy and no RPC of your own is set: PublicNode (`solana-rpc.publicnode.com`) and Solana Vibe Station (`public.rpc.solanavibestation.com`), for the calls each one serves. They see the same thing: the wallet addresses asked about.
 - **Public EVM RPCs**, for a 0x wallet you add (followed on Ethereum, BSC and Base at once): PublicNode (`ethereum-rpc.publicnode.com`, `bsc-rpc.publicnode.com`, `base-rpc.publicnode.com`), and when one is busy its spare, LlamaRPC (`eth.llamarpc.com`), Binance (`bsc-dataseed.binance.org`) or Base (`mainnet.base.org`). Read-only calls only: the wallet's balance, its balance of the tokens on your watchlist, and the recent transfers of those tokens; they see the wallet and token addresses asked about.
 
-And GitHub, for updates: every half hour Candy reads the version in this repository (`raw.githubusercontent.com`), and only when you say *Update now* does it download the code (`codeload.github.com`).
+- **A project's site you drop on Candy** (any `https` link dragged onto him, or pasted with the shortcut): its page is fetched once, from your computer, to be read; then **IANA's RDAP** (`rdap.iana.org`) is asked for the domain's registrar and dates, and **Cloudflare's DNS** (`cloudflare-dns.com`) for its address and mail records. Each sees the domain asked about, nothing else.
+- **OpenAI** (`api.openai.com`), only once you paste an API key of yours in Settings → AI: what you type in the Chat tab, what you say in a voice chat (the recording, which OpenAI writes down), and the text of a site you dropped on Candy with that domain's facts. The key stays in the settings file on your computer (and in its daily copy) and goes to OpenAI alone. Without a key the Chat tab stays hidden and nothing is sent.
+
+And GitHub, for updates: every half hour Candy asks GitHub (`api.github.com`) which version is the latest release, and only when you say *Update now* does it download the installer from the Releases page (`github.com`). Installed from the Microsoft Store, the Store updates it instead.
 
 Each of these services sees your IP address, as with any website. Links you click open in your browser (GMGN, Axiom, Based Bot, DexScreener, RugCheck, Solscan, Etherscan, BscScan, BaseScan, GitHub, and Helius or Alchemy for a free RPC key).
 

@@ -10,7 +10,7 @@ import { APP_NAME, MASCOT_NAME } from "../core/brand";
 import { formatDuration, formatPct, formatPnl, pctClass } from "../core/format";
 import { Bridge, IS_TAURI } from "../core/bridge";
 import { t, tn } from "../core/i18n";
-import { EDITION_ID, State, type CompanionEvent, type TradePlan } from "../core/state";
+import { EDITION_ID, State, type CompanionEvent, type ResearchCheckItem, type TradePlan } from "../core/state";
 import { WHATS_NEW_URL } from "../core/update";
 import { TERMINALS } from "../market/links";
 import { headsUpTitle } from "../market/calendar";
@@ -204,6 +204,15 @@ function eventCopy(e: CompanionEvent): { eyebrow: string; title: string; detail:
             : t("Update now: it downloads the new version from GitHub, installs it and starts again. Your settings stay."),
         tone: "calm",
       };
+    case "research-checklist": {
+      const warns = e.checks.filter((c) => c.state === "warn").length;
+      return {
+        eyebrow: t("Research"),
+        title: e.symbol ? t("Research: {symbol}", { symbol: e.symbol }) : t("Research token"),
+        detail: warns > 0 ? tn(warns, "{n} flag worth a look", "{n} flags worth a look") : t("Checks complete"),
+        tone: warns > 0 ? "warn" : "calm",
+      };
+    }
   }
 }
 
@@ -442,6 +451,19 @@ export function buildEvent(actions: ViewActions): ViewHost {
     buttons.classList.remove("later");
   }
 
+  function renderResearchChecks(container: HTMLElement, checks: ResearchCheckItem[]) {
+    clear(container);
+    container.className = "event-extra checklist";
+    const CHECK_MARK: Record<ResearchCheckItem["state"], string> = { ok: "✓", warn: "!", unknown: "?" };
+    for (const c of checks) {
+      container.append(h("div", { class: `check-line ${c.state}`, title: c.detail },
+        h("span", { class: "check-label", text: c.label }),
+        h("span", { class: "check-state", text: CHECK_MARK[c.state] }),
+        h("span", { class: "check-detail", text: c.detail }),
+      ));
+    }
+  }
+
   function renderMoves(moves: AwayMove[]) {
     clear(extra);
     extra.className = "event-extra moves";
@@ -641,6 +663,16 @@ export function buildEvent(actions: ViewActions): ViewHost {
           }
           break;
         }
+        case "research-checklist":
+          renderResearchChecks(extra, e.checks);
+          buttons.append(
+            btn(t("Open on {terminal}", { terminal }), "primary", () => {
+              actions.openToken(e.mint, { key: `solana:${e.mint}`, chainId: "solana", address: e.mint, symbol: e.symbol ?? e.mint.slice(0, 6), name: e.symbol ?? "", pairAddress: "", dexId: "", imageUrl: null });
+              actions.dismissEvent();
+            }),
+            btn(t("Done"), "secondary", () => actions.dismissEvent()),
+          );
+          break;
         default:
           buttons.append(btn(t("Got it"), "primary", () => actions.dismissEvent()));
       }

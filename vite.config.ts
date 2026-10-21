@@ -73,6 +73,11 @@ const proxies = {
     changeOrigin: true,
     rewrite: () => "/ff_calendar_thisweek.json",
   },
+  "/api/openai": {
+    target: "https://api.openai.com",
+    changeOrigin: true,
+    rewrite: (p: string) => p.replace(/^\/api\/openai/, ""),
+  },
   "/api/rpc": {
     target: "https://api.mainnet-beta.solana.com",
     changeOrigin: true,

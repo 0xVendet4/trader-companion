@@ -418,6 +418,50 @@ export const Bridge = {
       }
     }
   },
+
+  /**
+   * Fetches the HTML of an https URL for project analysis (src-tauri/src/lib.rs).
+   * Only available in the app; returns null in a browser (npm run dev has no server-side fetch).
+   */
+  async fetchPage(url: string): Promise<string | null> {
+    if (!IS_TAURI) return null;
+    return call<string>("fetch_page", { url });
+  },
+
+  /** RDAP domain lookup via rdap.iana.org (Rust side). */
+  async rdapLookup(domain: string): Promise<unknown> {
+    if (!IS_TAURI) return null;
+    return call<unknown>("rdap_lookup", { domain });
+  },
+
+  /** DNS-over-HTTPS via Cloudflare for one record type (Rust side). */
+  async dnsLookup(domain: string, recordType: "A" | "MX" | "TXT"): Promise<unknown> {
+    if (!IS_TAURI) return null;
+    return call<unknown>("dns_lookup", { domain, recordType });
+  },
+
+  /** Forward a Chat Completions request via Rust, bypassing the webview's CSP.
+   *  Uses invoke() directly so the Rust Err string propagates (call() swallows errors). */
+  async openaiChat(apiKey: string, body: string): Promise<string> {
+    if (!IS_TAURI) throw new Error("not-tauri");
+    return invoke<string>("openai_chat", { apiKey, body });
+  },
+
+  /**
+   * Sends a voice recording (base64, `mime` its media type) to OpenAI through
+   * Rust and returns what it says, in `lang` (Candy's two-letter language).
+   * Uses invoke() directly so the Rust Err string propagates.
+   */
+  async openaiTranscribe(apiKey: string, audio: string, mime: string, lang: string): Promise<string> {
+    if (!IS_TAURI) throw new Error("not-tauri");
+    return invoke<string>("openai_transcribe", { apiKey, audio, mime, lang });
+  },
+
+  /** URL of the active tab in the frontmost browser (macOS only via AppleScript). */
+  async getActiveBrowserTabUrl(): Promise<string | null> {
+    if (!IS_TAURI) return null;
+    return call<string>("get_active_tab_url");
+  },
 };
 
 /** Copies a PNG, borrowing focus like `Bridge.copy`. */

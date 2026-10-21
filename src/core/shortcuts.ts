@@ -7,7 +7,7 @@
 
 import { N_, t } from "./i18n";
 
-export type ShortcutId = "toggle" | "paste" | "alert" | "nextTab" | "prevTab" | "mute" | "wardrobe" | "desktop";
+export type ShortcutId = "toggle" | "paste" | "alert" | "nextTab" | "prevTab" | "mute" | "wardrobe" | "desktop" | "chat" | "voice-chat" | "research-checklist";
 
 export interface ShortcutDef {
   id: ShortcutId;
@@ -15,7 +15,12 @@ export interface ShortcutDef {
   label: string;
   /** Its keys out of the box ("" = off until set). */
   dflt: string;
+  /** Only a Mac has the feature: Settings lists it there alone, and elsewhere it has no keys. */
+  macOnly?: boolean;
 }
+
+/** The page runs on a Mac (the tests run in Node: no): the Mac-only shortcut gets its keys. */
+const MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
 
 export const SHORTCUTS: ShortcutDef[] = [
   { id: "toggle", label: N_("Show / hide the island"), dflt: "CommandOrControl+Shift+Space" },
@@ -26,6 +31,10 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "mute", label: N_("Mute / unmute"), dflt: "CommandOrControl+Alt+S" },
   { id: "wardrobe", label: N_("Wardrobe"), dflt: "CommandOrControl+Alt+G" },
   { id: "desktop", label: N_("Candy to the desktop, or home"), dflt: "CommandOrControl+Alt+D" },
+  { id: "chat", label: N_("Open / close Chat"), dflt: "CommandOrControl+Alt+C" },
+  { id: "voice-chat", label: N_("Voice chat"), dflt: "CommandOrControl+Alt+M" },
+  // A Mac's own browser scripting: nowhere else.
+  { id: "research-checklist", label: N_("Research token from browser"), dflt: MAC ? "CommandOrControl+Alt+P" : "", macOnly: true },
 ];
 
 /** What a shortcut's registration came to, for Settings. */

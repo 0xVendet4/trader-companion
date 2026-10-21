@@ -39,7 +39,11 @@ export interface DexPair {
   priceChange?: { m5?: number; h1?: number; h6?: number; h24?: number };
   volume?: { m5?: number; h1?: number; h6?: number; h24?: number };
   txns?: Partial<Record<"m5" | "h1" | "h6" | "h24", { buys?: number; sells?: number }>>;
-  info?: { imageUrl?: string };
+  info?: {
+    imageUrl?: string;
+    websites?: Array<{ label?: string; url: string }>;
+    socials?: Array<{ type: string; url: string }>;
+  };
   pairCreatedAt?: number;
 }
 
@@ -184,6 +188,7 @@ export const WBTC = { chainId: "ethereum" as const, address: "0x2260FAC5E5542a77
 
 export type ParsedInput =
   | { kind: "address"; address: string; chainId: ChainId | null; isPool: boolean }
+  | { kind: "project-url"; url: string }
   | { kind: "query"; query: string };
 
 /** GMGN's chain segments. */
@@ -232,6 +237,9 @@ export function parseInput(input: string): ParsedInput {
       const found = url.pathname.match(ANY_ADDRESS);
       if (found) return classify(found[found.length - 1], EXPLORERS[host]);
     }
+    if ((url.protocol === "https:" || url.protocol === "http:") && !PASTE_HOSTS.has(host)) {
+      return { kind: "project-url", url: text };
+    }
   } catch {
     /* not a URL */
   }
@@ -250,7 +258,7 @@ const PASTE_HOSTS = new Set(["dexscreener.com", "gmgn.ai", "axiom.trade", "based
  * or sent anywhere, so a bare 64-hex id (a pool to a link, a private key to a
  * wallet), an 88-character Solana key, words, or an unknown link all give null.
  */
-export function parsePasted(text: string): Extract<ParsedInput, { kind: "address" }> | null {
+export function parsePasted(text: string): Extract<ParsedInput, { kind: "address" }> | { kind: "project-url"; url: string } | null {
   const pasted = text.trim();
   if (!pasted || pasted.length > 2048 || /\s/.test(pasted)) return null;
   if (SOLANA_ADDRESS.test(pasted) || EVM_ADDRESS.test(pasted)) {
@@ -265,7 +273,11 @@ export function parsePasted(text: string): Extract<ParsedInput, { kind: "address
   } catch {
     return null;
   }
-  if (!PASTE_HOSTS.has(host)) return null;
+  if (!PASTE_HOSTS.has(host)) {
+    const p = parseInput(pasted);
+    if (p.kind === "project-url") return p;
+    return null;
+  }
   const p = parseInput(pasted);
   return p.kind === "address" ? p : null;
 }
@@ -338,3 +350,13 @@ export async function searchPairs(query: string, signal?: AbortSignal): Promise<
   const found = await getJson<{ pairs?: DexPair[] | null }>(`/latest/dex/search?q=${encodeURIComponent(query.trim())}`, signal);
   return found.pairs ?? [];
 }
+
+/** The best Solana pair for a mint address, including full info (websites, socials). */
+export async function fetchSolanaPair(mint: string, signal?: AbortSignal): Promise<DexPair | null> {
+  const pairs = await getJson<DexPair[]>(`/tokens/v1/solana/${mint}`, signal).catch(() => null);
+  if (!Array.isArray(pairs)) return null;
+  return bestPairFor("solana", mint, pairs);
+}
+
+/** Solana base58 check, re-exported for callers that only need it. */
+export { SOLANA_ADDRESS };

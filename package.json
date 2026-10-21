@@ -1,7 +1,7 @@
 {
   "name": "trader-companion",
   "private": true,
-  "version": "0.1.17",
+  "version": "0.1.18",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
     "bump": "node scripts/bump.mjs",
     "i18n": "node scripts/i18n.mjs",
     "pack:edition": "node scripts/pack-edition.mjs",
+    "pack:mac": "node scripts/pack-mac.mjs",
     "record-demo": "node scripts/record-demo.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "gifs": "node scripts/record-gifs.mjs",
@@ -24,7 +25,10 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "@types/node": "^24.19.1",
+    "@vitest/browser": "^5.0.3",
     "gifenc": "^1.0.3",
+    "happy-dom": "^21.0.1",
+    "jsdom": "^29.1.1",
     "mp4-muxer": "^5.2.2",
     "puppeteer-core": "^25.13.0",
     "typescript": "^5.6.0",

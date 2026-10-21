@@ -3,7 +3,7 @@
 // Coucou for Windows (MIT, © Louis Raillé); the content is Trader Companion's.
 
 import { Tracked, Spring } from "../core/anim";
-import { Bridge, IS_TAURI, copyImage, type ShowOff } from "../core/bridge";
+import { Bridge, IS_TAURI, copyImage, emitToWindow, type ShowOff } from "../core/bridge";
 import { FULL_NAME } from "../core/brand";
 import { t, tn } from "../core/i18n";
 import { applyTheme, wideFace } from "../core/themes";
@@ -73,6 +73,9 @@ import { shownTabs } from "../views/header";
 import { Tour } from "./tour";
 import { playArrivalFx } from "./greet-fx";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
+import { buildChatOverlay } from "../views/chat";
+import { VoiceChat } from "../voice/voice-chat";
+import { createRecorder } from "../voice/recorder";
 import { DRAG_THRESHOLD } from "../mascot/desktop-logic";
 import { DesktopLink } from "./desktop";
 import { islandDances } from "../core/music";
@@ -146,7 +149,7 @@ const CANVAS_ROLLS: Partial<Record<Motion, { turns: number; seconds: number }>> 
 };
 
 const modeOrder = (m: IslandMode) => (m === "hidden" ? 0 : m === "compact" ? 1 : 2);
-const TAB_VIEWS: ReadonlySet<IslandViewName> = new Set(["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "wardrobe", "music"]);
+const TAB_VIEWS: ReadonlySet<IslandViewName> = new Set(["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "wardrobe", "music", "chat"]);
 
 /** What the mascot does, and which sound plays, when an event pops up. */
 function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: SoundName } {
@@ -187,6 +190,8 @@ function reactionFor(e: CompanionEvent): { mascot: MascotState; sound: SoundName
       return { mascot: "excited", sound: "greet" };
     case "macro":
       return { mascot: "focused", sound: "reminder" };
+    case "research-checklist":
+      return { mascot: "focused", sound: "hmm" };
   }
 }
 
@@ -210,6 +215,9 @@ export class Island {
 
   private header!: ViewHost;
   private views!: Map<IslandViewName, ViewHost>;
+  private chatOverlay!: { el: HTMLElement; sync(panelOpen: boolean): void };
+  private voiceChat!: VoiceChat;
+  private recorder = createRecorder();
 
   private width = new Tracked(HIDDEN_W);
   private height = new Tracked(0);
@@ -546,6 +554,14 @@ export class Island {
     };
 
     this.actions = actions;
+    this.chatOverlay = buildChatOverlay(actions);
+    this.voiceChat = new VoiceChat({
+      react: (state, ms) => this.mascot.react(state as any, ms),
+      say: (text, ms) => this.mascot.say(text, ms),
+      desktopSay: (text, ms) => {
+        if (State.mascotAway) void emitToWindow("desktop", "desktop-say", { text, ms });
+      },
+    });
     this.wakeStrip = h("div", { id: "wake-strip" });
     this.header = buildHeader(actions);
     this.views = buildViews(actions);
@@ -588,7 +604,8 @@ export class Island {
     this.emoteMenu = h("div", { class: "emote-menu", role: "menu" });
     this.emoteMenu.hidden = true;
     this.emoteMenu.tabIndex = -1;
-    this.islandEl = h("div", { id: "island" }, clip, this.captionEl, this.wardrobeBtn, this.mascot.el, this.emoteMenu);
+    // The chat sits over the clip (beside Candy, never cut by it) and under him.
+    this.islandEl = h("div", { id: "island" }, clip, this.chatOverlay.el, this.captionEl, this.wardrobeBtn, this.mascot.el, this.emoteMenu);
     this.root.append(this.wakeStrip, this.islandEl);
     this.labelChrome();
     this.applyGeometry();
@@ -1512,6 +1529,25 @@ export class Island {
         return this.toggleWardrobe();
       case "desktop":
         return this.toggleDesktop();
+      case "chat":
+        return this.toggleChat();
+      case "voice-chat":
+        return this.voiceChat.toggle(
+          () => this.recorder.start(State.companion.micId, (rec) => void this.voiceChat.onAudio(rec)),
+          () => this.recorder.stop(),
+        );
+      case "research-checklist":
+        void Companion.runResearchChecklist().then((err) => { if (err) this.mascot.say(err, 3200); });
+        return;
+    }
+  }
+
+  private toggleChat() {
+    State.minimized = false;
+    if (State.mode === "expanded" && State.view === "chat") {
+      this.collapse();
+    } else {
+      this.openFromKeys("chat");
     }
   }
 
@@ -2260,7 +2296,13 @@ export class Island {
   /** A link or address given to Candy (dropped on him, here or on the desktop, or pasted with the shortcut). */
   async dropped(text: string) {
     Sound.resume();
-    if (parseInput(text).kind !== "address") {
+    const parsedFirst = parseInput(text);
+    if (parsedFirst.kind === "project-url") {
+      this.cue({ kind: "open" });
+      void Companion.analyzeProjectUrl(parsedFirst.url).finally(() => this.cue({ kind: "ready" }));
+      return;
+    }
+    if (parsedFirst.kind !== "address") {
       this.cue({ kind: "puzzled", say: t("hm? drop a token's link or address") });
       this.noteDrop(t("Not a token link or address"), "warn");
       return;
@@ -3149,6 +3191,7 @@ export class Island {
     if (this.panel) this.syncPanel();
 
     this.header.sync();
+    this.chatOverlay.sync(!!this.panel);
     for (const [name, view] of this.views) {
       const on = name === State.view;
       view.el.classList.toggle("on", on);

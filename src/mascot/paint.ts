@@ -163,9 +163,6 @@ export function drawRig(c: CanvasRenderingContext2D, rig: Rig, keep: (op: Op) =>
   const seat = look.melt && look.melt > 0.001 && body && body === rig.body ? meltSeat(rig) : null;
   const seatAt = seat ? rig.ops.indexOf(seat.after) : -1;
   let melted = !seat;
-  // The mouth open under a beak, drawn just before it (see beakOf); else over everything, after.
-  const beak = look.mouth && body ? beakOf(rig) : null;
-  let mouthed = false;
   rig.ops.forEach((op, k) => {
     if (!keep(op)) return;
     if (!melted && k > seatAt) {
@@ -173,10 +170,6 @@ export function drawRig(c: CanvasRenderingContext2D, rig: Rig, keep: (op: Op) =>
       melted = true;
     }
     if (op.part === "mouth" && look.mouth) return;
-    if (op === beak && body) {
-      drawGape(c, rig, beak, body, look);
-      mouthed = true;
-    }
     const turned = body && (op.part === "face" || op.part === "mouth" || op.part === "eyes");
     c.save();
     // Turned with the face, then inside its clips, then under its own transform.
@@ -193,7 +186,7 @@ export function drawRig(c: CanvasRenderingContext2D, rig: Rig, keep: (op: Op) =>
     }
   });
   if (!melted) drawMelt(c, seat!, look, look.melt!);
-  if (look.mouth && body && !mouthed && rig.ops.some((o) => o.part === "mouth")) drawMouth(c, rig, body, look);
+  if (look.mouth && body && rig.ops.some((o) => o.part === "mouth")) drawMouth(c, rig, body, look);
 }
 
 /** Where the wax goes when he melts (drawMelt). */
@@ -210,9 +203,9 @@ export interface MeltSeat {
 
 /**
  * The melt's place on a rig: over the body, its pool as round at the corners
- * as the body is. Skin the art marks (Op.meltOver: the ghost's sheet, the
- * penguin's white face) has the wax run over it instead of hiding it: the
- * melt is drawn after the last of it, and pools under a sheet's hem.
+ * as the body is. Skin the art marks (Op.meltOver: the ghost's sheet, Floki's
+ * white muzzle) has the wax run over it instead of hiding it: the melt is
+ * drawn after the last of it, and pools under a sheet's hem.
  */
 export function meltSeat(rig: Rig): MeltSeat | null {
   const body = rig.body;
@@ -241,32 +234,6 @@ export function meltSeat(rig: Rig): MeltSeat | null {
     ry: Math.max(0, Math.min(ry, body.h / 2)),
     foot,
   };
-}
-
-/**
- * A beak over the mouth (the penguin's upper beak): a filled face shape on the
- * body's middle line, narrow as a mouth, reaching down into the top of the
- * mouth. An open mouth goes under it, so the beak opens rather than vanishing
- * under a round mouth (drawMouth). Null: no beak, the mouth opens over all.
- */
-export function beakOf(rig: Rig): Op | null {
-  const b = rig.body;
-  const own = rig.ops.filter((o) => o.part === "mouth");
-  if (!b || !own.length) return null;
-  const top = Math.min(...own.map((o) => o.box.y));
-  const mid = b.x + b.w / 2;
-  return (
-    rig.ops.find(
-      (o) =>
-        o.part === "face" &&
-        o.fill !== null &&
-        o.shape.kind !== "text" &&
-        Math.abs(centre(o.box).x - mid) < 2 &&
-        o.box.w < b.w * 0.3 &&
-        o.box.y < top &&
-        o.box.y + o.box.h > top + 2,
-    ) ?? null
-  );
 }
 
 /** A flush over a cheek: the same ellipse, a little wider and warmer. */
@@ -835,72 +802,6 @@ function drawMouth(c: CanvasRenderingContext2D, rig: Rig, body: Box, look: Look)
     c.ellipse(x, cy + ry * 0.45, rx * 0.55, ry * 0.35, 0, 0, Math.PI * 2);
     c.fill();
   }
-  c.restore();
-}
-
-/**
- * The mouth under a beak (beakOf), in place of drawMouth's: the beak opens (a
- * swallow, a laugh) or works (chewing). A dark gape with the tongue in it, its
- * top under the upper beak (drawn next, over it), and the lower beak dropped
- * to its bottom, in the upper beak's colours and outline.
- */
-function drawGape(c: CanvasRenderingContext2D, rig: Rig, beak: Op, body: Box, look: Look) {
-  const m = look.mouth!;
-  const ink = rig.ops.find((o) => o.part === "mouth" && o.stroke)?.stroke ?? INK;
-  const b = beak.box;
-  const x = centre(b).x;
-  const k = m.chew > 0 ? 0.2 + m.chew * 0.3 : Math.min(1.2, Math.max(0, m.open));
-  const tip = b.y + b.h;
-  const top = b.y + b.h * 0.45;
-  // Wide open: down toward the chin, never past it (the spring overshoots).
-  const low = Math.min(tip + 1 + k * 13, body.y + body.h - 9);
-  const hw = (b.w / 2) * (0.92 + 0.3 * Math.min(1, k));
-  const f = beak.fill;
-  const color = f && "color" in f ? f.color : (f?.gradient.stops.at(-1)?.color ?? "#f97316");
-  const light = f && "gradient" in f ? f.gradient.stops[0].color : color;
-  const deep = rgbOf(color);
-  c.save();
-  turnTo(c, x, body, look);
-  // The gape: an oval whose top the upper beak hides, so no corner shows beside it.
-  const gy = top + (low - top) * 0.55;
-  const gape = new Path2D();
-  gape.ellipse(x, gy, hw, low - gy, 0, 0, Math.PI * 2);
-  c.fillStyle = ink;
-  c.fill(gape);
-  if (k > 0.3) {
-    c.save();
-    c.clip(gape);
-    c.fillStyle = "#fb7185";
-    c.beginPath();
-    c.ellipse(x, low - 1, hw * 0.62, 2 + k * 3, 0, 0, Math.PI * 2);
-    c.fill();
-    c.restore();
-  }
-  // The lower beak: a rounded scoop along the gape's bottom.
-  const jw = hw * 0.96;
-  const jaw = new Path2D();
-  jaw.moveTo(x - jw, low - 3.4);
-  jaw.quadraticCurveTo(x, low - 1.2, x + jw, low - 3.4);
-  jaw.quadraticCurveTo(x + jw - 1.3, low + 2.8, x, low + 3.4);
-  jaw.quadraticCurveTo(x - jw + 1.3, low + 2.8, x - jw, low - 3.4);
-  jaw.closePath();
-  c.lineJoin = "round";
-  c.fillStyle = deep ? css(mixRGB(deep, [0, 0, 0], 0.08)) : color;
-  c.fill(jaw);
-  if (beak.stroke && beak.strokeWidth > 0) {
-    c.strokeStyle = beak.stroke;
-    c.lineWidth = beak.strokeWidth;
-    c.stroke(jaw);
-  }
-  // Its light edge, as on the art's own lower beak.
-  c.strokeStyle = light;
-  c.globalAlpha = 0.8;
-  c.lineWidth = 1.1;
-  c.lineCap = "round";
-  c.beginPath();
-  c.moveTo(x - jw + 2.4, low - 1.6);
-  c.quadraticCurveTo(x, low - 0.2, x + jw - 2.4, low - 1.6);
-  c.stroke();
   c.restore();
 }
 

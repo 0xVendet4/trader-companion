@@ -78,10 +78,10 @@ describe("costumes", () => {
       expect(costumeName("robot")).toBe("Robô");
       expect(costumeName("dino")).toBe("Dinossauro");
       expect(costumeName("ghost")).toBe("Fantasma");
-      expect(costumeName("penguin")).toBe("Pinguim");
       expect(costumeName("bee")).toBe("Abelha");
       // Gutin is a real pug: his name, in every language.
       expect(costumeName("pug")).toBe("Gutin");
+      expect(costumeName("floki")).toBe("Floki");
       expect(costumeName("gengar")).toBe("Gengar");
       expect(costumeName("none")).toBe("Candy");
       useWords("en", {});
@@ -90,9 +90,9 @@ describe("costumes", () => {
       expect(costumeName("bull")).toBe("Bull");
       expect(costumeName("bear")).toBe("Bear");
       expect(costumeName("ghost")).toBe("Ghost");
-      expect(costumeName("penguin")).toBe("Penguin");
       expect(costumeName("bee")).toBe("Bee");
       expect(costumeName("pug")).toBe("Gutin");
+      expect(costumeName("floki")).toBe("Floki");
     });
 
     it("the bull and the bear go by the animal's word in every language, not the market's English", () => {
@@ -131,7 +131,7 @@ describe("costumes", () => {
 
     it("every common noun is translated, and only those: no character's name is sent to be translated", () => {
       // A merge that drops one of these from the list fails here, not on a screenshot.
-      expect([...NOUN_COSTUMES].sort()).toEqual(["astronaut", "bear", "bee", "bull", "dino", "ghost", "ninja", "penguin", "robot"]);
+      expect([...NOUN_COSTUMES].sort()).toEqual(["astronaut", "bear", "bee", "bull", "dino", "ghost", "ninja", "robot"]);
       for (const id of COSTUME_IDS) {
         // A language that had a word for every name: only the nouns take it.
         useWords("pt", { [COSTUME_NAMES[id]]: "translated" });
@@ -161,8 +161,8 @@ describe("costumes", () => {
     expect(Object.values(manifest.costumes).filter((c) => c.exclusive)).toEqual([]);
   });
 
-  it("the robot, the dinosaur, the bull, the bear, the ghost and the penguin have a face of their own in every mood, with eyes that look and blink", () => {
-    for (const id of ["robot", "dino", "bull", "bear", "ghost", "penguin"]) {
+  it("the robot, the dinosaur, the bull, the bear and the ghost have a face of their own in every mood, with eyes that look and blink", () => {
+    for (const id of ["robot", "dino", "bull", "bear", "ghost"]) {
       const states = manifest.costumes[id].states;
       for (const s of MASCOT_STATES) {
         const def = states[s]!;
@@ -219,29 +219,27 @@ describe("costumes", () => {
     expect(OFFERED_COSTUMES).toEqual(expect.arrayContaining(["bull", "bear"]));
   });
 
-  it("the ghost and the penguin draw every mood their own way, and move when excited", () => {
-    for (const [id, name] of [["ghost", "Ghost"], ["penguin", "Penguin"]] as const) {
-      const states = manifest.costumes[id].states;
-      const seen = new Map<string, string>();
-      for (const s of MASCOT_STATES) {
-        // No mood borrows another's art, and no two frames are the same picture.
-        for (const f of states[s]!.frames) {
-          const svg = readFileSync(join(DIR, f), "utf8");
-          expect(seen.get(svg), `${id}: ${s} draws the same as ${seen.get(svg)}`).toBeUndefined();
-          seen.set(svg, s);
-        }
+  it("the ghost draws every mood its own way, and moves when excited", () => {
+    const states = manifest.costumes.ghost.states;
+    const seen = new Map<string, string>();
+    for (const s of MASCOT_STATES) {
+      // No mood borrows another's art, and no two frames are the same picture.
+      for (const f of states[s]!.frames) {
+        const svg = readFileSync(join(DIR, f), "utf8");
+        expect(seen.get(svg), `${s} draws the same as ${seen.get(svg)}`).toBeUndefined();
+        seen.set(svg, s);
       }
-      // The ghost's hem flutters, the penguin flaps: two frames.
-      expect(states.excited!.frames, id).toEqual([`costumes/${id}/excited-1.svg`, `costumes/${id}/excited-2.svg`]);
-      // Cool is a wink, not focused's steady look.
-      expect(states.cool!.eyes, id).toBe(`costumes/${id}/eyes-wink.svg`);
-      expect(states.cool!.eyes, id).not.toBe(states.focused!.eyes);
-      expect(manifest.costumes[id].name).toBe(name);
-      expect(COSTUME_NAMES[id]).toBe(name);
     }
-    // Both after the dinosaur, then the bee and the pug, a friend's edition last.
-    expect(COSTUME_IDS.slice(-5)).toEqual(["ghost", "penguin", "bee", "pug", "edition"]);
-    expect(OFFERED_COSTUMES).toEqual(expect.arrayContaining(["ghost", "penguin"]));
+    // The hem flutters: two frames.
+    expect(states.excited!.frames).toEqual(["costumes/ghost/excited-1.svg", "costumes/ghost/excited-2.svg"]);
+    // Cool is a wink, not focused's steady look.
+    expect(states.cool!.eyes).toBe("costumes/ghost/eyes-wink.svg");
+    expect(states.cool!.eyes).not.toBe(states.focused!.eyes);
+    expect(manifest.costumes.ghost.name).toBe("Ghost");
+    expect(COSTUME_NAMES.ghost).toBe("Ghost");
+    // The ghost, then the bee, the pug and Floki, a friend's edition last.
+    expect(COSTUME_IDS.slice(-5)).toEqual(["ghost", "bee", "pug", "floki", "edition"]);
+    expect(OFFERED_COSTUMES).toEqual(expect.arrayContaining(["ghost"]));
   });
 
   it("the bee has a face of its own in every mood, and its wings beat when excited, cheering or waving", () => {
@@ -325,15 +323,55 @@ describe("costumes", () => {
     expect(OFFERED_COSTUMES).toContain("pug");
   });
 
+  it("Floki the viking shiba has a face of his own in every mood, and his tail wags when excited, cheering or waving", () => {
+    const floki = manifest.costumes.floki;
+    expect(floki.name).toBe("Floki");
+    // His mouth sits lower than Candy's: what is held in it goes down with it.
+    expect((floki as { mouthDrop?: number }).mouthDrop).toBe(7);
+    const states = floki.states;
+    const seen = new Map<string, string>();
+    for (const s of MASCOT_STATES) {
+      const def = states[s]!;
+      // Each mood its own frame (wave, celebrate and excited, two), no two the same picture.
+      expect(def.frames.map((f) => f.replace(/-\d\.svg$/, ".svg")), s).toEqual(def.frames.map(() => `costumes/floki/${s}.svg`));
+      for (const f of def.frames) {
+        const svg = readFileSync(join(DIR, f), "utf8");
+        expect(seen.get(svg), `${s} draws the same as ${seen.get(svg)}`).toBeUndefined();
+        seen.set(svg, s);
+      }
+      // Eyes of his own, not Candy's; Candy's motion and effect.
+      for (const e of [def.eyes, def.eyesBlink].filter(Boolean)) expect(e!.startsWith("costumes/floki/eyes-"), `${s}: ${e}`).toBe(true);
+      expect(def.motion, s).toBe(manifest.states[s]?.motion);
+      expect(def.fx, s).toBe(manifest.states[s]?.fx);
+    }
+    expect(states.idle?.eyes && states.idle?.eyesBlink).toBeTruthy();
+    expect(MASCOT_STATES.filter((s) => states[s]?.eyes).length).toBeGreaterThan(12);
+    // Cool is a wink, not focused's steady look.
+    expect(states.cool?.eyes).toBe("costumes/floki/eyes-wink.svg");
+    expect(states.cool?.eyes).not.toBe(states.focused?.eyes);
+    const wagging = /<g transform="rotate\(-?\d+ 98 92\)">/g;
+    for (const s of ["excited", "celebrate", "wave"] as const) {
+      const frames = states[s]!.frames;
+      expect(frames, s).toHaveLength(2);
+      // The tail swings between the two frames: the same Floki, the tail turned in the first.
+      const [turned, straight] = frames.map((f) => readFileSync(join(DIR, f), "utf8"));
+      expect(turned.match(wagging), s).toHaveLength(1);
+      expect(straight.match(wagging), s).toBeNull();
+    }
+    expect(readFileSync(join(DIR, states.idle!.frames[0]), "utf8").match(wagging)).toBeNull();
+    expect(states.excited?.fps).toBe(4);
+    expect(OFFERED_COSTUMES).toContain("floki");
+  });
+
   it("older or hand-edited settings fall back to Candy, renamed costumes stay on", () => {
     expect(normalizeSettings({ companion: { costume: "bee" } } as never).companion.costume).toBe("bee");
+    expect(normalizeSettings({ companion: { costume: "floki" } } as never).companion.costume).toBe("floki");
     expect(normalizeSettings({ companion: { costume: "pug" } } as never).companion.costume).toBe("pug");
     expect(normalizeSettings({ companion: { costume: "robot" } } as never).companion.costume).toBe("robot");
     expect(normalizeSettings({ companion: { costume: "dino" } } as never).companion.costume).toBe("dino");
     expect(normalizeSettings({ companion: { costume: "bull" } } as never).companion.costume).toBe("bull");
     expect(normalizeSettings({ companion: { costume: "bear" } } as never).companion.costume).toBe("bear");
     expect(normalizeSettings({ companion: { costume: "ghost" } } as never).companion.costume).toBe("ghost");
-    expect(normalizeSettings({ companion: { costume: "penguin" } } as never).companion.costume).toBe("penguin");
     // The colour called Ghost is a colour: as a costume id it is the ghost, and the colour stays as it was.
     const both = normalizeSettings({ companion: { skin: "ghost", costume: "none" } } as never).companion;
     expect([both.skin, both.costume]).toEqual(["ghost", "none"]);

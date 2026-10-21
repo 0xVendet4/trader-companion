@@ -16,9 +16,10 @@ import bear from "./costumes/bear.mjs";
 import bee from "./costumes/bee.mjs";
 import bull from "./costumes/bull.mjs";
 import dino from "./costumes/dino.mjs";
+import floki from "./costumes/floki.mjs";
 import ghost from "./costumes/ghost.mjs";
+import maxHeadroom from "./costumes/max-headroom.mjs";
 import ninja from "./costumes/ninja.mjs";
-import penguin from "./costumes/penguin.mjs";
 import pug from "./costumes/pug.mjs";
 import robot from "./costumes/robot.mjs";
 
@@ -2033,9 +2034,10 @@ MANIFEST.costumes = {
 // Costumes drawn in modules of their own (scripts/costumes/<id>.mjs): each is
 // handed the same kit of shared parts and gives back its name, its files
 // (frames, eye layers, still.svg) and a look for every mood. A new costume is
-// one import and one entry in DRAWN.
+// one import and one entry in DRAWN. One drawn by hand (Max Headroom) gives
+// back no files, only its look: its frames are already in costumes/<id>/.
 const KIT = { EYES, EYE_LAYERS, BROWS, MOUTHS, EXTRAS, INK, RIM, mirror, stopSign, star, heart, turned, wrap };
-const DRAWN = { astronaut, ninja, robot, dino, bull, bear, ghost, penguin, bee, pug };
+const DRAWN = { astronaut, ninja, robot, dino, bull, bear, "max-headroom": maxHeadroom, ghost, bee, pug, floki };
 const DRAWN_FILES = {};
 for (const [id, draw] of Object.entries(DRAWN)) {
   const dir = `costumes/${id}/`;

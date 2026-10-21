@@ -376,6 +376,158 @@ body.passing #island {
   display: block;
 }
 
+/* ── Floating chat overlay ──────────────────────────────────────────────────
+   Lives inside #island but outside #island-clip, so it paints over the
+   island's own background (black / --island-bg). */
+#chat-overlay {
+  position: absolute;
+  left: 150px;
+  top: 44px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.16s ease;
+  z-index: 2;
+}
+
+#chat-overlay.chat-visible {
+  transform: scaleX(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-ol-nokey {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  text-align: center;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.chat-ol-nokey p {
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.chat-ol-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 14px 10px;
+  overflow: hidden;
+}
+
+.chat-ol-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-bottom: 4px;
+}
+
+.chat-msg {
+  max-width: 88%;
+  padding: 7px 11px;
+  border-radius: 12px;
+  line-height: 1.45;
+  font-size: 12px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #000;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-msg.assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  border-bottom-left-radius: 4px;
+}
+
+/* Under each of Candy's answers: report it to the developer (reportUrl). */
+.chat-report {
+  display: block;
+  margin: 3px 0 -1px auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim-2);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.chat-report:hover {
+  color: var(--dim);
+  text-decoration: underline;
+}
+
+.chat-ol-error {
+  font-size: 11px;
+  color: var(--down);
+  min-height: 0;
+  padding: 3px 0;
+}
+
+.chat-ol-foot {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.chat-ol-clear {
+  font-size: 10px;
+  padding: 3px 7px;
+  opacity: 0.55;
+  align-self: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chat-ol-clear:hover {
+  opacity: 1;
+}
+
+.chat-ol-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.chat-ol-input:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 .empty {
   margin: 10px 0 12px;
   color: var(--dim);
@@ -1432,7 +1584,7 @@ body.passing #island {
   position: absolute;
   top: calc(100% + 6px);
   left: 50%;
-  max-width: 128px;
+  max-width: min(280px, 90vw);
   width: max-content;
   padding: 4px 9px;
   border-radius: 10px;
@@ -3196,10 +3348,10 @@ body[data-placement="top"] .panel-icon {
   aspect-ratio: 6 / 5;
 }
 
-/* Fifteen costumes (the pug made it fifteen): eight to a row on the island,
-   open or compact, so two rows show them all with nothing to scroll to; the
-   sidebar keeps its five, three full rows. The names are a little smaller
-   on the narrower cards (Astronaut, Dinosaur, Spiderman fit at 9 px). */
+/* Sixteen costumes (Floki and Max Headroom made it sixteen): eight to a row
+   on the island, open or compact, so two full rows show them all with nothing
+   to scroll to. The names are a little smaller on the narrower cards
+   (Astronaut, Dinosaur, Spiderman fit at 9 px). */
 body:not(.sidebar) .wardrobe-grid.costumes:has(> .look:nth-child(15)) {
   grid-template-columns: repeat(8, minmax(0, 1fr));
 }
@@ -3541,24 +3693,34 @@ body[data-placement="right"] #content {
   grid-template-columns: repeat(5, 1fr);
 }
 
-/* Eleven to fourteen costumes (all of them, no friend's edition): seven to a
-   row, two full rows rather than three with the last one part empty. The
-   cards are narrower, so the pictures are a little taller than wide and the
-   name takes the card's whole width (Dinossauro, Космонавт fit at 9 px). */
+/* Eleven to fourteen costumes: seven to a row; sixteen or more (all of them,
+   Floki and Max Headroom included): eight, as on the island. Two full rows
+   rather than three with the last one part empty; fifteen keeps the five,
+   three full rows. The cards are narrower, so the pictures are a little
+   taller than wide and the name takes the card's whole width (Dinossauro,
+   Космонавт fit at 9 px). */
 .sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 2px;
 }
 
-.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look {
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look,
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) .look {
   padding: 3px 3px 2px;
 }
 
-.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .mini-candy {
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .mini-candy,
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) .mini-candy {
   aspect-ratio: 1;
 }
 
-.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look-name {
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(11)):not(:has(> .look:nth-child(15))) .look-name,
+.sidebar .wardrobe-grid.costumes:has(> .look:nth-child(16)) .look-name {
   margin: 2px -3px 0;
   font-size: 9px;
   letter-spacing: -0.03em;

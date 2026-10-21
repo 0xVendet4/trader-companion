@@ -5,6 +5,7 @@
 // computed in the page from public market data; Rust only places windows,
 // stores preferences and opens links.
 
+mod browser;
 mod calendar;
 mod chart;
 mod desktop;
@@ -1107,7 +1108,254 @@ mod rpc_tests {
     }
 }
 
-// ── Windows ───────────────────────────────────────────────────────────────────
+// ── Project URL analysis ──────────────────────────────────────────────────────
+
+/// HTTP client for page fetches, RDAP and DoH: kept alive and reused.
+fn web_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .user_agent("Mozilla/5.0 (compatible; Candy/1.0)")
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+/// True when the host is a loopback, private or link-local address that must
+/// never be fetched from a user-supplied URL (SSRF guard).
+fn is_private_host(host: &str) -> bool {
+    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
+        let o = addr.octets();
+        return o[0] == 127
+            || o[0] == 10
+            || (o[0] == 172 && (16..=31).contains(&o[1]))
+            || (o[0] == 192 && o[1] == 168)
+            || (o[0] == 169 && o[1] == 254)
+            || o[0] == 0;
+    }
+    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
+        let s = addr.segments();
+        return addr == std::net::Ipv6Addr::LOCALHOST || s[0] == 0 || s[0] == 0xfe80;
+    }
+    matches!(host, "localhost" | "localhost." | "broadcasthost")
+        || host.ends_with(".local")
+        || host.ends_with(".localhost")
+        || host.ends_with(".internal")
+}
+
+fn is_safe_project_url(raw: &str) -> bool {
+    let Ok(url) = Url::parse(raw) else { return false };
+    if url.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = url.host_str() else { return false };
+    !is_private_host(host)
+}
+
+/// Fetches the HTML of an https URL for project analysis.
+/// Rejects private/loopback hosts. Capped at 1 MB; 10 s timeout.
+#[tauri::command]
+async fn fetch_page(url: String) -> Result<String, String> {
+    if !is_safe_project_url(&url) {
+        return Err("URL not allowed".to_string());
+    }
+    const MAX_BYTES: usize = 1_048_576;
+    let res = web_client()
+        .get(&url)
+        .header("Accept", "text/html,application/xhtml+xml,*/*")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("HTTP {}", res.status().as_u16()));
+    }
+    let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+    let body = if bytes.len() > MAX_BYTES { &bytes[..MAX_BYTES] } else { &bytes[..] };
+    Ok(String::from_utf8_lossy(body).into_owned())
+}
+
+/// RDAP lookup for a domain via rdap.iana.org (no API key).
+#[tauri::command]
+async fn rdap_lookup(domain: String) -> Result<serde_json::Value, String> {
+    if domain.is_empty()
+        || domain.len() > 253
+        || !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        return Err("Invalid domain".to_string());
+    }
+    let url = format!("https://rdap.iana.org/domain/{domain}");
+    let res = web_client()
+        .get(&url)
+        .header("Accept", "application/rdap+json, application/json")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("RDAP returned {}", res.status().as_u16()));
+    }
+    res.json().await.map_err(|e| e.to_string())
+}
+
+/// DNS-over-HTTPS lookup via Cloudflare for one record type (A, AAAA, MX or TXT).
+#[tauri::command]
+async fn dns_lookup(domain: String, record_type: String) -> Result<serde_json::Value, String> {
+    if !matches!(record_type.as_str(), "A" | "AAAA" | "MX" | "TXT") {
+        return Err(format!("record type {record_type} not allowed"));
+    }
+    if domain.is_empty()
+        || domain.len() > 253
+        || !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        return Err("Invalid domain".to_string());
+    }
+    let url = format!("https://cloudflare-dns.com/dns-query?name={domain}&type={record_type}");
+    let res = web_client()
+        .get(&url)
+        .header("Accept", "application/dns-json")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("DoH returned {}", res.status().as_u16()));
+    }
+    res.json().await.map_err(|e| e.to_string())
+}
+
+/// Forward a Chat Completions request to OpenAI from Rust, bypassing CSP.
+/// `api_key` is never logged. Returns the assistant's text content on success.
+#[tauri::command]
+async fn openai_chat(api_key: String, body: String) -> Result<String, String> {
+    if api_key.is_empty() {
+        return Err("No API key".to_string());
+    }
+    let res = web_client()
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("network:{e}"))?;
+    let status = res.status().as_u16();
+    if status == 401 {
+        return Err("invalid-key".to_string());
+    }
+    // 429 = rate limit; 402 = no credits / billing issue — both surface as quota errors.
+    if status == 429 || status == 402 {
+        return Err("rate-limit".to_string());
+    }
+    if !res.status().is_success() {
+        return Err(format!("status:{status}"));
+    }
+    res.text().await.map_err(|e| e.to_string())
+}
+
+/// Sends a voice recording to OpenAI's transcription endpoint and returns what
+/// was said. `audio` is the page's recording in base64 (webm, mp4, ogg or wav),
+/// `mime` its media type and `lang` the two-letter language Candy speaks.
+/// `api_key` is never logged.
+#[tauri::command]
+async fn openai_transcribe(api_key: String, audio: String, mime: String, lang: String) -> Result<String, String> {
+    use base64::Engine;
+    if api_key.is_empty() {
+        return Err("No API key".to_string());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(audio.as_bytes())
+        .map_err(|_| "bad-audio".to_string())?;
+    if bytes.is_empty() {
+        return Err("bad-audio".to_string());
+    }
+    let (body, content_type) = transcription_form(&bytes, &mime, &lang);
+    let res = web_client()
+        .post("https://api.openai.com/v1/audio/transcriptions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", content_type)
+        // A minute of speech takes a while to upload and to write down.
+        .timeout(std::time::Duration::from_secs(60))
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("network:{e}"))?;
+    let status = res.status().as_u16();
+    if status == 401 {
+        return Err("invalid-key".to_string());
+    }
+    if status == 429 || status == 402 {
+        return Err("rate-limit".to_string());
+    }
+    if !res.status().is_success() {
+        return Err(format!("status:{status}"));
+    }
+    let text = res.text().await.map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&text).map_err(|_| "status:?".to_string())?;
+    Ok(json.get("text").and_then(|v| v.as_str()).unwrap_or("").trim().to_string())
+}
+
+/// The multipart form the transcription endpoint takes: the model, the language
+/// when it is one, and the recording under a name that tells its format.
+fn transcription_form(audio: &[u8], mime: &str, lang: &str) -> (Vec<u8>, String) {
+    const BOUNDARY: &str = "----CandyVoice7f3a9c2e51";
+    let container = mime.split(';').next().unwrap_or("").trim();
+    let container = if !container.is_empty() && container.chars().all(|c| c.is_ascii_alphanumeric() || "/.+-".contains(c)) {
+        container
+    } else {
+        "application/octet-stream"
+    };
+    let ext = match container {
+        "audio/mp4" => "mp4",
+        "audio/ogg" => "ogg",
+        "audio/wav" | "audio/wave" | "audio/x-wav" => "wav",
+        _ => "webm",
+    };
+    let mut body = Vec::with_capacity(audio.len() + 512);
+    let mut field = |name: &str, value: &str| {
+        body.extend_from_slice(format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes());
+    };
+    field("model", "gpt-4o-mini-transcribe");
+    if (2..=3).contains(&lang.len()) && lang.bytes().all(|b| b.is_ascii_lowercase()) {
+        field("language", lang);
+    }
+    body.extend_from_slice(
+        format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"speech.{ext}\"\r\nContent-Type: {container}\r\n\r\n").as_bytes(),
+    );
+    body.extend_from_slice(audio);
+    body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
+    (body, format!("multipart/form-data; boundary={BOUNDARY}"))
+}
+
+#[cfg(test)]
+mod transcription_tests {
+    use super::transcription_form;
+
+    #[test]
+    fn the_form_carries_the_model_the_language_and_the_file() {
+        let (body, content_type) = transcription_form(b"RIFFdata", "audio/wav", "pt");
+        let text = String::from_utf8_lossy(&body);
+        assert!(content_type.starts_with("multipart/form-data; boundary=----CandyVoice"));
+        assert!(text.contains("name=\"model\"\r\n\r\ngpt-4o-mini-transcribe\r\n"));
+        assert!(text.contains("name=\"language\"\r\n\r\npt\r\n"));
+        assert!(text.contains("name=\"file\"; filename=\"speech.wav\"\r\nContent-Type: audio/wav\r\n\r\nRIFFdata\r\n"));
+        assert!(text.ends_with("--\r\n"));
+        assert_eq!(text.matches("------CandyVoice").count(), 4);
+    }
+
+    #[test]
+    fn the_file_is_named_by_its_container_and_a_bad_language_is_left_out() {
+        let (body, _) = transcription_form(b"x", "audio/webm;codecs=opus", "pt-BR");
+        let text = String::from_utf8_lossy(&body);
+        assert!(text.contains("filename=\"speech.webm\"\r\nContent-Type: audio/webm\r\n"));
+        assert!(!text.contains("name=\"language\""));
+        let (body, _) = transcription_form(b"x", "audio/mp4", "ja");
+        assert!(String::from_utf8_lossy(&body).contains("filename=\"speech.mp4\""));
+        let (body, _) = transcription_form(b"x", "evil\r\nX: y", "en");
+        let text = String::from_utf8_lossy(&body);
+        assert!(text.contains("filename=\"speech.webm\"\r\nContent-Type: application/octet-stream\r\n"));
+    }
+}
+
+// ── Settings window ───────────────────────────────────────────────────────────
 
 /// WebView2 allows exactly one browser environment per app, and its options are
 /// fixed by whichever webview is created first. Every window (Candy's desktop
@@ -1126,6 +1374,12 @@ pub fn run() {
             let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        // The voice chat records in the page (src/voice/recorder.ts): the webview
+        // may use the microphone. The system itself still asks the first time.
+        .on_permission_request(|_, kind| match kind {
+            tauri::webview::PermissionKind::Microphone => tauri::webview::PermissionResponse::Allow,
+            _ => tauri::webview::PermissionResponse::Default,
+        })
         // The global shortcuts, registered from the page (src/core/hotkey.ts).
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         // Windows notifications for alerts (src/core/notify.ts).
@@ -1178,10 +1432,16 @@ pub fn run() {
             ohlcv,
             start_update,
             solana_rpc,
+            fetch_page,
             evm_rpc,
             set_panel,
             panel_place,
             panel_closing,
+            rdap_lookup,
+            dns_lookup,
+            openai_chat,
+            openai_transcribe,
+            browser::get_active_tab_url,
         ])
         .setup(move |app| {
             // A menu bar app on a Mac: no Dock icon, no menu bar of its own (Info.plist says so too).

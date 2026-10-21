@@ -127,6 +127,12 @@ class DesktopCandy {
       this.stage.style.transition = "";
       this.stage.style.opacity = "1";
     });
+    // AI result: show a brief teaser in the speech bubble beside him.
+    await onEvent<{ text: string; ms: number }>(DESKTOP_EVENTS.say, (p) => {
+      if (!this.visible) return;
+      this.wakeUp();
+      this.mascot.say(p.text, p.ms);
+    });
     // Asked once everything listens: a window shown while this page was still
     // loading (at launch, or after a reload) would otherwise stay blank.
     const info = await Bridge.desktopInfo();

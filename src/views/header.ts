@@ -16,13 +16,13 @@ import { fngTone } from "../market/sentiment";
 import { chipWord, nextRelease, releases, untilShort, weekLines } from "../market/calendar";
 import { currentLog, dayPill, summarize } from "../discipline/discipline";
 
-const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music"];
+const TAB_VIEWS: IslandViewName[] = ["watchlist", "trending", "alerts", "positions", "wallets", "discipline", "music", "chat"];
 
-/** The tabs the header shows right now, in order: Following is an option, Music needs a player on the PC. */
+/** The tabs the header shows right now, in order: Following is an option, Music needs a player on the PC, Chat an OpenAI key. */
 export function shownTabs(): IslandViewName[] {
   const c = State.companion;
   return TAB_VIEWS.filter(
-    (v) => (v !== "wallets" || c.following) && (v !== "music" || (c.musicCard && !!State.nowPlaying)) && (v !== "discipline" || c.disciplineOn),
+    (v) => (v !== "wallets" || c.following) && (v !== "music" || (c.musicCard && !!State.nowPlaying)) && (v !== "discipline" || c.disciplineOn) && (v !== "chat" || !!c.openaiKey),
   );
 }
 
@@ -51,6 +51,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     wallets: tab("wallets", ICONS.eye, t("Following"), 2),
     discipline: tab("discipline", ICONS.shield, t("Discipline")),
     music: tab("music", ICONS.note, t("Music")),
+    chat: tab("chat", ICONS.bubble, t("Chat")),
   };
 
   // The day against the trader's own limits; a click opens Discipline.
