@@ -123,25 +123,6 @@ kbd { font: 600 13px/1 Inter, sans-serif; padding: 3px 7px; border-radius: 6px; 
 .cards .alt { color: var(--dim-2); font-size: 14px; }
 .cards .alt:hover { color: var(--ink); }
 
-/* $CANDY */
-.token { max-width: var(--max); margin: 0 auto; padding: 100px 24px 10px; }
-.token-card {
-  display: grid; grid-template-columns: 260px 1fr; gap: 56px; align-items: center;
-  padding: 48px 56px; border-radius: 28px;
-  background: radial-gradient(600px 360px at 10% 50%, rgba(34, 197, 94, 0.22), transparent 70%), linear-gradient(180deg, #0d1424, #080b14);
-  border: 1px solid rgba(34, 197, 94, 0.25);
-}
-.token-candy { width: 220px; margin: 0 auto; transform: rotate(-5deg); filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.6)); }
-.kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--green-2); }
-.token h2 { margin-top: 8px; font-size: clamp(56px, 8vw, 96px); letter-spacing: -0.05em; background: linear-gradient(180deg, var(--green-3), var(--green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.label { margin-top: 22px; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim-2); }
-.ca { margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 18px; border-radius: 14px; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); }
-.ca code { flex: 1; min-width: 0; overflow-wrap: anywhere; font: 600 clamp(13px, 1.6vw, 18px)/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-.ca button { flex: none; padding: 9px 16px; border-radius: 10px; border: 0; background: var(--green); color: #05070d; font: 700 14px Inter, sans-serif; cursor: pointer; }
-.ca button.done { background: var(--green-3); }
-.token-links { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
-.note { margin-top: 18px; color: var(--dim-2); font-size: 14px; }
-
 /* Footer */
 footer { max-width: var(--max); margin: 110px auto 0; padding: 30px 24px 48px; display: flex; align-items: center; gap: 24px; border-top: 1px solid var(--line); color: var(--dim-2); font-size: 14px; }
 footer .brand { font-size: 17px; color: var(--ink); }
@@ -163,10 +144,6 @@ footer nav a:hover { color: var(--ink); }
   .features article:nth-child(even) .text { order: 0; }
   .features figure { padding: 16px; }
   .cards { grid-template-columns: 1fr; }
-  .token-card { grid-template-columns: 1fr; padding: 32px 22px; gap: 20px; text-align: center; }
-  .token-candy { width: 140px; }
-  .ca { flex-direction: column; align-items: stretch; padding: 14px; }
-  .token-links { justify-content: center; }
   footer { flex-direction: column; gap: 14px; }
   footer nav { margin-left: 0; }
 }

@@ -1,20 +1,3 @@
-// Copy the contract address.
-const copy = document.getElementById("copy");
-copy?.addEventListener("click", async () => {
-  const ca = document.getElementById("ca")?.textContent?.trim() ?? "";
-  try {
-    await navigator.clipboard.writeText(ca);
-    copy.textContent = "Copied";
-    copy.classList.add("done");
-    setTimeout(() => {
-      copy.textContent = "Copy";
-      copy.classList.remove("done");
-    }, 1600);
-  } catch {
-    getSelection()?.selectAllChildren(document.getElementById("ca"));
-  }
-});
-
 // Try it, or watch the tour, in the same screen. Phones can't click around
 // the desk, so they start on the tour.
 const screen = document.querySelector(".screen");
